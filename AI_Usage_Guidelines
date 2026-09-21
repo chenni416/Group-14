@@ -1,0 +1,22 @@
+AI Usage Guidelines — Draft v1 (Claude for Code, Gemini for Documents)
+Section 1 — What AI tools we plan to use, and what we will use each for
+We will use Claude (via API or claude.ai) to generate boilerplate CRUD endpoints and first-draft unit tests — not for anything touching authentication or payment logic, which a human writes from scratch.
+We will use Claude for quick syntax checks and one-off debugging questions — not as a substitute for human review before code is merged to main.
+We will use Claude to brainstorm and compare architecture options before we commit to a design — not to make the final call; that's a team discussion, recorded in DECISIONS.md.
+We will use Claude to generate an initial test skeleton for a new module — a human adds edge cases and confirms coverage before it counts as done.
+We will use Gemini to draft the first pass of docstrings, API documentation, and README content — a human always reviews and edits before it's merged.
+We will use Gemini to draft and revise other project documents (e.g. meeting notes, spec write-ups, user-facing guides) — not to make final wording decisions on anything binding, like DECISIONS.md entries, which a human writes.
+We will not use either tool's output as a substitute for writing the PR description or DECISIONS.md entry ourselves.
+Section 2 — How we will document AI interactions
+Every prompt used to generate code that ends up in the repo goes in the prompt engineering log: the prompt text, the model used (Claude Sonnet 4.6 / Haiku), and what we kept vs. changed.
+Every prompt used to generate documentation content that ends up in the repo or shared docs also goes in the prompt engineering log: the prompt text, the model used (Gemini), and what we kept vs. changed.
+One-off debugging questions, syntax lookups, or quick phrasing suggestions don't need a log entry — only prompts that produced code, text, or decisions that ended up in the repo.
+The PR description's "what this PR does" field always names whether Claude or Gemini was involved, even in one sentence — it's not a copy of the full log entry, just a pointer to it.
+If a Claude or Gemini suggestion changed our actual approach — for example, Claude proposed a different data model, or Gemini's draft reframed a spec's scope — that's a DECISIONS.md entry, not just a prompt log entry.
+Section 3 — How we will handle disagreements about AI output quality
+If two engineers disagree about whether Claude-generated code is good enough to merge, the code steward has final say — not whoever wrote the prompt, and not whoever has more experience.
+If two members disagree about whether Gemini-generated document content is good enough to publish or merge, the doc steward has final say — not whoever wrote the prompt, and not whoever has more experience.
+Evidence required for a code merge decision: passes the existing test suite, passes the PR review checklist, and can be explained by someone other than whoever generated it.
+Evidence required for a document to be finalized: accurately reflects the team's actual decisions (cross-checked against DECISIONS.md), and can be explained by someone other than whoever generated it.
+If the disagreement is about style or preference rather than correctness/accuracy, we defer to the team's existing style guide (for code) or documentation template (for docs) rather than debating it case by case.
+A vote is not evidence. If the team can't resolve it using the criteria above, the relevant steward's call is final, and gets one sentence in DECISIONS.md explaining why.
