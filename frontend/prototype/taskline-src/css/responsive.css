@@ -1,0 +1,39 @@
+/* 響應式：平板與手機寬度的版面調整（需最後載入） */
+/* ---------- responsive ---------- */
+@media (max-width:1560px){.flow .arr{display:none}.logo{min-width:0}}
+@media (max-width:1320px){
+  .dash{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .dash .mytasks{grid-row:auto;grid-column:1/-1}
+  .dash .mytasks .plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+  .search{width:46px;padding:0 13px}.search input{width:0}.search:focus-within{width:220px}.search:focus-within input{width:100%}
+}
+@media (max-width:1100px){
+  .split,.g2,.g2e,.g2r{grid-template-columns:minmax(0,1fr)}
+  .sticky{position:static}
+  .sgrid{display:block;overflow-y:auto}
+  .sleft{overflow:visible;margin-bottom:16px;padding-right:0}
+  .chat{min-height:520px}
+  .meta{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hdr .search{display:none}
+}
+@media (max-width:860px){
+  body{padding:0}
+  .shell{border-radius:0;min-height:100vh;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto 1fr}
+  .hdr{flex-wrap:wrap;padding:14px 16px 6px;gap:10px}
+  .logo{min-width:0}
+  .flow{order:3;width:100%;margin:0}
+  .hr{margin-left:auto}
+  .me .nm,.me .rl{display:none}.me{padding:0 5px}
+  .sbar{grid-row:3;flex-direction:row;overflow-x:auto;padding:6px 16px;gap:8px;scrollbar-width:none}
+  .sbar .sep{display:none}.sbtn{width:44px;height:44px}.sbtn .tip{display:none}
+  main{grid-row:4;padding:10px 16px 40px}
+  .ph h1{font-size:32px}.ph .s{font-size:15px}
+  .dash{grid-template-columns:minmax(0,1fr)}
+  .dash .wide{grid-column:auto}
+  .sub-b{grid-template-columns:minmax(0,1fr)}
+  .story{margin-left:4px;padding-left:10px}
+  .studio{inset:0;border-radius:0}
+  .sh{padding:16px}
+  .sgrid{padding:0 12px 12px}
+  .card{padding:18px;border-radius:24px}
+}

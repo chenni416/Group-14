@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>taskline · Project Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pages.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+<div class="shell">
+  <header class="hdr">
+    <div class="logo" data-a="go" data-v="dashboard">
+      <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><rect x="3" y="7" width="22" height="22" rx="11" fill="#f28c3a"/><rect x="11" y="7" width="22" height="22" rx="11" fill="#4689f5" opacity=".85"/><path d="M14 18h8" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>
+      <div><b>taskline</b><small>NYCU ATLAB</small></div>
+    </div>
+    <nav class="flow" id="flow" aria-label="流程"></nav>
+    <div class="hr">
+      <div class="search"><svg class="i" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="搜尋任務、成員…" autocomplete="off"><div class="sres" id="sres"></div></div>
+      <div class="me" id="meBox"></div>
+    </div>
+  </header>
+  <aside class="sbar" id="sbar"></aside>
+  <main id="main"></main>
+</div>
+<div class="ov" id="ov" data-a="closeStudio"></div>
+<section class="studio" id="studio" aria-label="Task Detail Studio"></section>
+<div class="modal" id="modal" data-a="modalBg"><div class="box" id="mbox"></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileKB" multiple hidden>
+<input type="file" id="fileNotes" accept=".md,.txt" hidden>
+
+
+<!-- JS 載入順序有相依性：core → ui → views → actions/events → main -->
+<script src="js/core/utils.js"></script>
+<script src="js/core/config.js"></script>
+<script src="js/core/state.js"></script>
+<script src="js/core/ai.js"></script>
+<script src="js/core/workflow.js"></script>
+<script src="js/ui/components.js"></script>
+<script src="js/views/dashboard.js"></script>
+<script src="js/views/team.js"></script>
+<script src="js/views/onboard.js"></script>
+<script src="js/views/planning.js"></script>
+<script src="js/views/inbox.js"></script>
+<script src="js/views/board.js"></script>
+<script src="js/views/studio.js"></script>
+<script src="js/ui/modal.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/events.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
