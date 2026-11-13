@@ -1,0 +1,20 @@
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { AppShell } from '@/components/layout/AppShell';
+import { PageSkeleton } from '@/components/ui';
+
+/** 每個頁面獨立切 chunk，首屏只載入需要的程式碼 */
+export const router = createBrowserRouter([
+  {
+    element: <AppShell />,
+    HydrateFallback: PageSkeleton,
+    children: [
+      { index: true, lazy: () => import('@/features/dashboard/DashboardPage').then((m) => ({ Component: m.DashboardPage })) },
+      { path: 'board', lazy: () => import('@/features/board/BoardPage').then((m) => ({ Component: m.BoardPage })) },
+      { path: 'planning', lazy: () => import('@/features/planning/PlanningPage').then((m) => ({ Component: m.PlanningPage })) },
+      { path: 'inbox', lazy: () => import('@/features/inbox/InboxPage').then((m) => ({ Component: m.InboxPage })) },
+      { path: 'team', lazy: () => import('@/features/team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
+      { path: 'onboarding', lazy: () => import('@/features/onboarding/OnboardingPage').then((m) => ({ Component: m.OnboardingPage })) },
+      { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
+]);
