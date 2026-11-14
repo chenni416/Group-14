@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { isUnfinished } from '@/lib/planning';
 import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services';
 import { BOARD_STATES, type Member, type Task } from '@/types';
@@ -10,6 +11,16 @@ export const useOrganization = () => useQuery({ queryKey: queryKeys.org, queryFn
 export const useProject = () => useQuery({ queryKey: queryKeys.project, queryFn: api.workspace.getProject });
 export const useSprints = () => useQuery({ queryKey: queryKeys.sprints, queryFn: api.sprints.list });
 export const useTasks = () => useQuery({ queryKey: queryKeys.tasks, queryFn: api.tasks.list });
+export const useBacklog = () => useQuery({ queryKey: queryKeys.backlog, queryFn: api.sprints.backlog });
+
+/** AI 相依性分析：任務變動時（tasks 快取失效）一併重新計算 */
+export const useDependencies = (sprintId: number | undefined) =>
+  useQuery({
+    queryKey: sprintId == null ? ['sprints', 'none', 'dependencies'] : queryKeys.dependencies(sprintId),
+    queryFn: () => api.sprints.dependencies(sprintId!),
+    enabled: sprintId != null,
+  });
+
 export const useNotifications = () =>
   useQuery({ queryKey: queryKeys.notifications, queryFn: api.notifications.list });
 
@@ -40,7 +51,18 @@ export function useSprintContext() {
     const boardTasks = all.filter(
       (t) => t.sprintId === active?.id && (BOARD_STATES as readonly string[]).includes(t.state),
     );
-    const planningTasks: Task[] = planning ? all.filter((t) => t.sprintId === planning.id) : [];
+    const planningTasks: Task[] = planning
+      ? all.filter((t) => t.sprintId === planning.id && t.state !== 'DEFERRED')
+      : [];
+    /** 本次規劃中被延後的任務 */
+    const deferredTasks: Task[] = planning
+      ? all.filter((t) => t.sprintId === planning.id && t.state === 'DEFERRED')
+      : [];
+    /** 上一個 Sprint 與其未完成（可帶入本次）的任務 */
+    const previous = planning
+      ? [...(sprints.data ?? [])].filter((s) => s.id < planning.id).sort((a, b) => b.id - a.id)[0]
+      : undefined;
+    const carryTasks: Task[] = previous ? all.filter((t) => t.sprintId === previous.id && isUnfinished(t)) : [];
     const planningReady =
       planning?.status === 'planning' &&
       planningTasks.length > 0 &&
@@ -53,6 +75,9 @@ export function useSprintContext() {
       planning,
       boardTasks,
       planningTasks,
+      deferredTasks,
+      previous,
+      carryTasks,
       planningReady,
     };
   }, [project.data, project.isLoading, sprints.data, sprints.isLoading, tasks.data, tasks.isLoading]);

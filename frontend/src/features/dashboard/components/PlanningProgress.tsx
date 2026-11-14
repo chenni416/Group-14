@@ -19,7 +19,7 @@ export function PlanningProgress({ sprint, tasks }: { sprint: Sprint | undefined
       <CardHeader
         title={`${sprint?.name ?? '下個 Sprint'} 規劃進度`}
         action={
-          <Button variant="primary" size="sm" onClick={() => navigate('/planning')}>
+          <Button variant="primary" size="sm" onClick={() => navigate('/sprints/planning')}>
             <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
             Planning Studio
           </Button>

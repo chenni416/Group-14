@@ -133,3 +133,67 @@ Sprint Goal：讓成員能在任務內與 AI 對話微調 Prompt，並上線彈�
 - 需要 GitHub PR webhook，PR 開啟時自動進 In Review
 - 通知中心：成員可以接受或協商轉移
 - E2E 測試涵蓋認領與 Review 流程`;
+
+/** 待釐清問題規則：trigger 命中會議紀錄就提問；回答會寫進 appliesTo 命中任務的驗收條件 */
+export interface ClarifyRule {
+  id: string;
+  trigger: RegExp;
+  question: string;
+  options: string[];
+  appliesTo: RegExp;
+  criterion: (answer: string) => string;
+}
+
+export const CLARIFY_RULES: ClarifyRule[] = [
+  {
+    id: 'review-timer',
+    trigger: /審了多久|多久|計時/,
+    question: 'In Review 卡片的「審了多久」要從什麼時間點開始計算？',
+    options: ['PR 開啟時', '被認領時'],
+    appliesTo: /In Review 卡片|計時/,
+    criterion: (a) => `審查計時從「${a}」開始`,
+  },
+  {
+    id: 'prompt-versions',
+    trigger: /保留版本|還原/,
+    question: 'Prompt 版本要保留幾版？',
+    options: ['全部保留', '只保留最近 10 版'],
+    appliesTo: /版本/,
+    criterion: (a) => `版本保留策略：${a}`,
+  },
+  {
+    id: 'review-timeout',
+    trigger: /指定成員/,
+    question: '「指定成員」審查若超過 48 小時沒有回應，要怎麼處理？',
+    options: ['自動轉入團隊公共池', '通知 Leader 改派'],
+    appliesTo: /Review 路由|Review Policy/,
+    criterion: (a) => `審查逾時（48 小時）處理：${a}`,
+  },
+  {
+    id: 'negotiate-rule',
+    trigger: /協商/,
+    question: '成員協商時，可以直接指定接手人，還是只能建議、由 Leader 決定？',
+    options: ['只能建議，由 Leader 決定', '可直接指定（需對方同意）'],
+    appliesTo: /Inbox|協商/,
+    criterion: (a) => `協商規則：${a}`,
+  },
+  {
+    id: 'email-scope',
+    trigger: /Email|推播/i,
+    question: 'Email 推播要涵蓋哪些事件？',
+    options: ['只有指派與審查', '所有狀態變更'],
+    appliesTo: /Email|推播/i,
+    criterion: (a) => `推播範圍：${a}`,
+  },
+];
+
+/** 相依性規則：本次任務（task）依賴上一個 Sprint 的任務（dependsOn） */
+export const DEPENDENCY_RULES: Array<{ task: RegExp; dependsOn: RegExp; reason: string }> = [
+  { task: /脈絡對話|對話 API/, dependsOn: /知識庫文件索引/, reason: '對話需要檢索知識庫，依賴索引 Pipeline' },
+  { task: /Review 路由|Review Policy|In Review 卡片/, dependsOn: /看板卡片元件/, reason: '審核狀態要顯示在看板卡片元件上' },
+  { task: /Review 路由/, dependsOn: /指派推薦/, reason: '審查人選沿用指派推薦服務的成員負載資料' },
+  { task: /Webhook/i, dependsOn: /OAuth/, reason: '接收 PR 事件需要先完成 GitHub OAuth 授權' },
+  { task: /E2E/, dependsOn: /E2E|CI 與 Playwright/, reason: '沿用既有 E2E 測試環境與登入流程測試資料' },
+  { task: /Inbox|接受／協商/, dependsOn: /通知中心 UI/, reason: '依照通知中心設計稿實作' },
+  { task: /Split View|Living Prompt/, dependsOn: /Sprint Planning 雙欄/, reason: '沿用 Planning 的雙欄版面元件' },
+];

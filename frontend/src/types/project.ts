@@ -24,7 +24,8 @@ export interface Project {
   sprintLength: string;
   defaultPolicy: ReviewPolicy;
   activeSprintId: number;
-  planningSprintId: number;
+  /** 規劃中的 Sprint；null 表示目前沒有 */
+  planningSprintId: number | null;
 }
 
 export type UpdateProjectInput = Partial<Omit<Project, 'activeSprintId' | 'planningSprintId'>>;

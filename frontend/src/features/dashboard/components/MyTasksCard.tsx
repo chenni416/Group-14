@@ -35,7 +35,7 @@ export function MyTasksCard({ tasks, userId }: { tasks: Task[]; userId: string }
       <CardHeader
         title="我的任務"
         action={
-          <IconButton aria-label="前往 Sprint 規劃" onClick={() => navigate('/planning')}>
+          <IconButton aria-label="前往 Sprint 規劃" onClick={() => navigate('/sprints/planning')}>
             <Plus className="h-4 w-4" strokeWidth={1.75} />
           </IconButton>
         }

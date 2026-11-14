@@ -83,7 +83,7 @@ export function NotificationItem({ notification: n, task, members, onNegotiate }
       head = <>{from} 對 {ref} 提出協商</>;
       if (pending && task.state === 'RETURNED')
         actions = (
-          <Button variant="primary" size="sm" onClick={() => navigate('/planning')}>
+          <Button variant="primary" size="sm" onClick={() => navigate('/sprints/planning')}>
             前往重新指派
           </Button>
         );

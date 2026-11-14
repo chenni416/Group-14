@@ -68,7 +68,7 @@ export function OnboardingPage() {
             下一步
           </Button>
         ) : (
-          <Button variant="primary" onClick={() => navigate('/planning')}>
+          <Button variant="primary" onClick={() => navigate('/sprints')}>
             <Check className="h-4 w-4" strokeWidth={2} />
             完成並前往 Sprint 規劃
           </Button>

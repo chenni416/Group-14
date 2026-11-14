@@ -1,13 +1,4 @@
-import type { Member, Task } from '@/types';
-
-/** 各成員在規劃中 Sprint 已被分配的 Story Points */
-export function plannedLoad(members: Member[], tasks: Task[]): Record<string, number> {
-  const load: Record<string, number> = Object.fromEntries(members.map((m) => [m.id, 0]));
-  tasks.forEach((t) => {
-    load[t.assigneeId] = (load[t.assigneeId] ?? 0) + t.storyPoints;
-  });
-  return load;
-}
+import type { Task } from '@/types';
 
 /** 依 Epic → Story 分組 */
 export function groupByEpic(tasks: Task[]) {

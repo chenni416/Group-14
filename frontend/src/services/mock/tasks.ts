@@ -1,4 +1,5 @@
 import {
+  carryTasks,
   createTaskRecord,
   db,
   findMember,
@@ -7,18 +8,38 @@ import {
   leader,
   notify,
   nowIso,
+  planningSprint,
+  planTasks,
+  prevSprintId,
   requireLead,
   resolveNotifications,
   sessionUser,
   sprintTasks,
   toTask,
+  uid,
+  type TaskRecord,
 } from '@/mocks/db';
 import { buildPrompt } from '@/mocks/handlers/prompt';
 import { aiReply } from '@/mocks/handlers/chat';
 import { decompose } from '@/mocks/handlers/decompose';
+import { pickRank, plannedLoad, rankFor, reasonFor, suggestAll } from '@/mocks/handlers/assign';
 import { canReview, sendToReview } from '@/mocks/handlers/review';
+import { analyzeDependencies, carryOverText, findQuestions } from '@/mocks/handlers/sprint';
+import { formatSize } from '@/mocks/handlers/knowledge';
 import { SAMPLE_MINUTES } from '@/mocks/data/knowledge';
-import { ApiError, BOARD_STATES, type BurndownPoint, type ChatMessage } from '@/types';
+import {
+  addDays,
+  capOf,
+  changesSinceReturn,
+  deferSuggestions,
+  isUnfinished,
+  monthDay,
+  preflight,
+  snapshotOf,
+  taskProblems,
+  workdayLabels,
+} from '@/lib/planning';
+import { ApiError, BOARD_STATES, EDITABLE_PLAN_STATES, type BurndownPoint, type ChatMessage, type Sprint } from '@/types';
 import type {
   NotificationService,
   PlanningService,
@@ -29,7 +50,25 @@ import type {
 import { respond } from './utils';
 
 const me = () => sessionUser();
-const isDraft = (state: string) => state === 'AI_DRAFT' || state === 'DRAFT';
+const nameOf = (id: string) => db.members.find((m) => m.id === id)?.name ?? '未指派';
+
+/** 規劃中 Sprint 的完整脈絡，供核准前檢查與容量建議使用 */
+function planContext(sprint: Sprint) {
+  return {
+    sprint,
+    members: db.members,
+    planTasks: planTasks(sprint.id),
+    carryTasks: carryTasks(sprint.id),
+    dependencies: analyzeDependencies(sprint.id),
+  };
+}
+
+function deferTask(task: TaskRecord, fromSprint: string, text = task.title) {
+  task.prevState = task.state;
+  task.state = 'DEFERRED';
+  resolveNotifications(task.id, ['returned', 'invite']);
+  db.backlog.push({ id: `b${uid()}`, text, fromSprint, kind: 'deferred', taskId: task.id, usedInSprintId: null });
+}
 
 export const tasks: TaskService = {
   list: () => respond(() => db.tasks.map(toTask)),
@@ -37,24 +76,27 @@ export const tasks: TaskService = {
   create: (input) =>
     respond(() => {
       requireLead('新增任務');
-      findMember(input.assigneeId);
+      const sprint = planningSprint();
+      if (input.assigneeId) findMember(input.assigneeId);
       if (!input.title.trim()) throw new ApiError('請輸入標題');
-      const def = db.project.defaultPolicy;
       const record = createTaskRecord(db.project, {
         id: `${db.project.prefix}-${db.seq++}`,
-        sprintId: db.project.planningSprintId,
+        sprintId: sprint.id,
         title: input.title.trim(),
         domain: input.domain,
         storyPoints: input.storyPoints,
+        storyPointsReason: input.storyPointsReason.trim(),
         assigneeId: input.assigneeId,
-        acceptanceCriteria: input.acceptanceCriteria,
         state: 'DRAFT',
         origin: 'human',
         epic: '手動任務',
         story: 'Leader 新增',
-        policy: { ...def, targets: [...def.targets] },
-        policyReason: '沿用專案預設策略',
+        source: input.source.trim(),
+        description: input.source.trim() ? `會議紀錄：「${input.source.trim()}」` : '',
+        policy: { ...input.policy, targets: input.policy.mode === 'target' ? [...input.policy.targets] : [] },
       });
+      // 允許空白，交給核准前檢查（createTaskRecord 會自動補預設驗收條件）
+      record.acceptanceCriteria = input.acceptanceCriteria;
       db.tasks.push(record);
       return toTask(record);
     }),
@@ -64,7 +106,8 @@ export const tasks: TaskService = {
       requireLead('調整任務');
       if (patch.assigneeId) findMember(patch.assigneeId);
       const task = findTask(id);
-      if (!isDraft(task.state)) throw new ApiError('只有草稿可以編輯');
+      if (!EDITABLE_PLAN_STATES.includes(task.state)) throw new ApiError('只有草稿或協商退回的任務可以編輯');
+      if (patch.policy) patch.policy = { ...patch.policy, targets: patch.policy.mode === 'target' ? [...patch.policy.targets] : [] };
       Object.assign(task, patch, { edited: true });
       return toTask(task);
     }),
@@ -78,22 +121,110 @@ export const tasks: TaskService = {
   approveDrafts: () =>
     respond(() => {
       requireLead('核准任務');
-      const drafts = sprintTasks(db.project.planningSprintId).filter((t) => isDraft(t.state));
-      drafts.forEach((t) => {
-        t.state = 'PENDING_MEMBER';
-        notify(t.assigneeId, 'invite', t.id, me().id, `預估 ${t.storyPoints} 點，請確認是否接受`);
+      const sprint = planningSprint();
+      const check = preflight(planContext(sprint));
+      if (check.blocked) throw new ApiError('核准前檢查未通過：請先處理超量、缺少欄位或待釐清問題', 422, 'PREFLIGHT_FAILED');
+      check.drafts.forEach((t) => {
+        const record = findTask(t.id);
+        record.state = 'PENDING_MEMBER';
+        notify(record.assigneeId, 'invite', record.id, me().id, `預估 ${record.storyPoints} 點，請確認是否接受`);
       });
-      return { count: drafts.length };
+      sprint.step = 4;
+      return { count: check.drafts.length };
     }),
 
-  reassign: (id, assigneeId) =>
+  defer: (id) =>
     respond(() => {
-      requireLead('重新指派');
-      findMember(assigneeId);
+      requireLead('延後任務');
+      const sprint = planningSprint();
       const task = findTask(id);
+      if (!EDITABLE_PLAN_STATES.includes(task.state)) throw new ApiError('只有草稿或協商退回的任務可以延後');
+      deferTask(task, sprint.name);
+      return toTask(task);
+    }),
+
+  restore: (id) =>
+    respond(() => {
+      requireLead('恢復任務');
+      const task = findTask(id);
+      task.state = task.prevState ?? (task.origin === 'human' ? 'DRAFT' : 'AI_DRAFT');
+      task.prevState = null;
+      db.backlog = db.backlog.filter((b) => b.taskId !== id || b.usedInSprintId != null);
+      return toTask(task);
+    }),
+
+  setCarry: (id, carry) =>
+    respond(() => {
+      requireLead('調整延續任務');
+      const task = findTask(id);
+      if (!isUnfinished(task)) throw new ApiError('只有未完成的任務可以帶入或延後');
+      task.carry = carry;
+      return toTask(task);
+    }),
+
+  resend: (id) =>
+    respond(() => {
+      requireLead('重新發送');
+      const sprint = planningSprint();
+      const task = findTask(id);
+      if (task.state !== 'RETURNED') throw new ApiError('這個任務不在協商退回狀態');
+      const problems = taskProblems(task);
+      if (problems.length) throw new ApiError(`${task.id}：${problems.join('、')}`);
+      const member = findMember(task.assigneeId);
+      if ((plannedLoad(sprint.id)[member.id] ?? 0) > capOf(sprint, member))
+        throw new ApiError(`${member.name} 超過點數上限，請調整點數或改派`);
+      const changes = changesSinceReturn(task, nameOf);
+      const same = task.assigneeId === task.negotiation?.byId;
+      if (same && !changes.length) throw new ApiError('請先調整內容（例如點數、驗收條件）再發送給同一位成員');
       resolveNotifications(id, ['returned']);
-      Object.assign(task, { assigneeId, edited: true, state: 'PENDING_MEMBER', negotiation: null });
-      notify(assigneeId, 'invite', id, me().id, `預估 ${task.storyPoints} 點（重新指派），請確認是否接受`);
+      task.state = 'PENDING_MEMBER';
+      task.negotiation = null;
+      task.returnSnapshot = null;
+      notify(
+        task.assigneeId,
+        'invite',
+        id,
+        me().id,
+        `${same ? '已依你的協商調整後重新指派' : `預估 ${task.storyPoints} 點（重新指派）`}${changes.length ? `：${changes.join('、')}` : ''}，請確認是否接受`,
+      );
+      return { task: toTask(task), changes };
+    }),
+
+  suggestAssignee: (id) =>
+    respond(() => {
+      requireLead('重新建議負責人');
+      const sprint = planningSprint();
+      const task = findTask(id);
+      const by = task.negotiation?.byId;
+      const ranks = rankFor(task, plannedLoad(sprint.id, [task]), sprint.id).filter((r) => r.member.id !== by);
+      const fits = ranks.some((r) => r.remain >= task.storyPoints);
+      const best = pickRank(ranks, task.storyPoints, true);
+      if (!best) throw new ApiError('沒有可指派的成員');
+      Object.assign(task, {
+        assigneeId: best.member.id,
+        suggestedAssigneeId: best.member.id,
+        edited: true,
+        suggestReason:
+          `${reasonFor(best)}（已排除提出協商的 ${by ? nameOf(by) : '成員'}）` +
+          (fits ? '' : `。目前沒有成員有 ${task.storyPoints} SP 的剩餘點數，需調低點數、延後此任務，或調整其他任務`),
+      });
+      return { task: toTask(task), fits };
+    }),
+
+  resetReturn: (id) =>
+    respond(() => {
+      requireLead('復原修改');
+      const task = findTask(id);
+      const snap = task.returnSnapshot;
+      if (!snap) throw new ApiError('沒有可復原的內容');
+      Object.assign(task, {
+        title: snap.title,
+        acceptanceCriteria: [...snap.acceptanceCriteria],
+        storyPoints: snap.storyPoints,
+        storyPointsReason: snap.storyPointsReason,
+        assigneeId: snap.assigneeId,
+        policy: { ...snap.policy, targets: [...snap.policy.targets] },
+      });
       return toTask(task);
     }),
 
@@ -113,6 +244,7 @@ export const tasks: TaskService = {
       const task = findTask(id);
       task.state = 'RETURNED';
       task.negotiation = { byId: me().id, reason: input.reason.trim(), suggestId: input.suggestId };
+      task.returnSnapshot = snapshotOf(task);
       resolveNotifications(id, ['invite']);
       notify(leader().id, 'returned', id, me().id, input.reason.trim());
       return toTask(task);
@@ -194,29 +326,127 @@ export const tasks: TaskService = {
 export const sprints: SprintService = {
   list: () => respond(() => db.sprints),
 
-  updateGoal: (id, goal) =>
+  defaults: () =>
     respond(() => {
-      requireLead('修改 Sprint Goal');
-      const sprint = findSprint(id);
-      sprint.goal = goal;
+      const last = [...db.sprints].sort((a, b) => b.id - a.id)[0]!;
+      const startDate = addDays(last.endDate, 1);
+      const carry = carryOverText(last.id);
+      return {
+        id: last.id + 1,
+        name: `Sprint ${last.id + 1}`,
+        startDate,
+        endDate: addDays(startDate, 13),
+        capacity: Object.fromEntries(db.members.map((m) => [m.id, m.capacity])),
+        minutes: carry.text,
+        carryCount: carry.count,
+      };
+    }, 80),
+
+  create: (input) =>
+    respond(() => {
+      requireLead('建立 Sprint');
+      if (db.project.planningSprintId != null) throw new ApiError('已經有規劃中的 Sprint，請先完成或啟動它');
+      if (!input.name.trim()) throw new ApiError('請輸入 Sprint 名稱');
+      if (!input.startDate || !input.endDate || input.endDate < input.startDate) throw new ApiError('請確認起訖日期');
+      const id = Math.max(...db.sprints.map((s) => s.id)) + 1;
+      const sprint: Sprint = {
+        id,
+        name: input.name.trim(),
+        start: monthDay(input.startDate),
+        end: monthDay(input.endDate),
+        startDate: input.startDate,
+        endDate: input.endDate,
+        goal: input.goal.trim(),
+        status: 'planning',
+        capacity: Object.fromEntries(Object.entries(input.capacity).map(([k, v]) => [k, Math.max(0, Math.round(v))])),
+        minutes: input.minutes,
+        docs: [...input.docs],
+        questions: null,
+        step: 1,
+        summary: null,
+      };
+      db.sprints.push(sprint);
+      db.project.planningSprintId = id;
+      // 已寫進會議紀錄的延續事項，標記為已帶入
+      if (/\[(延後|跨 Sprint)\]/.test(input.minutes))
+        db.backlog.forEach((b) => {
+          if (b.usedInSprintId == null) b.usedInSprintId = id;
+        });
       return sprint;
     }),
+
+  update: (id, patch) =>
+    respond(() => {
+      requireLead('修改 Sprint');
+      const sprint = findSprint(id);
+      if (patch.goal != null) sprint.goal = patch.goal;
+      if (patch.minutes != null) sprint.minutes = patch.minutes;
+      return sprint;
+    }, 80),
+
+  addDocs: (id, files) =>
+    respond(() => {
+      requireLead('上傳文件');
+      const sprint = findSprint(id);
+      sprint.docs.push(...files.map((f) => ({ name: f.name, size: formatSize(f.size) })));
+      return sprint;
+    }),
+
+  analyze: (id, minutes) =>
+    respond(() => {
+      requireLead('分析會議紀錄');
+      if (!minutes.trim()) throw new ApiError('請先貼上會議紀錄');
+      const sprint = findSprint(id);
+      sprint.minutes = minutes;
+      sprint.questions = findQuestions(minutes, sprint.questions);
+      return { unanswered: sprint.questions.filter((q) => !q.answer).length };
+    }, 600),
+
+  answer: (id, questionId, answer) =>
+    respond(() => {
+      requireLead('回答待釐清問題');
+      const q = findSprint(id).questions?.find((x) => x.id === questionId);
+      if (!q) throw new ApiError('找不到這個問題', 404);
+      q.answer = answer.trim();
+      return findSprint(id);
+    }, 60),
 
   start: (id) =>
     respond(() => {
       if (me().role !== 'Leader') throw new ApiError('只有 Leader 可以啟動 Sprint', 403);
-      const next = sprintTasks(id);
+      const next = planTasks(id);
       if (!next.length || !next.every((t) => t.state === 'ASSIGNED')) throw new ApiError('仍有任務未被成員接受');
-      const prevId = db.project.activeSprintId;
-      const carry = sprintTasks(prevId).filter((t) => t.state !== 'DONE');
-      carry.forEach((t) => (t.sprintId = id));
-      sprintTasks(id).forEach((t) => {
-        if (t.state === 'ASSIGNED') t.state = 'TODO';
-      });
-      findSprint(prevId).status = 'closed';
-      findSprint(id).status = 'active';
+      const prevId = prevSprintId(id);
+      let carriedOver = 0;
+      let deferred = 0;
+      if (prevId != null) {
+        const prev = findSprint(prevId);
+        const all = sprintTasks(prevId).filter((t) => t.state !== 'DEFERRED');
+        prev.summary = {
+          total: all.reduce((a, t) => a + t.storyPoints, 0),
+          done: all.filter((t) => t.state === 'DONE').reduce((a, t) => a + t.storyPoints, 0),
+          tasks: all.length,
+        };
+        sprintTasks(prevId)
+          .filter(isUnfinished)
+          .forEach((t) => {
+            if (t.carry) {
+              t.sprintId = id;
+              carriedOver++;
+            } else {
+              deferTask(t, prev.name, `${t.id} ${t.title}`);
+              deferred++;
+            }
+          });
+        prev.status = 'closed';
+      }
+      next.forEach((t) => (t.state = 'TODO'));
+      const sprint = findSprint(id);
+      sprint.status = 'active';
+      sprint.step = 4;
       db.project.activeSprintId = id;
-      return { carriedOver: carry.length };
+      db.project.planningSprintId = null;
+      return { carriedOver, deferred };
     }),
 
   burndown: (id) =>
@@ -224,10 +454,11 @@ export const sprints: SprintService = {
       const board = sprintTasks(id).filter((t) => (BOARD_STATES as readonly string[]).includes(t.state));
       const total = board.reduce((a, t) => a + t.storyPoints, 0);
       const done = board.filter((t) => t.state === 'DONE').reduce((a, t) => a + t.storyPoints, 0);
+      const sprint = findSprint(id);
       const labels =
         id === 2
           ? ['10/27', '10/28', '10/29', '10/30', '10/31', '11/03', '11/04', '11/05', '11/06', '11/09']
-          : ['11/10', '11/11', '11/12', '11/13', '11/14', '11/17', '11/18', '11/19', '11/20', '11/21'];
+          : workdayLabels(sprint.startDate, 10);
       const n = labels.length;
       const history = id === 2 ? [29, 29, 28, 28, 27, 26, 26, 25, 24].map((v) => Math.max(total - done, Math.round((v * total) / 29))) : [];
       const actual = [...history, total - done];
@@ -237,18 +468,48 @@ export const sprints: SprintService = {
         actual: actual[i] ?? null,
       }));
     }),
+
+  backlog: () => respond(() => db.backlog, 80),
+
+  removeBacklog: (id) =>
+    respond(() => {
+      requireLead('移除延續事項');
+      db.backlog = db.backlog.filter((b) => b.id !== id);
+    }),
+
+  dependencies: (id) => respond(() => analyzeDependencies(id), 120),
 };
 
 export const planning: PlanningService = {
-  getMinutes: () => respond(() => db.notes, 60),
   getSampleMinutes: () => respond(() => SAMPLE_MINUTES, 60),
-  decompose: (minutes) =>
+  decompose: (sprintId) =>
     respond(() => {
       requireLead('執行 AI 拆解');
-      if (!minutes.trim()) throw new ApiError('請先貼上會議紀錄');
-      db.notes = minutes;
-      return { created: decompose(minutes) };
+      const sprint = findSprint(sprintId);
+      if (!sprint.minutes.trim()) throw new ApiError('請先貼上會議紀錄');
+      if (sprint.questions == null) throw new ApiError('請先按「AI 分析會議紀錄」');
+      if (sprint.questions.some((q) => !q.answer)) throw new ApiError('還有待釐清問題未回答，無法分配任務');
+      const created = decompose(sprintId);
+      sprint.step = Math.max(sprint.step, 3) as Sprint['step'];
+      return { created };
     }, 2000),
+
+  deferSuggested: (sprintId) =>
+    respond(() => {
+      requireLead('延後任務');
+      const sprint = findSprint(sprintId);
+      const list = deferSuggestions(planContext(sprint));
+      list.forEach((t) => deferTask(findTask(t.id), sprint.name));
+      return { deferred: list.length };
+    }),
+
+  rebalance: (sprintId) =>
+    respond(() => {
+      requireLead('重新平衡指派');
+      const list = planTasks(sprintId).filter((t) => t.state === 'AI_DRAFT' && !t.edited);
+      suggestAll(list, sprintId, true);
+      return { updated: list.length };
+    }),
 };
 
 export const notifications: NotificationService = {
