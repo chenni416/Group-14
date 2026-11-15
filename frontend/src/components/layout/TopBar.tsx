@@ -1,3 +1,4 @@
+import { Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { FLOW_NAV } from './nav';
@@ -58,6 +59,19 @@ export function TopBar() {
           <TaskSearch />
         </div>
         <NotificationBell />
+        <NavLink
+          to="/settings"
+          aria-label="個人設定"
+          className={({ isActive }) =>
+            cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+              isActive ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+            )
+          }
+        >
+          <Settings className="h-4 w-4" strokeWidth={1.75} />
+        </NavLink>
+
         <UserSwitcher />
       </div>
       <div className="order-4 w-full sm:hidden">

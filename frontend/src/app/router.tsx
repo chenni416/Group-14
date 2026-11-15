@@ -15,6 +15,7 @@ export const router = createBrowserRouter([
       { path: 'planning', element: <Navigate to="/sprints/planning" replace /> },
       { path: 'inbox', lazy: () => import('@/features/inbox/InboxPage').then((m) => ({ Component: m.InboxPage })) },
       { path: 'team', lazy: () => import('@/features/team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
+      { path: 'settings', lazy: () => import('@/features/settings/SettingsPage').then((m) => ({ Component: m.SettingsPage })) },
       { path: 'onboarding', lazy: () => import('@/features/onboarding/OnboardingPage').then((m) => ({ Component: m.OnboardingPage })) },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
