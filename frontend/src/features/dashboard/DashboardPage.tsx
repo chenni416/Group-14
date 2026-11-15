@@ -12,6 +12,7 @@ import { StatTiles } from './components/StatTiles';
 import { StatusDonut } from './components/StatusDonut';
 import { TeamLoad } from './components/TeamLoad';
 import { ProjectOverviewCard } from './components/ProjectOverviewCard';
+import { ActivityFeed } from './components/ActivityFeed';
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -56,10 +57,11 @@ export function DashboardPage() {
         />
           {/* 上半部：左 2/3 專案資訊、右 1/3 我的任務 */}
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+            <div className="space-y-6 lg:col-span-2">
               {project && (
                 <ProjectOverviewCard project={project} sprint={active} tasks={boardTasks} members={members ?? []} />
               )}
+              <ActivityFeed />
             </div>
             <div className="[&>*]:h-full">
               <MyTasksCard tasks={allTasks} userId={me.id} />
