@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { FLOW_NAV } from './nav';
+import { NotificationBell } from './NotificationBell';
 import { TaskSearch } from './TaskSearch';
 import { UserSwitcher } from './UserSwitcher';
 
@@ -56,6 +57,7 @@ export function TopBar() {
         <div className="hidden sm:block">
           <TaskSearch />
         </div>
+        <NotificationBell />
         <UserSwitcher />
       </div>
       <div className="order-4 w-full sm:hidden">
