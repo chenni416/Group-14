@@ -11,6 +11,7 @@ import { ReviewQueue } from './components/ReviewQueue';
 import { StatTiles } from './components/StatTiles';
 import { StatusDonut } from './components/StatusDonut';
 import { TeamLoad } from './components/TeamLoad';
+import { ProjectOverviewCard } from './components/ProjectOverviewCard';
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export function DashboardPage() {
 
   if (ctx.isLoading || !me) return <PageSkeleton />;
 
-  const { boardTasks, active, planning, planningTasks, allTasks } = ctx;
+  const { project, boardTasks, active, planning, planningTasks, allTasks } = ctx;
   const total = sum(boardTasks.map((t) => t.storyPoints));
   const done = sum(boardTasks.filter((t) => t.state === 'DONE').map((t) => t.storyPoints));
   const actionCount = allTasks.filter(
@@ -53,11 +54,21 @@ export function DashboardPage() {
             { label: '待我處理', value: actionCount, hint: '指派確認與審查' },
           ]}
         />
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:row-span-3 [&>*]:h-full">
-            <MyTasksCard tasks={allTasks} userId={me.id} />
+          {/* 上半部：左 2/3 專案資訊、右 1/3 我的任務 */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              {project && (
+                <ProjectOverviewCard project={project} sprint={active} tasks={boardTasks} members={members ?? []} />
+              )}
+            </div>
+            <div className="[&>*]:h-full">
+              <MyTasksCard tasks={allTasks} userId={me.id} />
+            </div>
           </div>
-          <StatusDonut tasks={boardTasks} />
+
+          {/* 下半部：Sprint 統計圖表 */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <StatusDonut tasks={boardTasks} />
           <BurndownChart sprintId={active?.id} />
           <div className="lg:col-span-2">
             <ReviewQueue tasks={boardTasks} />
@@ -65,7 +76,7 @@ export function DashboardPage() {
           <div className="lg:col-span-2">
             <PlanningProgress sprint={planning?.status === 'planning' ? planning : undefined} tasks={planning?.status === 'planning' ? planningTasks : []} />
           </div>
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <TeamLoad members={members ?? []} tasks={boardTasks} sprint={active} />
           </div>
         </div>
