@@ -4,6 +4,8 @@ import { PageSkeleton } from '@/components/ui';
 
 /** 每個頁面獨立切 chunk，首屏只載入需要的程式碼 */
 export const router = createBrowserRouter([
+  // 登入頁不需要側邊欄與頂部列，所以放在 AppShell 外面
+  { path: 'login', HydrateFallback: PageSkeleton, lazy: () => import('@/features/auth/LoginPage').then((m) => ({ Component: m.LoginPage })) },
   {
     element: <AppShell />,
     HydrateFallback: PageSkeleton,
