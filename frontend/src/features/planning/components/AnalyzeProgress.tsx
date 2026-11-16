@@ -7,9 +7,9 @@ export function AnalyzeProgress({ docCount }: { docCount: number }) {
   const steps = [
     `讀取專案知識庫（${docCount} 份文件）`,
     '擷取會議需求與 Sprint Goal',
-    '拆解 Epic → User Story → Sub-task',
-    '估算 Story Points 與理由',
-    '依技能、負載推薦指派與 Review 策略',
+    '切分 User Story 與範疇輪廓',
+    '估算各 Story 的預估點數',
+    '對照團隊可用容量',
   ];
   const [current, setCurrent] = useState(0);
 

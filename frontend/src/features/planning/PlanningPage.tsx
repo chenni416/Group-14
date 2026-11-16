@@ -1,40 +1,34 @@
-import { ChevronRight, Play, Plus, Send, Sparkles } from 'lucide-react';
-import { useMemo } from 'react';
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, PageSkeleton } from '@/components/ui';
-import { useCurrentUser, useDocs, useMemberMap, useMembers, useSprintContext } from '@/hooks/queries';
-import { useDisclosure } from '@/hooks/useDisclosure';
-import { useIsMutating } from '@tanstack/react-query';
-import { sum } from '@/lib/format';
-import { isLead as isLeadRole } from '@/lib/permissions';
-import { BOARD_STATES, DRAFT_STATES } from '@/types';
-import { useStartSprint } from '@/features/board/hooks/useStartSprint';
+import { ArrowRight, Sparkles } from 'lucide-react';
+import { RequireLeader } from '@/components/layout/RequireLeader';
+import { Button, Card, EmptyState, PageHeader, PageSkeleton } from '@/components/ui';
+import { useDocs, useMembers, useSprintContext } from '@/hooks/queries';
 import { AnalyzeProgress } from './components/AnalyzeProgress';
-import { CapacityStrip } from './components/CapacityStrip';
-import { DraftTaskCard } from './components/DraftTaskCard';
-import { ManualTaskDialog } from './components/ManualTaskDialog';
+import { PlanningStepper } from './components/PlanningStepper';
 import { SourceContext } from './components/SourceContext';
-import { DECOMPOSE_KEY, usePlanningMutations } from './hooks/usePlanning';
-import { groupByEpic, plannedLoad } from './lib/load';
+import { SubmittedPlanSummary } from './components/SubmittedPlanSummary';
+import { usePlanningMutations } from './hooks/usePlanning';
+import { StoryReviewStep } from './steps/StoryReviewStep';
+import { FinalReviewStep } from './steps/FinalReviewStep';
+import { TaskBreakdownStep } from './steps/TaskBreakdownStep';
+import { usePlanningStore } from './store';
 
 export function PlanningPage() {
+  return (
+    <RequireLeader>
+      <PlanningStudio />
+    </RequireLeader>
+  );
+}
+
+/** Sprint 規劃：0 設定 → A Story 審核 → B Task 拆解與派工 → C 派工總覽與發送 */
+function PlanningStudio() {
   const ctx = useSprintContext();
-  const { data: me } = useCurrentUser();
   const { data: members = [] } = useMembers();
   const { data: docs } = useDocs();
-  const memberMap = useMemberMap();
-  const manual = useDisclosure();
-  const { approveDrafts } = usePlanningMutations();
-  const startSprint = useStartSprint();
-  const analyzing = useIsMutating({ mutationKey: DECOMPOSE_KEY }) > 0;
+  const { stage, draft, setStage } = usePlanningStore();
+  const { generate } = usePlanningMutations();
 
-  const planningTasks = useMemo(
-    () => ctx.planningTasks.filter((t) => !(BOARD_STATES as readonly string[]).includes(t.state)),
-    [ctx.planningTasks],
-  );
-  const load = useMemo(() => plannedLoad(members, ctx.planningTasks), [members, ctx.planningTasks]);
-  const epics = useMemo(() => groupByEpic(planningTasks), [planningTasks]);
-
-  if (ctx.isLoading || !me) return <PageSkeleton />;
+  if (ctx.isLoading) return <PageSkeleton />;
 
   const sprint = ctx.planning;
   if (!sprint || sprint.status !== 'planning') {
@@ -46,119 +40,56 @@ export function PlanningPage() {
     );
   }
 
-  const lead = isLeadRole(me);
-  const all = ctx.planningTasks;
-  const drafts = all.filter((t) => DRAFT_STATES.includes(t.state));
-  const ready = ctx.planningReady;
+  const submitted = ctx.planningTasks.length > 0;
 
   return (
     <>
-      <PageHeader
-        eyebrow="Sprint Planning Studio"
-        title={`${sprint.name} 規劃`}
-        actions={
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge tone="violet" dot>AI Suggestion</Badge>
-            <ChevronRight className="h-4 w-4 text-gray-300" strokeWidth={1.75} />
-            <Badge tone="orange" dot>Leader Approved</Badge>
-            <ChevronRight className="h-4 w-4 text-gray-300" strokeWidth={1.75} />
-            <Badge tone="sky" dot>Member Accepted</Badge>
-          </div>
-        }
-      />
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
-        <SourceContext sprint={sprint} isLead={lead} />
+      <PageHeader eyebrow="Sprint Planning Studio" title={`${sprint.name} 規劃`} align="center" className="mb-6" actions={<PlanningStepper />} />
 
-        <Card>
-          <CardHeader
-            title="Review & Approval Workspace"
-            action={
-              <span className="text-sm tabular-nums text-gray-500">
-                {planningTasks.length} 項 · {sum(planningTasks.map((t) => t.storyPoints))} SP
-              </span>
-            }
+      {stage === 'setup' && (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+          <SourceContext
+            sprint={sprint}
+            analyzing={generate.isPending}
+            locked={submitted}
+            hasDraft={!!draft}
+            onAnalyze={(goal, minutes) => generate.mutate({ goal, minutes })}
           />
-          {analyzing ? (
-            <AnalyzeProgress docCount={docs?.length ?? 0} />
-          ) : planningTasks.length === 0 ? (
-            <EmptyState icon={Sparkles} title="還沒有任務" description="在左側貼上會議紀錄後，按「AI Analyze & Decompose」" />
+          {generate.isPending ? (
+            <Card>
+              <AnalyzeProgress docCount={docs?.length ?? 0} />
+            </Card>
+          ) : submitted ? (
+            <SubmittedPlanSummary sprint={sprint} tasks={ctx.planningTasks} members={members} ready={ctx.planningReady} />
+          ) : draft ? (
+            <Card>
+              <EmptyState
+                icon={Sparkles}
+                title="已有規劃草稿"
+                description={`${draft.stories.length} 個 Story、${draft.tasks.length ? `${draft.tasks.length} 張 Task` : '尚未拆解 Task'}。修改設定後可重新分析，或直接回到審核工作區。`}
+              />
+              <div className="flex justify-center pb-4">
+                <Button variant="primary" onClick={() => setStage('stories')}>
+                  回到審核工作區
+                  <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+                </Button>
+              </div>
+            </Card>
           ) : (
-            <>
-              <CapacityStrip members={members} load={load} />
-              <div className="space-y-8">
-                {[...epics.entries()].map(([epic, stories]) => (
-                  <section key={epic}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <Badge tone="dark">EPIC</Badge>
-                      <h3 className="text-base font-semibold tracking-tight">{epic}</h3>
-                    </div>
-                    <div className="space-y-5 border-l border-gray-100 pl-4">
-                      {[...stories.entries()].map(([story, list]) => (
-                        <div key={story}>
-                          <div className="mb-2 flex items-center gap-2 text-sm">
-                            <Badge>STORY</Badge>
-                            <span className="text-gray-700">{story}</span>
-                            <span className="ml-auto text-xs tabular-nums text-gray-500">{sum(list.map((t) => t.storyPoints))} SP</span>
-                          </div>
-                          <div className="space-y-3">
-                            {list.map((t) => (
-                              <DraftTaskCard key={t.id} task={t} members={members} memberMap={memberMap} load={load} isLead={lead} />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </>
+            <Card>
+              <EmptyState
+                icon={Sparkles}
+                title="還沒有規劃內容"
+                description="在左側確認 Sprint Goal 與會議紀錄後，按「AI Analyze & Decompose」開始分析"
+              />
+            </Card>
           )}
+        </div>
+      )}
 
-          {(planningTasks.length > 0 || all.length > 0) && !analyzing && (
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <Button size="sm" disabled={!lead} onClick={manual.open}>
-                  <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  手動新增任務
-                </Button>
-                {ready ? (
-                  <Badge tone="sky" dot>
-                    {all.length} 項任務全部被接受
-                  </Badge>
-                ) : (
-                  <span className="text-xs tabular-nums text-gray-500">
-                    待確認 {all.filter((t) => t.state === 'PENDING_MEMBER').length} · 退回{' '}
-                    {all.filter((t) => t.state === 'RETURNED').length} · 已接受 {all.filter((t) => t.state === 'ASSIGNED').length}
-                  </span>
-                )}
-              </div>
-              {ready ? (
-                <Button
-                  variant="primary"
-                  disabled={me.role !== 'Leader'}
-                  title={me.role === 'Leader' ? undefined : '只有 Leader 可以啟動 Sprint'}
-                  loading={startSprint.isPending}
-                  onClick={() => startSprint.mutate(sprint.id)}
-                >
-                  <Play className="h-4 w-4" strokeWidth={1.75} />
-                  Start Sprint
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  disabled={!drafts.length || !lead}
-                  loading={approveDrafts.isPending}
-                  onClick={() => approveDrafts.mutate()}
-                >
-                  <Send className="h-4 w-4" strokeWidth={1.75} />
-                  核准並發送指派邀請（{drafts.length}）
-                </Button>
-              )}
-            </div>
-          )}
-        </Card>
-      </div>
-      <ManualTaskDialog open={manual.isOpen} onClose={manual.close} members={members} />
+      {stage === 'stories' && <StoryReviewStep members={members} />}
+      {stage === 'tasks' && <TaskBreakdownStep members={members} />}
+      {stage === 'review' && <FinalReviewStep members={members} />}
     </>
   );
 }

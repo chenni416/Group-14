@@ -8,10 +8,20 @@ import { toast } from '@/stores/toast.store';
 import type { Sprint } from '@/types';
 import { useMinutes, usePlanningMutations } from '../hooks/usePlanning';
 
-export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: boolean }) {
+interface Props {
+  sprint: Sprint;
+  analyzing: boolean;
+  /** 已送出規劃時鎖定，避免重複建立任務 */
+  locked: boolean;
+  hasDraft: boolean;
+  onAnalyze: (goal: string, minutes: string) => void;
+}
+
+/** 階段 0：Sprint Goal、會議紀錄與已掛載的專案脈絡 */
+export function SourceContext({ sprint, analyzing, locked, hasDraft, onAnalyze }: Props) {
   const { data: savedMinutes } = useMinutes();
   const { data: docs } = useDocs();
-  const { decompose, updateGoal } = usePlanningMutations();
+  const { updateGoal } = usePlanningMutations();
   const [minutes, setMinutes] = useState('');
   const [goal, setGoal] = useState(sprint.goal);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -34,7 +44,7 @@ export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: bool
   };
 
   return (
-    <Card className="lg:sticky lg:top-4">
+    <Card className="lg:sticky lg:top-0">
       <CardHeader title="Source Context" action={<Tag>{`${sprint.start} – ${sprint.end}`}</Tag>} />
       <div className="space-y-5">
         <div>
@@ -42,7 +52,7 @@ export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: bool
           <Input
             id="sprint-goal"
             value={goal}
-            disabled={!isLead}
+            disabled={locked}
             placeholder="本次 Sprint 要達成的成果"
             onChange={(e) => setGoal(e.target.value)}
             onBlur={() => goal !== sprint.goal && updateGoal.mutate({ id: sprint.id, goal })}
@@ -54,11 +64,11 @@ export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: bool
               會議紀錄（Markdown）
             </Label>
             <div className="flex gap-1.5">
-              <Button size="xs" onClick={() => fileRef.current?.click()}>
+              <Button size="xs" disabled={locked} onClick={() => fileRef.current?.click()}>
                 <Upload className="h-3 w-3" strokeWidth={1.75} />
                 上傳
               </Button>
-              <Button size="xs" onClick={async () => setMinutes(await api.planning.getSampleMinutes())}>
+              <Button size="xs" disabled={locked} onClick={async () => setMinutes(await api.planning.getSampleMinutes())}>
                 範例
               </Button>
               <input ref={fileRef} type="file" accept=".md,.txt" hidden onChange={(e) => onFile(e.target.files?.[0])} />
@@ -68,6 +78,7 @@ export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: bool
             id="minutes"
             rows={14}
             value={minutes}
+            disabled={locked}
             onChange={(e) => setMinutes(e.target.value)}
             className="bg-gray-50 font-mono text-xs"
           />
@@ -76,7 +87,7 @@ export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: bool
           <Label>AI 已掛載的專案脈絡</Label>
           <div className="flex flex-wrap gap-1.5">
             <Badge tone={rag.ready ? 'sky' : 'orange'} dot>
-
+              {rag.label}
             </Badge>
             {docs?.slice(0, 5).map((d) => <Tag key={d.id}>{d.kind}</Tag>)}
           </div>
@@ -85,14 +96,14 @@ export function SourceContext({ sprint, isLead }: { sprint: Sprint; isLead: bool
           variant="primary"
           size="lg"
           className="w-full"
-          disabled={!isLead}
-          loading={decompose.isPending}
-          onClick={() => decompose.mutate(minutes)}
+          disabled={locked}
+          loading={analyzing}
+          onClick={() => onAnalyze(goal, minutes)}
         >
           <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-          {decompose.isPending ? 'AI 分析中' : 'AI Analyze & Decompose'}
+          {analyzing ? 'AI 分析中' : hasDraft ? '重新分析（覆蓋目前草稿）' : 'AI Analyze & Decompose'}
         </Button>
-        {!isLead && <Callout tone="warning">只有 Leader / PO 可以執行拆解與核准，請從右上角切換身分。</Callout>}
+        {locked && <Callout>本 Sprint 的規劃已核准送出，設定已鎖定。</Callout>}
       </div>
     </Card>
   );

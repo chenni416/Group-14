@@ -1,6 +1,6 @@
 export type Domain = 'FE' | 'BE' | 'AI' | 'QA' | 'DS';
 
-export type MemberRole = 'Leader' | 'PO' | 'Member';
+export type MemberRole = 'Leader' | 'Member';
 
 export interface Member {
   id: string;

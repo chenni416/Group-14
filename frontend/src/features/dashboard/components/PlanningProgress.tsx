@@ -6,23 +6,25 @@ import type { Tone } from '@/lib/constants';
 import type { Sprint, Task, TaskState } from '@/types';
 
 const STAGES: Array<{ label: string; tone: Tone; states: TaskState[] }> = [
-  { label: 'AI Suggestion', tone: 'violet', states: ['AI_DRAFT', 'DRAFT'] },
   { label: 'Leader Approved', tone: 'orange', states: ['PENDING_MEMBER'] },
   { label: 'Returned', tone: 'red', states: ['RETURNED'] },
   { label: 'Member Accepted', tone: 'sky', states: ['ASSIGNED', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'] },
 ];
 
-export function PlanningProgress({ sprint, tasks }: { sprint: Sprint | undefined; tasks: Task[] }) {
+export function PlanningProgress({ sprint, tasks, canPlan }: { sprint: Sprint | undefined; tasks: Task[]; canPlan: boolean }) {
   const navigate = useNavigate();
+  const name = sprint?.name ?? '下個 Sprint';
   return (
     <Card>
       <CardHeader
-        title={`${sprint?.name ?? '下個 Sprint'} 規劃進度`}
+        title={`${name} 規劃進度`}
         action={
-          <Button variant="primary" size="sm" onClick={() => navigate('/planning')}>
-            <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Planning Studio
-          </Button>
+          canPlan && (
+            <Button variant="primary" size="sm" onClick={() => navigate('/planning')}>
+              <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Planning Studio
+            </Button>
+          )
         }
       />
       {tasks.length ? (
@@ -43,7 +45,9 @@ export function PlanningProgress({ sprint, tasks }: { sprint: Sprint | undefined
         </div>
       ) : (
         <Callout>
-          尚未拆解 {sprint?.name ?? '下個 Sprint'} 的會議紀錄。前往 Planning Studio 貼上會議紀錄，讓 AI 拆解成 Epic、Story 與 Sub-task。
+          {canPlan
+            ? `${name} 尚未核准規劃。前往 Planning Studio 貼上會議紀錄，讓 AI 拆解成 Story 與 Task 後派工。`
+            : `Leader 正在規劃 ${name}，核准後你會在「確認與認領」收到指派邀請。`}
         </Callout>
       )}
     </Card>

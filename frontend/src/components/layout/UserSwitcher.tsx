@@ -3,7 +3,7 @@ import { Avatar } from '@/components/ui';
 import { useCurrentUser, useMembers } from '@/hooks/queries';
 import { useSwitchUser } from '@/hooks/useSwitchUser';
 
-/** 示範用身分切換：Leader / PO / Member 會看到不同的操作權限 */
+/** 示範用身分切換：Leader 與 Member 會看到不同的操作權限 */
 export function UserSwitcher() {
   const { data: me } = useCurrentUser();
   const { data: members } = useMembers();

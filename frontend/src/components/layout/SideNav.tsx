@@ -1,8 +1,9 @@
 import { Fragment } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useNotifications } from '@/hooks/queries';
+import { useCurrentUser, useNotifications } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
-import { HELP_ICON, SIDE_NAV, type NavItem } from './nav';
+import { isLead } from '@/lib/permissions';
+import { HELP_ICON, SIDE_NAV, visibleFor, type NavItem } from './nav';
 
 const itemClass = (active: boolean) =>
   cn(
@@ -33,6 +34,8 @@ function Item({ item, badge }: { item: NavItem; badge?: boolean }) {
 /** 極簡垂直膠囊 Icon 選單，位於 Logo 正下方；手機寬度改為主工作區下方的水平列 */
 export function SideNav({ onHelp }: { onHelp: () => void }) {
   const { data: notifications } = useNotifications();
+  const { data: me } = useCurrentUser();
+  const lead = isLead(me);
   const pending = notifications?.some((n) => n.status === 'pending') ?? false;
 
   return (
@@ -47,7 +50,7 @@ export function SideNav({ onHelp }: { onHelp: () => void }) {
       {SIDE_NAV.map((group, gi) => (
         <Fragment key={gi}>
           {gi > 0 && <span className="hidden h-px w-6 bg-gray-200 md:my-1 md:block" aria-hidden />}
-          {group.map((item) => (
+          {visibleFor(group, lead).map((item) => (
             <Item key={item.to} item={item} badge={item.to === '/inbox' && pending} />
           ))}
         </Fragment>

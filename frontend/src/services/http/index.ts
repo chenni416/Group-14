@@ -35,10 +35,6 @@ export const httpServices: Services = {
   },
   tasks: {
     list: () => data(http.get('/tasks')),
-    create: (input) => data(http.post('/tasks', input)),
-    update: (id, patch) => data(http.patch(`/tasks/${id}`, patch)),
-    remove: (id) => data(http.delete(`/tasks/${id}`)),
-    approveDrafts: () => data(http.post('/tasks/drafts/approve')),
     reassign: (id, assigneeId) => data(http.post(`/tasks/${id}/reassign`, { assigneeId })),
     accept: (id) => data(http.post(`/tasks/${id}/accept`)),
     negotiate: (id, input) => data(http.post(`/tasks/${id}/negotiate`, input)),
@@ -52,7 +48,10 @@ export const httpServices: Services = {
   planning: {
     getMinutes: () => data(http.get('/planning/minutes')),
     getSampleMinutes: () => data(http.get('/planning/minutes/sample')),
-    decompose: (minutes) => data(http.post('/planning/decompose', { minutes })),
+    generateDraft: (input) => data(http.post('/planning/drafts', input)),
+    generateTasks: (input) => data(http.post('/planning/drafts/tasks', input)),
+    submitPlan: (draft) => data(http.post('/planning/drafts/submit', draft)),
+    askStoryAssistant: (question, storyTitle) => data(http.post('/planning/drafts/chat', { question, storyTitle })),
   },
   notifications: {
     list: () => data(http.get('/notifications')),

@@ -1,5 +1,4 @@
 import {
-  createTaskRecord,
   db,
   findMember,
   findSprint,
@@ -15,7 +14,7 @@ import {
 } from '@/mocks/db';
 import { buildPrompt } from '@/mocks/handlers/prompt';
 import { aiReply } from '@/mocks/handlers/chat';
-import { decompose } from '@/mocks/handlers/decompose';
+import { generateDraft, generateTasks, storyAssistantReply, submitPlan } from '@/mocks/handlers/planning';
 import { canReview, sendToReview } from '@/mocks/handlers/review';
 import { SAMPLE_MINUTES } from '@/mocks/data/knowledge';
 import { ApiError, BOARD_STATES, type BurndownPoint, type ChatMessage } from '@/types';
@@ -29,62 +28,8 @@ import type {
 import { respond } from './utils';
 
 const me = () => sessionUser();
-const isDraft = (state: string) => state === 'AI_DRAFT' || state === 'DRAFT';
-
 export const tasks: TaskService = {
   list: () => respond(() => db.tasks.map(toTask)),
-
-  create: (input) =>
-    respond(() => {
-      requireLead('新增任務');
-      findMember(input.assigneeId);
-      if (!input.title.trim()) throw new ApiError('請輸入標題');
-      const def = db.project.defaultPolicy;
-      const record = createTaskRecord(db.project, {
-        id: `${db.project.prefix}-${db.seq++}`,
-        sprintId: db.project.planningSprintId,
-        title: input.title.trim(),
-        domain: input.domain,
-        storyPoints: input.storyPoints,
-        assigneeId: input.assigneeId,
-        acceptanceCriteria: input.acceptanceCriteria,
-        state: 'DRAFT',
-        origin: 'human',
-        epic: '手動任務',
-        story: 'Leader 新增',
-        policy: { ...def, targets: [...def.targets] },
-        policyReason: '沿用專案預設策略',
-      });
-      db.tasks.push(record);
-      return toTask(record);
-    }),
-
-  update: (id, patch) =>
-    respond(() => {
-      requireLead('調整任務');
-      if (patch.assigneeId) findMember(patch.assigneeId);
-      const task = findTask(id);
-      if (!isDraft(task.state)) throw new ApiError('只有草稿可以編輯');
-      Object.assign(task, patch, { edited: true });
-      return toTask(task);
-    }),
-
-  remove: (id) =>
-    respond(() => {
-      requireLead('移除任務');
-      db.tasks = db.tasks.filter((t) => t.id !== id);
-    }),
-
-  approveDrafts: () =>
-    respond(() => {
-      requireLead('核准任務');
-      const drafts = sprintTasks(db.project.planningSprintId).filter((t) => isDraft(t.state));
-      drafts.forEach((t) => {
-        t.state = 'PENDING_MEMBER';
-        notify(t.assigneeId, 'invite', t.id, me().id, `預估 ${t.storyPoints} 點，請確認是否接受`);
-      });
-      return { count: drafts.length };
-    }),
 
   reassign: (id, assigneeId) =>
     respond(() => {
@@ -182,8 +127,7 @@ export const tasks: TaskService = {
     respond(() => {
       const task = findTask(id);
       const user = me();
-      const lead = user.role === 'Leader' || user.role === 'PO';
-      if (!lead && task.assigneeId !== user.id) throw new ApiError('只有 Leader / PO 或負責人可以調整', 403);
+      if (user.role !== 'Leader' && task.assigneeId !== user.id) throw new ApiError('只有 Leader 或負責人可以調整', 403);
       if (task.state === 'IN_REVIEW' || task.state === 'DONE') throw new ApiError('審查中已鎖定');
       task.policy = { ...policy, targets: policy.mode === 'target' ? [...policy.targets] : [] };
       task.policyReason = '';
@@ -242,13 +186,24 @@ export const sprints: SprintService = {
 export const planning: PlanningService = {
   getMinutes: () => respond(() => db.notes, 60),
   getSampleMinutes: () => respond(() => SAMPLE_MINUTES, 60),
-  decompose: (minutes) =>
+  generateDraft: ({ goal, minutes }) =>
     respond(() => {
       requireLead('執行 AI 拆解');
       if (!minutes.trim()) throw new ApiError('請先貼上會議紀錄');
       db.notes = minutes;
-      return { created: decompose(minutes) };
+      return generateDraft(goal);
     }, 2000),
+  generateTasks: (input) =>
+    respond(() => {
+      requireLead('拆解 Task');
+      return generateTasks(input);
+    }, 1200),
+  submitPlan: (draft) =>
+    respond(() => {
+      requireLead('核准規劃');
+      return { count: submitPlan(draft) };
+    }, 400),
+  askStoryAssistant: (question, storyTitle) => respond(() => storyAssistantReply(question, storyTitle), 700),
 };
 
 export const notifications: NotificationService = {

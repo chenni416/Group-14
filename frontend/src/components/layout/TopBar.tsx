@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import { useCurrentUser } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
-import { FLOW_NAV } from './nav';
+import { isLead } from '@/lib/permissions';
+import { FLOW_NAV, visibleFor } from './nav';
 import { TaskSearch } from './TaskSearch';
 import { UserSwitcher } from './UserSwitcher';
 
@@ -19,11 +21,12 @@ function Logo() {
 }
 
 export function TopBar() {
+  const { data: me } = useCurrentUser();
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-3 lg:flex-nowrap">
       <Logo />
       <nav aria-label="流程" className="order-3 hidden w-full gap-2 overflow-x-auto lg:order-none lg:ml-4 lg:flex lg:w-auto">
-        {FLOW_NAV.map((item, i) => (
+        {visibleFor(FLOW_NAV, isLead(me)).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -44,7 +47,7 @@ export function TopBar() {
                     isActive ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-600',
                   )}
                 >
-                  {i + 1}
+                  {item.step}
                 </span>
                 {item.label}
               </>

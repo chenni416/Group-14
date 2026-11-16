@@ -1,7 +1,6 @@
 import type { Member, Task } from '@/types';
 
-export const isLead = (member: Member | undefined) =>
-  member?.role === 'Leader' || member?.role === 'PO';
+export const isLead = (member: Member | undefined) => member?.role === 'Leader';
 
 /** 使用者是否能對此任務按下核准 / 要求修改 */
 export function canReview(task: Task, userId: string): boolean {

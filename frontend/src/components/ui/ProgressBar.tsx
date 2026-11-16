@@ -1,6 +1,6 @@
 import { cn } from '@/lib/cn';
 
-export type BarTone = 'dark' | 'orange' | 'sky' | 'violet' | 'red';
+export type BarTone = 'dark' | 'orange' | 'sky' | 'violet' | 'red' | 'green';
 
 const fills: Record<BarTone, string> = {
   dark: 'bg-neutral-900',
@@ -8,6 +8,7 @@ const fills: Record<BarTone, string> = {
   sky: 'bg-accent-sky',
   violet: 'bg-accent-violet',
   red: 'bg-red-500',
+  green: 'bg-emerald-500',
 };
 
 export interface BarSegment {

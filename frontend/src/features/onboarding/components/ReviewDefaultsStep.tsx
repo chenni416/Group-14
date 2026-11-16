@@ -10,7 +10,7 @@ export function ReviewDefaultsStep({ project, members, editable }: { project: Pr
   const p = project.defaultPolicy;
   const leader = members.find((m) => m.role === 'Leader');
   const save = (policy: ReviewPolicy) =>
-    editable ? updateProject.mutate({ defaultPolicy: policy }) : toast('只有 Leader / PO 可以設定');
+    editable ? updateProject.mutate({ defaultPolicy: policy }) : toast('只有 Leader 可以設定');
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-2">

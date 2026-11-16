@@ -20,7 +20,7 @@ const TABS = [
   { value: 'todo' as const, label: '待我處理' },
 ];
 
-export function MyTasksCard({ tasks, userId }: { tasks: Task[]; userId: string }) {
+export function MyTasksCard({ tasks, userId, canPlan }: { tasks: Task[]; userId: string; canPlan: boolean }) {
   const navigate = useNavigate();
   const drawer = useTaskDrawer();
   const { myTasksTab, setMyTasksTab } = useUiStore();
@@ -35,9 +35,11 @@ export function MyTasksCard({ tasks, userId }: { tasks: Task[]; userId: string }
       <CardHeader
         title="我的任務"
         action={
-          <IconButton aria-label="前往 Sprint 規劃" onClick={() => navigate('/planning')}>
-            <Plus className="h-4 w-4" strokeWidth={1.75} />
-          </IconButton>
+          canPlan && (
+            <IconButton aria-label="前往 Sprint 規劃" onClick={() => navigate('/planning')}>
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
+            </IconButton>
+          )
         }
       />
       <SegmentedControl<MyTasksTab> size="sm" options={TABS} value={myTasksTab} onChange={setMyTasksTab} aria-label="任務分類" />

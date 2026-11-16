@@ -1,22 +1,24 @@
 import type {
   BurndownPoint,
   ChatMessage,
-  CreateTaskInput,
   InviteMemberInput,
   KnowledgeDoc,
   Member,
   NegotiateInput,
   Notification,
+  GenerateDraftInput,
+  GenerateTasksInput,
   Organization,
+  PlanningDraft,
   Project,
   PromptState,
   ReviewPolicy,
   SearchHit,
   Sprint,
   Task,
+  TaskDraft,
   UpdateMemberInput,
   UpdateProjectInput,
-  UpdateTaskInput,
   UploadDocInput,
 } from '@/types';
 
@@ -66,11 +68,6 @@ export interface ReviewResult {
 
 export interface TaskService {
   list(): Promise<Task[]>;
-  create(input: CreateTaskInput): Promise<Task>;
-  update(id: string, patch: UpdateTaskInput): Promise<Task>;
-  remove(id: string): Promise<void>;
-  /** 核准所有草稿並發送指派邀請，回傳數量 */
-  approveDrafts(): Promise<{ count: number }>;
   reassign(id: string, assigneeId: string): Promise<Task>;
   accept(id: string): Promise<Task>;
   negotiate(id: string, input: NegotiateInput): Promise<Task>;
@@ -85,8 +82,14 @@ export interface TaskService {
 export interface PlanningService {
   getMinutes(): Promise<string>;
   getSampleMinutes(): Promise<string>;
-  /** AI 拆解會議紀錄，回傳新增的 Sub-task 數 */
-  decompose(minutes: string): Promise<{ created: number }>;
+  /** AI 分析會議紀錄，產生 Story 切分草稿（尚未拆解 Task，供 Leader 審核） */
+  generateDraft(input: GenerateDraftInput): Promise<PlanningDraft>;
+  /** 核准規劃：建立任務並發送指派邀請，回傳任務數 */
+  /** 依確認後的 Story 拆解 Task（全部未指派） */
+  generateTasks(input: GenerateTasksInput): Promise<TaskDraft[]>;
+  submitPlan(draft: PlanningDraft): Promise<{ count: number }>;
+  /** 與 AI 對話微調 Story 切分，回傳回覆文字 */
+  askStoryAssistant(question: string, storyTitle: string | null): Promise<string>;
 }
 
 export interface NotificationService {

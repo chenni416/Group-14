@@ -1,42 +1,56 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
-import type { CreateTaskInput, UpdateTaskInput } from '@/types';
+import type { GenerateDraftInput, GenerateTasksInput, PlanningDraft } from '@/types';
+import { usePlanningStore } from '../store';
 
-export const DECOMPOSE_KEY = ['planning', 'decompose'];
-
-export const useMinutes = () => useQuery({ queryKey: ['planning', 'minutes'], queryFn: api.planning.getMinutes, staleTime: Infinity });
+export const useMinutes = () =>
+  useQuery({ queryKey: ['planning', 'minutes'], queryFn: api.planning.getMinutes, staleTime: Infinity });
 
 export function usePlanningMutations() {
-  const decompose = useApiMutation({
-    mutationKey: DECOMPOSE_KEY,
-    mutationFn: api.planning.decompose,
-    invalidate: [['tasks'], ['sprints']],
-    onSuccess: ({ created }) =>
-      toast(created ? `AI 拆解出 ${created} 項 Sub-task，請審核後核准` : '沒有偵測到新的待辦項目'),
+  const navigate = useNavigate();
+  const { loadDraft, appendTasks, setStage, reset } = usePlanningStore();
+
+  const generate = useApiMutation({
+    mutationFn: (input: GenerateDraftInput) => api.planning.generateDraft(input),
+    invalidate: [['sprints']],
+    onSuccess: (draft) => {
+      loadDraft(draft);
+      toast(`AI 切分出 ${draft.stories.length} 個 Story，請確認範疇與預估點數`);
+    },
   });
-  const approveDrafts = useApiMutation({
-    mutationFn: () => api.tasks.approveDrafts(),
-    onSuccess: ({ count }) => toast(`已核准 ${count} 項任務並發送指派邀請`),
+
+  const generateTasks = useApiMutation({
+    mutationKey: ['planning', 'generate-tasks'],
+    mutationFn: (input: GenerateTasksInput) => api.planning.generateTasks(input),
+    invalidate: [],
+    onSuccess: (tasks, input) => {
+      appendTasks(tasks);
+      setStage('tasks');
+      toast(`已依 ${input.stories.length} 個 Story 拆解出 ${tasks.length} 張 Task，全部進入未指派`);
+    },
   });
-  const updateTask = useApiMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: UpdateTaskInput }) => api.tasks.update(id, patch),
-    invalidate: [['tasks']],
+
+  const submit = useApiMutation({
+    mutationFn: (draft: PlanningDraft) => api.planning.submitPlan(draft),
+    onSuccess: ({ count }) => {
+      reset();
+      toast(`已確認派工並通知成員（共 ${count} 張任務），進入確認與認領`);
+      navigate('/inbox');
+    },
   });
-  const removeTask = useApiMutation({ mutationFn: api.tasks.remove, invalidate: [['tasks']] });
-  const createTask = useApiMutation({
-    mutationFn: (input: CreateTaskInput) => api.tasks.create(input),
-    invalidate: [['tasks']],
-    onSuccess: (t) => toast(`已加入草稿 ${t.id}`),
-  });
+
   const reassign = useApiMutation({
     mutationFn: ({ id, assigneeId }: { id: string; assigneeId: string }) => api.tasks.reassign(id, assigneeId),
     onSuccess: () => toast('已重新發送指派邀請'),
   });
+
   const updateGoal = useApiMutation({
     mutationFn: ({ id, goal }: { id: number; goal: string }) => api.sprints.updateGoal(id, goal),
     invalidate: [['sprints']],
   });
-  return { decompose, approveDrafts, updateTask, removeTask, createTask, reassign, updateGoal };
+
+  return { generate, generateTasks, submit, reassign, updateGoal };
 }

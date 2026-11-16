@@ -156,11 +156,11 @@ export function findSprint(id: number): Sprint {
 
 export const sessionUser = () => findMember(db.sessionUserId);
 export const leader = () => db.members.find((m) => m.role === 'Leader') ?? db.members[0]!;
-export const isLeadRole = (m: Member) => m.role === 'Leader' || m.role === 'PO';
+export const isLeadRole = (m: Member) => m.role === 'Leader';
 export const sprintTasks = (sprintId: number) => db.tasks.filter((t) => t.sprintId === sprintId);
 
 export function requireLead(action: string) {
-  if (!isLeadRole(sessionUser())) throw new ApiError(`只有 Leader / PO 可以${action}`, 403, 'FORBIDDEN');
+  if (!isLeadRole(sessionUser())) throw new ApiError(`只有 Leader 可以${action}`, 403, 'FORBIDDEN');
 }
 
 export function notify(toId: string, type: NotificationType, taskId: string, fromId: string, text: string) {

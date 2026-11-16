@@ -58,21 +58,6 @@ export interface Task {
   negotiation: Negotiation | null;
 }
 
-export interface UpdateTaskInput {
-  title?: string;
-  storyPoints?: number;
-  assigneeId?: string;
-  acceptanceCriteria?: string[];
-}
-
-export interface CreateTaskInput {
-  title: string;
-  domain: Domain;
-  storyPoints: number;
-  assigneeId: string;
-  acceptanceCriteria: string[];
-}
-
 export interface NegotiateInput {
   reason: string;
   suggestId: string | null;

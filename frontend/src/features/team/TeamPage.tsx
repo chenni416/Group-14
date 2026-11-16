@@ -33,7 +33,7 @@ export function TeamPage() {
         eyebrow="Organization & Team"
         title="組織與團隊設定"
         actions={
-          <Button variant="primary" onClick={() => (lead ? invite.open() : toast('只有 Leader / PO 可以邀請成員'))}>
+          <Button variant="primary" onClick={() => (lead ? invite.open() : toast('只有 Leader 可以邀請成員'))}>
             <Plus className="h-4 w-4" strokeWidth={1.75} />
             邀請成員
           </Button>
@@ -98,7 +98,7 @@ export function TeamPage() {
         <Card>
           <CardHeader
             title="成員角色與技術特徵"
-            description={lead ? 'AI 推薦指派會依據這些資料' : '僅 Leader / PO 可編輯'}
+            description={lead ? 'AI 推薦指派會依據這些資料' : '僅 Leader 可編輯'}
           />
           <div className="grid gap-4 md:grid-cols-2">
             {members.map((m) => (

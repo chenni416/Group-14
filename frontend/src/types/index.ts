@@ -6,3 +6,4 @@ export * from './project';
 export * from './review-policy';
 export * from './sprint';
 export * from './task';
+export * from './planning';

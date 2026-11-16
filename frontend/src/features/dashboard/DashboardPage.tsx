@@ -3,7 +3,7 @@ import { PageHeader, PageSkeleton, SegmentedControl } from '@/components/ui';
 import { useCurrentUser, useMembers, useSprintContext } from '@/hooks/queries';
 import { CHART_COLORS } from '@/lib/constants';
 import { sum } from '@/lib/format';
-import { needsMyReview } from '@/lib/permissions';
+import { isLead, needsMyReview } from '@/lib/permissions';
 import { BurndownChart } from './components/BurndownChart';
 import { MyTasksCard } from './components/MyTasksCard';
 import { PlanningProgress } from './components/PlanningProgress';
@@ -55,7 +55,7 @@ export function DashboardPage() {
         />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:row-span-3 [&>*]:h-full">
-            <MyTasksCard tasks={allTasks} userId={me.id} />
+            <MyTasksCard tasks={allTasks} userId={me.id} canPlan={isLead(me)} />
           </div>
           <StatusDonut tasks={boardTasks} />
           <BurndownChart sprintId={active?.id} />
@@ -63,7 +63,11 @@ export function DashboardPage() {
             <ReviewQueue tasks={boardTasks} />
           </div>
           <div className="lg:col-span-2">
-            <PlanningProgress sprint={planning?.status === 'planning' ? planning : undefined} tasks={planning?.status === 'planning' ? planningTasks : []} />
+            <PlanningProgress
+              sprint={planning?.status === 'planning' ? planning : undefined}
+              tasks={planning?.status === 'planning' ? planningTasks : []}
+              canPlan={isLead(me)}
+            />
           </div>
           <div className="lg:col-span-3">
             <TeamLoad members={members ?? []} tasks={boardTasks} sprint={active} />

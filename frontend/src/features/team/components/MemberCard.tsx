@@ -32,7 +32,7 @@ export function MemberCard({ member, editable }: { member: Member; editable: boo
           disabled={!editable}
           onChange={(e) => save({ role: e.target.value as MemberRole })}
         >
-          {(['Leader', 'PO', 'Member'] as const).map((r) => (
+          {(['Leader', 'Member'] as const).map((r) => (
             <option key={r}>{r}</option>
           ))}
         </Select>
