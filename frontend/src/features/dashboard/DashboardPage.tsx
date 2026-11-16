@@ -5,15 +5,16 @@ import { CHART_COLORS } from '@/lib/constants';
 import { sum } from '@/lib/format';
 import { needsMyReview } from '@/lib/permissions';
 import { DEMO_PROJECTS, useProjectStore } from '@/stores/project.store';
+import { ActivityFeed } from './components/ActivityFeed';
 import { BurndownChart } from './components/BurndownChart';
+import { DemoMyTasksCard } from './components/DemoMyTasksCard';
 import { MyTasksCard } from './components/MyTasksCard';
 import { PlanningProgress } from './components/PlanningProgress';
+import { ProjectOverviewCard } from './components/ProjectOverviewCard';
 import { ReviewQueue } from './components/ReviewQueue';
 import { StatTiles } from './components/StatTiles';
 import { StatusDonut } from './components/StatusDonut';
 import { TeamLoad } from './components/TeamLoad';
-import { ProjectOverviewCard } from './components/ProjectOverviewCard';
-import { ActivityFeed } from './components/ActivityFeed';
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -70,22 +71,23 @@ export function DashboardPage() {
             { label: '待我處理', value: stat.action, hint: '指派確認與審查' },
           ]}
         />
-          {/* 上半部：左 2/3 專案資訊、右 1/3 我的任務 */}
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="space-y-6 lg:col-span-2">
-              {project && (
-                <ProjectOverviewCard project={project} sprint={active} tasks={boardTasks} members={members ?? []} />
-              )}
-              <ActivityFeed />
-            </div>
-            <div className="[&>*]:h-full">
-              <MyTasksCard tasks={allTasks} userId={me.id} />
-            </div>
+        {/* 上半部：左 2/3 專案資訊、右 1/3 我的任務 */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            {project && (
+              <ProjectOverviewCard project={project} sprint={active} tasks={boardTasks} members={members ?? []} />
+            )}
+            {isMain && <ActivityFeed />}
           </div>
+          <div className="[&>*]:h-full">
+            {isMain ? <MyTasksCard tasks={allTasks} userId={me.id} /> : <DemoMyTasksCard tasks={demo.tasks} userId={me.id} />}
+          </div>
+        </div>
 
-          {/* 下半部：Sprint 統計圖表 */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <StatusDonut tasks={boardTasks} />
+        {/* 下半部：Sprint 統計圖表（只有 Taskline 有真實資料） */}
+        {isMain && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <StatusDonut tasks={boardTasks} />
           <BurndownChart sprintId={active?.id} />
           <div className="lg:col-span-2">
             <ReviewQueue tasks={boardTasks} />
@@ -97,6 +99,7 @@ export function DashboardPage() {
             <TeamLoad members={members ?? []} tasks={boardTasks} sprint={active} />
           </div>
         </div>
+        )}
       </div>
     </>
   );
