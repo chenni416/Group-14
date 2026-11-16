@@ -35,7 +35,7 @@ export const httpServices: Services = {
   },
   tasks: {
     list: () => data(http.get('/tasks')),
-    reassign: (id, assigneeId) => data(http.post(`/tasks/${id}/reassign`, { assigneeId })),
+    revise: (id, input) => data(http.put(`/tasks/${id}/revise`, input)),
     accept: (id) => data(http.post(`/tasks/${id}/accept`)),
     negotiate: (id, input) => data(http.post(`/tasks/${id}/negotiate`, input)),
     claimReview: (id) => data(http.post(`/tasks/${id}/review/claim`)),

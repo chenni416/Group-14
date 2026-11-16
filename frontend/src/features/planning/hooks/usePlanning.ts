@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
-import type { GenerateDraftInput, GenerateTasksInput, PlanningDraft } from '@/types';
+import type { GenerateDraftInput, GenerateTasksInput, PlanningDraft, ReviseTaskInput } from '@/types';
 import { usePlanningStore } from '../store';
 
 export const useMinutes = () =>
@@ -42,9 +42,9 @@ export function usePlanningMutations() {
     },
   });
 
-  const reassign = useApiMutation({
-    mutationFn: ({ id, assigneeId }: { id: string; assigneeId: string }) => api.tasks.reassign(id, assigneeId),
-    onSuccess: () => toast('已重新發送指派邀請'),
+  const revise = useApiMutation({
+    mutationFn: ({ id, input }: { id: string; input: ReviseTaskInput }) => api.tasks.revise(id, input),
+    onSuccess: (t) => toast(`已更新 ${t.id} 並重新發送通知，任務回到待確認`),
   });
 
   const updateGoal = useApiMutation({
@@ -52,5 +52,5 @@ export function usePlanningMutations() {
     invalidate: [['sprints']],
   });
 
-  return { generate, generateTasks, submit, reassign, updateGoal };
+  return { generate, generateTasks, submit, revise, updateGoal };
 }

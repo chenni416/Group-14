@@ -62,3 +62,12 @@ export interface NegotiateInput {
   reason: string;
   suggestId: string | null;
 }
+
+/** 協商退回後，Leader 編輯並重新派工 */
+export interface ReviseTaskInput {
+  title: string;
+  storyPoints: number;
+  acceptanceCriteria: string[];
+  assigneeId: string;
+  policy: ReviewPolicy;
+}

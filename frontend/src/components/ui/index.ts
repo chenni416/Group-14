@@ -5,6 +5,7 @@ export * from './Callout';
 export * from './Card';
 export * from './ConfirmDialog';
 export * from './DomainIcon';
+export * from './Drawer';
 export * from './EmptyState';
 export * from './Field';
 export * from './Modal';

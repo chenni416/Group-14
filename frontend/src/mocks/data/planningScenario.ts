@@ -117,3 +117,20 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
     assignReason: '張家豪負責 Playwright 與 CI 環境，吻合測試技能；測試程式建議團隊搶單審查。',
   },
 ];
+
+/**
+ * 示範用：規劃送出後立即模擬部分成員的回覆，讓「待確認／協商退回／已接受」泳道都有資料。
+ * 鍵值為上方 SCENARIO_TASKS 的 id。串接真實後端後應移除。
+ */
+export const SIMULATED_RESPONSES: {
+  returned: Array<{ taskId: string; reason: string }>;
+  accepted: string[];
+} = {
+  returned: [
+    {
+      taskId: 'tk-3',
+      reason: '這張 API 串接需要等後端 Schema 確認，建議點數從 3 SP 調整為 5 SP 或延後處理',
+    },
+  ],
+  accepted: ['tk-1', 'tk-4', 'tk-8'],
+};

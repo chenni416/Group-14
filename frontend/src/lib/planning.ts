@@ -1,4 +1,4 @@
-import type { Member, PlanningDraft, ReviewerAssignment, TaskDraft } from '@/types';
+import type { Member, PlanningDraft, ReviewPolicy, ReviewerAssignment, TaskDraft } from '@/types';
 
 /** 分支命名：{前綴}/S{Sprint編號}{Story序號}{Task序號}-{摘要敘述} */
 export function branchName(draft: Pick<PlanningDraft, 'sprintId' | 'stories' | 'tasks'>, task: TaskDraft): string {
@@ -30,3 +30,12 @@ export function reviewerSummary(r: ReviewerAssignment, members: Map<string, Memb
 /** 摘要敘述轉成 kebab-case */
 export const toSlug = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** 正式任務的 ReviewPolicy ↔ 規劃時的審查人員安排 */
+export const policyToReviewer = (p: ReviewPolicy): ReviewerAssignment =>
+  p.mode === 'target' ? { mode: 'member', memberId: p.targets[0] ?? null } : { mode: p.mode, memberId: null };
+
+export const reviewerToPolicy = (r: ReviewerAssignment): ReviewPolicy =>
+  r.mode === 'member'
+    ? { mode: 'target', targets: r.memberId ? [r.memberId] : [], rule: 'any' }
+    : { mode: r.mode, targets: [], rule: 'any' };

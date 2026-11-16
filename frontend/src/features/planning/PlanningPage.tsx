@@ -5,10 +5,10 @@ import { useDocs, useMembers, useSprintContext } from '@/hooks/queries';
 import { AnalyzeProgress } from './components/AnalyzeProgress';
 import { PlanningStepper } from './components/PlanningStepper';
 import { SourceContext } from './components/SourceContext';
-import { SubmittedPlanSummary } from './components/SubmittedPlanSummary';
+import { SubmittedPlanBoard } from './components/SubmittedPlanBoard';
 import { usePlanningMutations } from './hooks/usePlanning';
-import { StoryReviewStep } from './steps/StoryReviewStep';
 import { FinalReviewStep } from './steps/FinalReviewStep';
+import { StoryReviewStep } from './steps/StoryReviewStep';
 import { TaskBreakdownStep } from './steps/TaskBreakdownStep';
 import { usePlanningStore } from './store';
 
@@ -20,7 +20,10 @@ export function PlanningPage() {
   );
 }
 
-/** Sprint 規劃：0 設定 → A Story 審核 → B Task 拆解與派工 → C 派工總覽與發送 */
+/**
+ * Sprint 規劃：0 設定 → A Story 審核 → B Task 拆解與派工 → C 派工總覽與發送。
+ * 規劃送出後改為滿版泳道追蹤看板。
+ */
 function PlanningStudio() {
   const ctx = useSprintContext();
   const { data: members = [] } = useMembers();
@@ -40,7 +43,10 @@ function PlanningStudio() {
     );
   }
 
-  const submitted = ctx.planningTasks.length > 0;
+  // 已核准並發送派工通知：不再回到設定畫面
+  if (ctx.planningTasks.length > 0) {
+    return <SubmittedPlanBoard sprint={sprint} tasks={ctx.planningTasks} members={members} ready={ctx.planningReady} />;
+  }
 
   return (
     <>
@@ -51,7 +57,6 @@ function PlanningStudio() {
           <SourceContext
             sprint={sprint}
             analyzing={generate.isPending}
-            locked={submitted}
             hasDraft={!!draft}
             onAnalyze={(goal, minutes) => generate.mutate({ goal, minutes })}
           />
@@ -59,8 +64,6 @@ function PlanningStudio() {
             <Card>
               <AnalyzeProgress docCount={docs?.length ?? 0} />
             </Card>
-          ) : submitted ? (
-            <SubmittedPlanSummary sprint={sprint} tasks={ctx.planningTasks} members={members} ready={ctx.planningReady} />
           ) : draft ? (
             <Card>
               <EmptyState

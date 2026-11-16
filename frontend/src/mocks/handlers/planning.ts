@@ -1,8 +1,8 @@
 import type { Domain, GenerateTasksInput, PlanningDraft, ReviewPolicy, ReviewerAssignment, TaskDraft } from '@/types';
 import { ApiError } from '@/types';
-import { SCENARIO_STORIES, SCENARIO_TASKS } from '../data/planningScenario';
+import { SCENARIO_STORIES, SCENARIO_TASKS, SIMULATED_RESPONSES } from '../data/planningScenario';
 import { branchName } from '@/lib/planning';
-import { createTaskRecord, db, findMember, findSprint, notify, sessionUser, sprintTasks } from '../db';
+import { createTaskRecord, db, findMember, findSprint, leader, notify, resolveNotifications, sessionUser, sprintTasks, type TaskRecord } from '../db';
 
 /** 回傳預設 Mock 場景的 Story 切分（不解析會議紀錄內容）；此時尚未拆解 Task */
 export function generateDraft(goal: string): PlanningDraft {
@@ -29,6 +29,7 @@ export function submitPlan(draft: PlanningDraft): number {
   if (unassigned.length) throw new ApiError(`還有 ${unassigned.length} 張 Task 尚未指派負責人`);
 
   const me = sessionUser();
+  const created = new Map<string, TaskRecord>();
   draft.tasks.forEach((t) => {
     const assigneeId = findMember(t.assigneeId!).id;
     const story = draft.stories.find((s) => s.id === t.storyId);
@@ -52,8 +53,10 @@ export function submitPlan(draft: PlanningDraft): number {
       branch: branchName(draft, t),
     });
     db.tasks.push(record);
+    created.set(t.id, record);
     notify(assigneeId, 'invite', record.id, me.id, `預估 ${t.storyPoints} 點，請確認是否接受`);
   });
+  simulateMemberResponses(created);
   return draft.tasks.length;
 }
 
@@ -107,5 +110,34 @@ export function generateTasks({ stories, existingTaskCount }: GenerateTasksInput
       analysis: `依 Story「${story.title}」的範疇拆出，屬手動新增項目，尚無 AI 細部技術分析。`,
       assignReason: '手動新增的 Story 沒有 AI 指派建議，請依成員技能與負載自行指派。',
     }));
+  });
+}
+
+/** 示範用：套用 SIMULATED_RESPONSES，部分任務直接變為「已接受」或「協商退回」 */
+function simulateMemberResponses(created: Map<string, TaskRecord>) {
+  const lead = leader();
+  const returned = SIMULATED_RESPONSES.returned
+    .map((r) => ({ ...r, record: created.get(r.taskId) }))
+    .filter((r): r is typeof r & { record: TaskRecord } => !!r.record);
+  // 預設任務被移除時，改由第一張待確認任務退回，確保畫面上至少有一張協商退回
+  if (!returned.length) {
+    const fallback = [...created.values()][0];
+    const sample = SIMULATED_RESPONSES.returned[0];
+    if (fallback && sample) returned.push({ ...sample, record: fallback });
+  }
+
+  returned.forEach(({ record, reason }) => {
+    record.state = 'RETURNED';
+    record.negotiation = { byId: record.assigneeId, reason, suggestId: null };
+    resolveNotifications(record.id, ['invite']);
+    notify(lead.id, 'returned', record.id, record.assigneeId, reason);
+  });
+
+  SIMULATED_RESPONSES.accepted.forEach((id) => {
+    const record = created.get(id);
+    if (!record || record.state !== 'PENDING_MEMBER') return;
+    record.state = 'ASSIGNED';
+    resolveNotifications(record.id, ['invite']);
+    notify(lead.id, 'info', record.id, record.assigneeId, '已接受任務指派');
   });
 }

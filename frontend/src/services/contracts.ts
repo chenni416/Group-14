@@ -13,6 +13,7 @@ import type {
   Project,
   PromptState,
   ReviewPolicy,
+  ReviseTaskInput,
   SearchHit,
   Sprint,
   Task,
@@ -68,7 +69,8 @@ export interface ReviewResult {
 
 export interface TaskService {
   list(): Promise<Task[]>;
-  reassign(id: string, assigneeId: string): Promise<Task>;
+  /** 協商退回後編輯任務並重新發送指派邀請（回到待確認） */
+  revise(id: string, input: ReviseTaskInput): Promise<Task>;
   accept(id: string): Promise<Task>;
   negotiate(id: string, input: NegotiateInput): Promise<Task>;
   claimReview(id: string): Promise<Task>;

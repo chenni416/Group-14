@@ -31,14 +31,27 @@ const me = () => sessionUser();
 export const tasks: TaskService = {
   list: () => respond(() => db.tasks.map(toTask)),
 
-  reassign: (id, assigneeId) =>
+  revise: (id, input) =>
     respond(() => {
-      requireLead('重新指派');
-      findMember(assigneeId);
+      requireLead('編輯並重新派工');
       const task = findTask(id);
+      if (task.state !== 'RETURNED') throw new ApiError('只有協商退回的任務可以重新派工');
+      if (!input.title.trim()) throw new ApiError('請輸入任務標題');
+      if (!input.acceptanceCriteria.length) throw new ApiError('至少需要一條驗收條件');
+      if (input.policy.mode === 'target' && !input.policy.targets.length) throw new ApiError('請選擇指定的審查成員');
+      findMember(input.assigneeId);
       resolveNotifications(id, ['returned']);
-      Object.assign(task, { assigneeId, edited: true, state: 'PENDING_MEMBER', negotiation: null });
-      notify(assigneeId, 'invite', id, me().id, `預估 ${task.storyPoints} 點（重新指派），請確認是否接受`);
+      Object.assign(task, {
+        title: input.title.trim(),
+        storyPoints: input.storyPoints,
+        acceptanceCriteria: input.acceptanceCriteria,
+        assigneeId: input.assigneeId,
+        policy: input.policy,
+        edited: true,
+        state: 'PENDING_MEMBER',
+        negotiation: null,
+      });
+      notify(input.assigneeId, 'invite', id, me().id, `預估 ${task.storyPoints} 點（Leader 已依協商調整），請確認是否接受`);
       return toTask(task);
     }),
 

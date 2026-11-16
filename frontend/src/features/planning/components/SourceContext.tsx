@@ -1,6 +1,6 @@
 import { Sparkles, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Badge, Button, Callout, Card, CardHeader, Input, Label, Tag, Textarea } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, Input, Label, Tag, Textarea } from '@/components/ui';
 import { useDocs } from '@/hooks/queries';
 import { ragStatus } from '@/lib/rag';
 import { api } from '@/services';
@@ -11,14 +11,12 @@ import { useMinutes, usePlanningMutations } from '../hooks/usePlanning';
 interface Props {
   sprint: Sprint;
   analyzing: boolean;
-  /** 已送出規劃時鎖定，避免重複建立任務 */
-  locked: boolean;
   hasDraft: boolean;
   onAnalyze: (goal: string, minutes: string) => void;
 }
 
 /** 階段 0：Sprint Goal、會議紀錄與已掛載的專案脈絡 */
-export function SourceContext({ sprint, analyzing, locked, hasDraft, onAnalyze }: Props) {
+export function SourceContext({ sprint, analyzing, hasDraft, onAnalyze }: Props) {
   const { data: savedMinutes } = useMinutes();
   const { data: docs } = useDocs();
   const { updateGoal } = usePlanningMutations();
@@ -52,7 +50,6 @@ export function SourceContext({ sprint, analyzing, locked, hasDraft, onAnalyze }
           <Input
             id="sprint-goal"
             value={goal}
-            disabled={locked}
             placeholder="本次 Sprint 要達成的成果"
             onChange={(e) => setGoal(e.target.value)}
             onBlur={() => goal !== sprint.goal && updateGoal.mutate({ id: sprint.id, goal })}
@@ -64,11 +61,11 @@ export function SourceContext({ sprint, analyzing, locked, hasDraft, onAnalyze }
               會議紀錄（Markdown）
             </Label>
             <div className="flex gap-1.5">
-              <Button size="xs" disabled={locked} onClick={() => fileRef.current?.click()}>
+              <Button size="xs" onClick={() => fileRef.current?.click()}>
                 <Upload className="h-3 w-3" strokeWidth={1.75} />
                 上傳
               </Button>
-              <Button size="xs" disabled={locked} onClick={async () => setMinutes(await api.planning.getSampleMinutes())}>
+              <Button size="xs" onClick={async () => setMinutes(await api.planning.getSampleMinutes())}>
                 範例
               </Button>
               <input ref={fileRef} type="file" accept=".md,.txt" hidden onChange={(e) => onFile(e.target.files?.[0])} />
@@ -78,7 +75,6 @@ export function SourceContext({ sprint, analyzing, locked, hasDraft, onAnalyze }
             id="minutes"
             rows={14}
             value={minutes}
-            disabled={locked}
             onChange={(e) => setMinutes(e.target.value)}
             className="bg-gray-50 font-mono text-xs"
           />
@@ -96,14 +92,13 @@ export function SourceContext({ sprint, analyzing, locked, hasDraft, onAnalyze }
           variant="primary"
           size="lg"
           className="w-full"
-          disabled={locked}
+         
           loading={analyzing}
           onClick={() => onAnalyze(goal, minutes)}
         >
           <Sparkles className="h-4 w-4" strokeWidth={1.75} />
           {analyzing ? 'AI 分析中' : hasDraft ? '重新分析（覆蓋目前草稿）' : 'AI Analyze & Decompose'}
         </Button>
-        {locked && <Callout>本 Sprint 的規劃已核准送出，設定已鎖定。</Callout>}
       </div>
     </Card>
   );
