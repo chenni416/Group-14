@@ -12,7 +12,7 @@ const STEPS: Array<{ stage: PlanningStage; marker: string; label: string }> = [
 
 /** 規劃流程步驟條：可切換到已到達的階段檢視 */
 export function PlanningStepper() {
-  const { stage, reached, draft, setStage } = usePlanningStore();
+  const { stage, reached, draft, requestStage } = usePlanningStore();
   const current = stageIndex(stage);
 
   return (
@@ -29,7 +29,7 @@ export function PlanningStepper() {
               disabled={!enabled}
               aria-current={active ? 'step' : undefined}
               title={s.stage === 'setup' && !active ? '返回修改 Sprint 設定' : undefined}
-              onClick={() => setStage(s.stage)}
+              onClick={() => requestStage(s.stage)}
               className={cn(
                 'inline-flex h-10 items-center gap-2 rounded-full border pl-1.5 pr-4 text-sm font-medium transition-colors duration-150',
                 'disabled:cursor-not-allowed disabled:opacity-50',

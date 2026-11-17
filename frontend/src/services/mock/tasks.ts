@@ -404,8 +404,22 @@ export const sprints: SprintService = {
     respond(() => {
       requireLead('修改 Sprint');
       const sprint = findSprint(id);
-      if (patch.goal != null) sprint.goal = patch.goal;
+      if (sprint.status !== 'planning' && (patch.name != null || patch.startDate != null || patch.endDate != null || patch.capacity != null))
+        throw new ApiError('只有規劃中的 Sprint 可以修改名稱、日期與 Capacity');
+      if (patch.name != null && !patch.name.trim()) throw new ApiError('請輸入 Sprint 名稱');
+      const startDate = patch.startDate ?? sprint.startDate;
+      const endDate = patch.endDate ?? sprint.endDate;
+      if (!startDate || !endDate || endDate < startDate) throw new ApiError('請確認起訖日期');
+      if (patch.name != null) sprint.name = patch.name.trim();
+      sprint.startDate = startDate;
+      sprint.endDate = endDate;
+      sprint.start = monthDay(startDate);
+      sprint.end = monthDay(endDate);
+      if (patch.goal != null) sprint.goal = patch.goal.trim();
+      if (patch.capacity)
+        sprint.capacity = Object.fromEntries(Object.entries(patch.capacity).map(([k, v]) => [k, Math.max(0, Math.round(v))]));
       if (patch.minutes != null) sprint.minutes = patch.minutes;
+      if (patch.docs) sprint.docs = [...patch.docs];
       return sprint;
     }, 80),
 
@@ -511,8 +525,6 @@ const advanceStep = (sprint: Sprint, step: Sprint['step']) => {
 };
 
 export const planning: PlanningService = {
-  getMinutes: () =>
-    respond(() => (db.project.planningSprintId == null ? '' : planningSprint().minutes), 60),
   getSampleMinutes: () => respond(() => SAMPLE_MINUTES, 60),
   generateDraft: ({ goal, minutes }) =>
     respond(() => {

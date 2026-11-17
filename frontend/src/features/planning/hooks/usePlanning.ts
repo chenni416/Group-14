@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '@/services';
@@ -16,13 +15,6 @@ import { usePlanningStore } from '../store';
 
 export const DECOMPOSE_KEY = ['planning', 'decompose'];
 export const ANALYZE_KEY = ['planning', 'analyze'];
-
-/**
- * 規劃中 Sprint 的會議紀錄。依 Sprint 區分快取，建立新 Sprint 後會讀到新的紀錄；
- * 不跟著 ['sprints'] 失效，避免覆蓋輸入框中尚未送出的內容。
- */
-export const useMinutes = (sprintId?: number) =>
-  useQuery({ queryKey: ['planning', 'minutes', sprintId], queryFn: api.planning.getMinutes, staleTime: Infinity });
 
 export function usePlanningMutations() {
   const navigate = useNavigate();

@@ -78,9 +78,15 @@ export interface CreateSprintInput {
   docs: SprintDoc[];
 }
 
+/** 規劃中 Sprint 的設定（開啟 Sprint 與設定），只傳要修改的欄位 */
 export interface UpdateSprintInput {
+  name?: string;
+  startDate?: string;
+  endDate?: string;
   goal?: string;
+  capacity?: Record<string, number>;
   minutes?: string;
+  docs?: SprintDoc[];
 }
 
 export type DependencyRisk = 'high' | 'mid' | 'ok';

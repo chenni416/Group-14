@@ -117,7 +117,6 @@ export interface TaskService {
 }
 
 export interface PlanningService {
-  getMinutes(): Promise<string>;
   getSampleMinutes(): Promise<string>;
   /** AI 分析會議紀錄，產生 Story 切分草稿（尚未拆解 Task，供 Leader 審核） */
   generateDraft(input: GenerateDraftInput): Promise<PlanningDraft>;

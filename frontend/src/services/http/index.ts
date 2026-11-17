@@ -64,7 +64,6 @@ export const httpServices: Services = {
     updatePolicy: (id, policy) => data(http.put(`/tasks/${id}/policy`, policy)),
   },
   planning: {
-    getMinutes: () => data(http.get('/planning/minutes')),
     getSampleMinutes: () => data(http.get('/planning/minutes/sample')),
     generateDraft: (input) => data(http.post('/planning/drafts', input)),
     generateTasks: (input) => data(http.post('/planning/drafts/tasks', input)),

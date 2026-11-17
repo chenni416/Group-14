@@ -35,6 +35,10 @@ interface PlanningState {
   collapsedTaskIds: string[];
   /** 程式跳轉時要捲動到的 Task（使用者點擊選取不捲動） */
   scrollTarget: string | null;
+  /** 「開啟 Sprint 與設定」有未儲存的修改 */
+  setupDirty: boolean;
+  /** 設定有未儲存修改時，使用者想切換到的階段（等待確認） */
+  pendingStage: PlanningStage | null;
 
   toggleCapacity: () => void;
   toggleTaskCollapsed: (id: string) => void;
@@ -47,6 +51,10 @@ interface PlanningState {
   jumpToNextUnassigned: () => void;
   clearScrollTarget: () => void;
   setStage: (stage: PlanningStage) => void;
+  /** 使用者從步驟條切換階段：設定有未儲存修改時先記為 pendingStage，由設定頁詢問 */
+  requestStage: (stage: PlanningStage) => void;
+  clearPendingStage: () => void;
+  setSetupDirty: (dirty: boolean) => void;
   loadDraft: (draft: PlanningDraft) => void;
   updateStory: (id: string, patch: Partial<StoryDraft>) => void;
   addStory: () => string;
@@ -73,6 +81,8 @@ const initial = {
   capacityExpanded: true,
   collapsedTaskIds: [] as string[],
   scrollTarget: null as string | null,
+  setupDirty: false,
+  pendingStage: null as PlanningStage | null,
 };
 
 let seq = 0;
@@ -93,6 +103,16 @@ export const usePlanningStore = create<PlanningState>()((set, get) => ({
         selectedTaskId: s.selectedTaskId ?? firstUnassignedOrFirst(s.draft?.tasks, activeStoryId),
       };
     }),
+
+  requestStage: (stage) => {
+    const s = get();
+    if (s.stage === 'setup' && stage !== 'setup' && s.setupDirty) set({ pendingStage: stage });
+    else s.setStage(stage);
+  },
+
+  clearPendingStage: () => set({ pendingStage: null }),
+
+  setSetupDirty: (setupDirty) => set({ setupDirty }),
 
   loadDraft: (draft) =>
     set({
