@@ -20,7 +20,7 @@ const DECISIONS: { value: DecideProposalInput['decision']; label: string }[] = [
   { value: 'nextSprint', label: '納入下一個 Sprint' },
 ];
 
-/** G4：提案、討論與決策紀錄（任何人可以提案與留言，Leader / PO 決策） */
+/** G4：提案、討論與決策紀錄（任何人可以提案與留言，Leader 決策） */
 export function ProposalCard({ proposal, task, memberMap, me, onOpenTask }: Props) {
   const { comment, decide } = useProposalActions();
   const [text, setText] = useState('');
@@ -87,7 +87,7 @@ export function ProposalCard({ proposal, task, memberMap, me, onOpenTask }: Prop
           </div>
           {isLead(me) && (
             <div className="space-y-2 rounded-xl bg-gray-50 p-3">
-              <p className="text-xs font-semibold text-gray-500">Leader / PO 決策</p>
+              <p className="text-xs font-semibold text-gray-500">Leader 決策</p>
               <Select value={decision} onChange={(e) => setDecision(e.target.value as DecideProposalInput['decision'])} aria-label="決策">
                 {DECISIONS.map((d) => (
                   <option key={d.value} value={d.value}>

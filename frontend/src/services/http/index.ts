@@ -54,6 +54,7 @@ export const httpServices: Services = {
     resend: (id) => data(http.post(`/tasks/${id}/resend`)),
     suggestAssignee: (id) => data(http.post(`/tasks/${id}/suggest-assignee`)),
     resetReturn: (id) => data(http.post(`/tasks/${id}/reset-return`)),
+    revise: (id, input) => data(http.put(`/tasks/${id}/revise`, input)),
     accept: (id) => data(http.post(`/tasks/${id}/accept`)),
     negotiate: (id, input) => data(http.post(`/tasks/${id}/negotiate`, input)),
     claimReview: (id) => data(http.post(`/tasks/${id}/review/claim`)),
@@ -66,6 +67,10 @@ export const httpServices: Services = {
   },
   planning: {
     getSampleMinutes: () => data(http.get('/planning/minutes/sample')),
+    generateDraft: (input) => data(http.post('/planning/drafts', input)),
+    generateTasks: (input) => data(http.post('/planning/drafts/tasks', input)),
+    submitPlan: (draft) => data(http.post('/planning/drafts/submit', draft)),
+    askStoryAssistant: (question, storyTitle) => data(http.post('/planning/drafts/chat', { question, storyTitle })),
     decompose: (sprintId) => data(http.post(`/sprints/${sprintId}/decompose`)),
     deferSuggested: (sprintId) => data(http.post(`/sprints/${sprintId}/defer-suggested`)),
     rebalance: (sprintId) => data(http.post(`/sprints/${sprintId}/rebalance`)),

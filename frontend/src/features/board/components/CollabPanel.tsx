@@ -64,7 +64,7 @@ export function CollabPanel() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-gray-900">問題與提案</h2>
-              <p className="mt-0.5 text-sm text-gray-500">Report → Assign Owner → Respond → Resolve / Replan；提案由 Leader 或 PO 決策</p>
+              <p className="mt-0.5 text-sm text-gray-500">Report → Assign Owner → Respond → Resolve / Replan；提案由 Leader 決策</p>
             </div>
             <IconButton aria-label="關閉" onClick={() => setPanel(null)}>
               <X className="h-4 w-4" strokeWidth={1.75} />

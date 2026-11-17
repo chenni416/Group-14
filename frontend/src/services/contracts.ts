@@ -12,6 +12,8 @@ import type {
   DecideProposalInput,
   Dependency,
   ExecutionPlan,
+  GenerateDraftInput,
+  GenerateTasksInput,
   InviteMemberInput,
   Issue,
   KnowledgeDoc,
@@ -20,6 +22,7 @@ import type {
   NewSprintDefaults,
   Notification,
   Organization,
+  PlanningDraft,
   Project,
   PromptState,
   Proposal,
@@ -27,11 +30,13 @@ import type {
   Retro,
   ReviewPolicy,
   SaveExecutionPlanInput,
+  ReviseTaskInput,
   SearchHit,
   Sprint,
   SubmitDeliveryInput,
   SubmitRetroEntryInput,
   Task,
+  TaskDraft,
   UpdateMemberInput,
   UpdateProjectInput,
   UpdateSprintInput,
@@ -120,6 +125,8 @@ export interface TaskService {
   suggestAssignee(id: string): Promise<{ task: Task; fits: boolean }>;
   /** 協商退回：復原到退回當下的內容 */
   resetReturn(id: string): Promise<Task>;
+  /** 協商退回後編輯任務並重新發送指派邀請（回到待確認） */
+  revise(id: string, input: ReviseTaskInput): Promise<Task>;
   accept(id: string): Promise<Task>;
   negotiate(id: string, input: NegotiateInput): Promise<Task>;
   claimReview(id: string): Promise<Task>;
@@ -136,6 +143,14 @@ export interface TaskService {
 
 export interface PlanningService {
   getSampleMinutes(): Promise<string>;
+  /** AI 分析會議紀錄，產生 Story 切分草稿（尚未拆解 Task，供 Leader 審核） */
+  generateDraft(input: GenerateDraftInput): Promise<PlanningDraft>;
+  /** 依確認後的 Story 拆解 Task（全部未指派） */
+  generateTasks(input: GenerateTasksInput): Promise<TaskDraft[]>;
+  /** 核准規劃：建立任務並發送指派邀請，回傳任務數 */
+  submitPlan(draft: PlanningDraft): Promise<{ count: number }>;
+  /** 與 AI 對話微調 Story 切分，回傳回覆文字 */
+  askStoryAssistant(question: string, storyTitle: string | null): Promise<string>;
   /** ② AI 拆解規劃中 Sprint 的會議紀錄（待釐清問題需全部回答），回傳新增數 */
   decompose(sprintId: number): Promise<{ created: number }>;
   /** 依 AI 容量建議延後任務 */
@@ -178,7 +193,7 @@ export interface IssueService {
   replan(id: string): Promise<Issue>;
 }
 
-/** G4：提案（任何人可提案與留言，Leader / PO 決策） */
+/** G4：提案（任何人可提案與留言，Leader 決策） */
 export interface ProposalService {
   list(): Promise<Proposal[]>;
   create(input: CreateProposalInput): Promise<Proposal>;

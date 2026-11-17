@@ -118,7 +118,7 @@ export function ProposalDialog({ open, onClose, taskId }: ProposalProps) {
   const tasks = ctx.allTasks.filter((t) => t.sprintId === ctx.active?.id);
 
   return (
-    <Modal open={open} onClose={onClose} title="提出提案" description="任何成員都可以提案；Leader 或 PO 會決策，結果與理由都會保留。">
+    <Modal open={open} onClose={onClose} title="提出提案" description="任何成員都可以提案；Leader 會決策，結果與理由都會保留。">
       <div className="space-y-4">
         <Field label="類型">
           <SegmentedControl<ProposalKind>

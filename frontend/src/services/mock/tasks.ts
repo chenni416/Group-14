@@ -24,6 +24,7 @@ import { aiReply } from '@/mocks/handlers/chat';
 import { decompose } from '@/mocks/handlers/decompose';
 import { pickRank, plannedLoad, rankFor, reasonFor, suggestAll } from '@/mocks/handlers/assign';
 import { aiCheck } from '@/mocks/handlers/acceptance';
+import { generateDraft, generateTasks, storyAssistantReply, submitPlan } from '@/mocks/handlers/planning';
 import { canReview, sendToReview } from '@/mocks/handlers/review';
 import { analyzeDependencies, carryOverText, findQuestions } from '@/mocks/handlers/sprint';
 import { formatSize } from '@/mocks/handlers/knowledge';
@@ -160,7 +161,7 @@ export const tasks: TaskService = {
       requireLead('延後任務');
       const sprint = planningSprint();
       const task = findTask(id);
-      if (!EDITABLE_PLAN_STATES.includes(task.state)) throw new ApiError('只有草稿或協商退回的任務可以延後');
+      if (!EDITABLE_PLAN_STATES.includes(task.state) && task.state !== 'PENDING_MEMBER') throw new ApiError('只有草稿、協商退回或尚未被接受的任務可以延後');
       deferTask(task, sprint.name);
       askPlanConfirm(task, '延後到下一個 Sprint');
       return toTask(task);
@@ -249,6 +250,31 @@ export const tasks: TaskService = {
         assigneeId: snap.assigneeId,
         policy: { ...snap.policy, targets: [...snap.policy.targets] },
       });
+      return toTask(task);
+    }),
+
+  revise: (id, input) =>
+    respond(() => {
+      requireLead('編輯並重新派工');
+      const task = findTask(id);
+      if (task.state !== 'RETURNED') throw new ApiError('只有協商退回的任務可以重新派工');
+      if (!input.title.trim()) throw new ApiError('請輸入任務標題');
+      if (!input.acceptanceCriteria.length) throw new ApiError('至少需要一條驗收條件');
+      if (input.policy.mode === 'target' && !input.policy.targets.length) throw new ApiError('請選擇指定的審查成員');
+      findMember(input.assigneeId);
+      resolveNotifications(id, ['returned']);
+      Object.assign(task, {
+        title: input.title.trim(),
+        storyPoints: input.storyPoints,
+        acceptanceCriteria: input.acceptanceCriteria,
+        assigneeId: input.assigneeId,
+        policy: input.policy,
+        edited: true,
+        state: 'PENDING_MEMBER',
+        negotiation: null,
+        returnSnapshot: null,
+      });
+      notify(input.assigneeId, 'invite', id, me().id, `預估 ${task.storyPoints} 點（Leader 已依協商調整），請確認是否接受`);
       return toTask(task);
     }),
 
@@ -353,8 +379,7 @@ export const tasks: TaskService = {
     respond(() => {
       const task = findTask(id);
       const user = me();
-      const lead = user.role === 'Leader' || user.role === 'PO';
-      if (!lead && task.assigneeId !== user.id) throw new ApiError('只有 Leader / PO 或負責人可以調整', 403);
+      if (user.role !== 'Leader' && task.assigneeId !== user.id) throw new ApiError('只有 Leader 或負責人可以調整', 403);
       if (task.state === 'IN_REVIEW' || task.state === 'DONE') throw new ApiError('審查中已鎖定');
       task.policy = { ...policy, targets: policy.mode === 'target' ? [...policy.targets] : [] };
       task.policyReason = '';
@@ -418,8 +443,22 @@ export const sprints: SprintService = {
     respond(() => {
       requireLead('修改 Sprint');
       const sprint = findSprint(id);
-      if (patch.goal != null) sprint.goal = patch.goal;
+      if (sprint.status !== 'planning' && (patch.name != null || patch.startDate != null || patch.endDate != null || patch.capacity != null))
+        throw new ApiError('只有規劃中的 Sprint 可以修改名稱、日期與 Capacity');
+      if (patch.name != null && !patch.name.trim()) throw new ApiError('請輸入 Sprint 名稱');
+      const startDate = patch.startDate ?? sprint.startDate;
+      const endDate = patch.endDate ?? sprint.endDate;
+      if (!startDate || !endDate || endDate < startDate) throw new ApiError('請確認起訖日期');
+      if (patch.name != null) sprint.name = patch.name.trim();
+      sprint.startDate = startDate;
+      sprint.endDate = endDate;
+      sprint.start = monthDay(startDate);
+      sprint.end = monthDay(endDate);
+      if (patch.goal != null) sprint.goal = patch.goal.trim();
+      if (patch.capacity)
+        sprint.capacity = Object.fromEntries(Object.entries(patch.capacity).map(([k, v]) => [k, Math.max(0, Math.round(v))]));
       if (patch.minutes != null) sprint.minutes = patch.minutes;
+      if (patch.docs) sprint.docs = [...patch.docs];
       return sprint;
     }, 80),
 
@@ -542,8 +581,38 @@ export const sprints: SprintService = {
   dependencies: (id) => respond(() => analyzeDependencies(id), 120),
 };
 
+/** 規劃步驟只前進不倒退（1 設定、2 Story、3 Task、4 發送） */
+const advanceStep = (sprint: Sprint, step: Sprint['step']) => {
+  sprint.step = Math.max(sprint.step, step) as Sprint['step'];
+};
+
 export const planning: PlanningService = {
   getSampleMinutes: () => respond(() => SAMPLE_MINUTES, 60),
+  generateDraft: ({ goal, minutes }) =>
+    respond(() => {
+      requireLead('執行 AI 拆解');
+      const sprint = planningSprint();
+      if (!minutes.trim()) throw new ApiError('請先貼上會議紀錄');
+      sprint.minutes = minutes;
+      const draft = generateDraft(goal);
+      advanceStep(sprint, 2);
+      return draft;
+    }, 2000),
+  generateTasks: (input) =>
+    respond(() => {
+      requireLead('拆解 Task');
+      const result = generateTasks(input);
+      advanceStep(findSprint(input.sprintId), 3);
+      return result;
+    }, 1200),
+  submitPlan: (draft) =>
+    respond(() => {
+      requireLead('核准規劃');
+      const count = submitPlan(draft);
+      advanceStep(findSprint(draft.sprintId), 4);
+      return { count };
+    }, 400),
+  askStoryAssistant: (question, storyTitle) => respond(() => storyAssistantReply(question, storyTitle), 700),
   decompose: (sprintId) =>
     respond(() => {
       requireLead('執行 AI 拆解');
@@ -552,7 +621,7 @@ export const planning: PlanningService = {
       if (sprint.questions == null) throw new ApiError('請先按「AI 分析會議紀錄」');
       if (sprint.questions.some((q) => !q.answer)) throw new ApiError('還有待釐清問題未回答，無法分配任務');
       const created = decompose(sprintId);
-      sprint.step = Math.max(sprint.step, 3) as Sprint['step'];
+      advanceStep(sprint, 3);
       return { created };
     }, 2000),
 

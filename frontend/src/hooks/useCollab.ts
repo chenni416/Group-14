@@ -90,7 +90,7 @@ export function useProposalActions() {
   const create = useApiMutation({
     mutationFn: (input: CreateProposalInput) => api.proposals.create(input),
     invalidate: keys,
-    onSuccess: () => toast('已送出提案，並通知 Leader / PO'),
+    onSuccess: () => toast('已送出提案，並通知 Leader'),
   });
   const comment = useApiMutation({
     mutationFn: ({ id, text }: { id: string; text: string }) => api.proposals.comment(id, text),

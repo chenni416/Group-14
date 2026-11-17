@@ -37,11 +37,11 @@ export function SprintBanner({ sprint, tasks, ready, canStart }: Props) {
         >
           Start {sprint.name}
         </Button>
-      ) : (
+      ) : canStart ? (
         <Button className="border-white bg-white text-gray-900 hover:bg-gray-100" onClick={() => navigate('/sprints/planning')}>
           查看規劃
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }

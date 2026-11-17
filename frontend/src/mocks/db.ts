@@ -187,7 +187,7 @@ function seed(): MockDb {
   }));
   const issues = seedIssues();
   const proposals = seedProposals();
-  // 種子問題與提案的通知（問題通知處理人；待決策提案通知 Leader 與 PO）
+  // 種子問題與提案的通知（問題通知處理人；待決策提案通知 Leader）
   const extra = (n: Omit<Notification, 'id' | 'status' | 'createdAt'> & { hoursAgo: number }): Notification => ({
     id: uid(),
     toId: n.toId,
@@ -202,9 +202,7 @@ function seed(): MockDb {
   notifications.push(
     extra({ toId: 'm3', fromId: 'm2', type: 'issue', taskId: 'TL-204', refId: 'IS-1', text: '請你協助處理：指派推薦需要成員負載資料', hoursAgo: 30 }),
     extra({ toId: 'm1', fromId: 'm3', type: 'issue', taskId: 'TL-207', refId: 'IS-3', text: '問題待指派：索引大型文件耗時過長', hoursAgo: 5 }),
-    ...['m1', 'm5'].map((toId) =>
-      extra({ toId, fromId: 'm4', type: 'proposal', taskId: '', refId: 'PP-1', text: '新提案待決策：Review 通知同步寄送 Email', hoursAgo: 26 }),
-    ),
+    extra({ toId: 'm1', fromId: 'm4', type: 'proposal', taskId: '', refId: 'PP-1', text: '新提案待決策：Review 通知同步寄送 Email', hoursAgo: 26 }),
   );
   return {
     sessionUserId: 'm1',
@@ -249,7 +247,7 @@ export function findSprint(id: number): Sprint {
 
 export const sessionUser = () => findMember(db.sessionUserId);
 export const leader = () => db.members.find((m) => m.role === 'Leader') ?? db.members[0]!;
-export const isLeadRole = (m: Member) => m.role === 'Leader' || m.role === 'PO';
+export const isLeadRole = (m: Member) => m.role === 'Leader';
 export const sprintTasks = (sprintId: number) => db.tasks.filter((t) => t.sprintId === sprintId);
 
 /** 目前規劃中的 Sprint；沒有時丟出錯誤 */
@@ -276,7 +274,7 @@ export function carryTasks(sprintId: number) {
 }
 
 export function requireLead(action: string) {
-  if (!isLeadRole(sessionUser())) throw new ApiError(`只有 Leader / PO 可以${action}`, 403, 'FORBIDDEN');
+  if (!isLeadRole(sessionUser())) throw new ApiError(`只有 Leader 可以${action}`, 403, 'FORBIDDEN');
 }
 
 export function notify(toId: string, type: NotificationType, taskId: string, fromId: string, text: string, refId?: string) {

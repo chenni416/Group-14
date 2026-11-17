@@ -39,8 +39,6 @@ export function recommendOwner(input: { type: IssueType; taskId: string }, ctx: 
     if (best) return { ownerId: best.m.id, reason: `${best.m.name} 與此任務同領域，剩餘容量最多（${best.remain} SP）` };
   }
 
-  const lead =
-    ctx.members.find((m) => m.role === 'Leader' && m.id !== ctx.reporterId) ??
-    ctx.members.find((m) => (m.role === 'Leader' || m.role === 'PO') && m.id !== ctx.reporterId);
+  const lead = ctx.members.find((m) => m.role === 'Leader' && m.id !== ctx.reporterId);
   return { ownerId: lead?.id ?? ctx.members[0]!.id, reason: '同領域沒有可協助的成員，指給 Leader 判斷' };
 }

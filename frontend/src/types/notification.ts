@@ -6,7 +6,7 @@ export type NotificationType =
   | 'info'
   /** G4：問題待處理或已回應 */
   | 'issue'
-  /** G4：新提案，通知 Leader / PO 決策 */
+  /** G4：新提案，通知 Leader 決策 */
   | 'proposal'
   /** G2：Leader 延後或調整，請成員同意或提出異議 */
   | 'plan';

@@ -70,7 +70,7 @@ export function OnboardingPage() {
         ) : (
           <Button variant="primary" onClick={() => navigate('/sprints')}>
             <Check className="h-4 w-4" strokeWidth={2} />
-            完成並前往 Sprint 規劃
+            完成並前往 Sprint 列表
           </Button>
         )}
       </div>

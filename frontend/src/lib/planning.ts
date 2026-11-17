@@ -1,22 +1,71 @@
-import { BOARD_STATES, DRAFT_STATES, type ClarifyQuestion, type Dependency, type Member, type ReturnSnapshot, type ReviewPolicy, type Sprint, type Task } from '@/types';
+import {
+  BOARD_STATES,
+  DRAFT_STATES,
+  type ClarifyQuestion,
+  type Dependency,
+  type Member,
+  type PlanningDraft,
+  type ReturnSnapshot,
+  type ReviewPolicy,
+  type ReviewerAssignment,
+  type Sprint,
+  type Task,
+  type TaskDraft,
+} from '@/types';
 import { REVIEW_POLICIES } from './constants';
-import { mention, sum } from './format';
+import { sum } from './format';
 
 /**
  * Sprint 規劃的共用規則（純函式）。
  * 前端用來即時顯示，mock 後端用同一套規則驗證，確保兩邊結果一致。
  */
 
-/** Planning Studio 四步驟 */
-export const PLANNING_STEPS = ['輸入', 'AI 拆解', '審核調整', '核准發送'] as const;
+/** 規劃流程四階段（與 PlanningStepper 對應，Sprint 列表的進度徽章使用） */
+export const PLANNING_STEPS = ['開啟 Sprint 與設定', 'Story 分析確認', 'Task 拆解與派工', '派工總覽與發送'] as const;
 
-/** Review 策略對應的審查人說明 */
-export const reviewerText = (p: ReviewPolicy, names: Map<string, string>, leaderName?: string) =>
-  p.mode === 'leader'
-    ? `審查人：${mention(leaderName)}`
-    : p.mode === 'pool'
-      ? '審查人：開放認領（負責人以外皆可）'
-      : `審查人：${p.targets.length ? p.targets.map((t) => mention(names.get(t))).join('、') : '（尚未選擇）'} · ${p.rule === 'all' ? '需全員同意' : '需 1 人同意'}`;
+/* ---------- 規劃草稿（Planning Studio） ---------- */
+
+/** 分支命名：{前綴}/S{Sprint編號}{Story序號}{Task序號}-{摘要敘述} */
+export function branchName(draft: Pick<PlanningDraft, 'sprintId' | 'stories' | 'tasks'>, task: TaskDraft): string {
+  const storyIdx = draft.stories.findIndex((s) => s.id === task.storyId) + 1;
+  const taskIdx = draft.tasks.filter((t) => t.storyId === task.storyId).findIndex((t) => t.id === task.id) + 1;
+  return `${task.branchPrefix}/S${draft.sprintId}${storyIdx}${taskIdx}-${task.branchSlug || 'task'}`;
+}
+
+/** 各成員已分配的 Story Points（規劃草稿 TaskDraft；正式任務加延續任務請用 planLoad） */
+export function loadByMember(members: Member[], tasks: TaskDraft[]): Record<string, number> {
+  const load: Record<string, number> = Object.fromEntries(members.map((m) => [m.id, 0]));
+  tasks.forEach((t) => {
+    if (t.assigneeId) load[t.assigneeId] = (load[t.assigneeId] ?? 0) + t.storyPoints;
+  });
+  return load;
+}
+
+export const REVIEWER_LABELS: Record<ReviewerAssignment['mode'], string> = {
+  pool: '團隊開放搶單',
+  leader: '指定 Leader 審核',
+  member: '指定特定成員',
+};
+
+export function reviewerSummary(r: ReviewerAssignment, members: Map<string, Member>): string {
+  if (r.mode === 'member') return r.memberId ? `指定 ${members.get(r.memberId)?.name ?? '成員'} 審查` : '尚未選擇審查成員';
+  return REVIEWER_LABELS[r.mode];
+}
+
+/** 摘要敘述轉成 kebab-case */
+export const toSlug = (s: string) =>
+  s.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** 正式任務的 ReviewPolicy ↔ 規劃時的審查人員安排 */
+export const policyToReviewer = (p: ReviewPolicy): ReviewerAssignment =>
+  p.mode === 'target' ? { mode: 'member', memberId: p.targets[0] ?? null } : { mode: p.mode, memberId: null };
+
+export const reviewerToPolicy = (r: ReviewerAssignment): ReviewPolicy =>
+  r.mode === 'member'
+    ? { mode: 'target', targets: r.memberId ? [r.memberId] : [], rule: 'any' }
+    : { mode: r.mode, targets: [], rule: 'any' };
+
+/* ---------- Sprint 容量與延續 ---------- */
 
 /** 本次 Capacity：Sprint 建立時直接預估的點數，沒有設定時用成員預設值 */
 export const capOf = (sprint: Pick<Sprint, 'capacity'> | undefined, member: Member) =>
@@ -32,7 +81,7 @@ export const isUnfinished = (t: Task) =>
 export const carrySP = (t: Task) =>
   t.state === 'IN_REVIEW' ? 1 : t.state === 'IN_PROGRESS' ? Math.ceil(t.storyPoints / 2) : t.storyPoints;
 
-/** 規劃中 Sprint 的每人負載 = 本次任務點數 + 帶入任務的剩餘點數 */
+/** 規劃中 Sprint 的每人負載 = 本次正式任務點數 + 帶入任務的剩餘點數（草稿階段請用 loadByMember） */
 export function planLoad(members: Member[], planTasks: Task[], carryTasks: Task[], excludeIds: string[] = []) {
   const load: Record<string, number> = Object.fromEntries(members.map((m) => [m.id, 0]));
   planTasks.forEach((t) => {
@@ -47,6 +96,8 @@ export function planLoad(members: Member[], planTasks: Task[], carryTasks: Task[
   return load;
 }
 
+/* ---------- 核准前檢查 ---------- */
+
 /** 核准前必須補齊的欄位 */
 export function taskProblems(t: Task): string[] {
   const out: string[] = [];
@@ -55,6 +106,8 @@ export function taskProblems(t: Task): string[] {
   if (t.policy.mode === 'target' && !t.policy.targets.length) out.push('指定審查但未選人員');
   return out;
 }
+
+/* ---------- 協商退回 ---------- */
 
 export const snapshotOf = (t: Task): ReturnSnapshot => ({
   title: t.title,

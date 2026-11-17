@@ -184,7 +184,7 @@ export function DependencyPanel({ tasks, dependencies, taskMap, memberMap, isLea
           taskMap={taskMap}
           memberMap={memberMap}
           action={(t) =>
-            isLead && EDITABLE_PLAN_STATES.includes(t.state) ? (
+            isLead && (EDITABLE_PLAN_STATES.includes(t.state) || t.state === 'PENDING_MEMBER') ? (
               <Button size="xs" className="mt-2" loading={deferTask.isPending} onClick={() => deferTask.mutate(t.id)}>
                 延後此任務
               </Button>

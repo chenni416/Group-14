@@ -10,3 +10,4 @@ export * from './retro';
 export * from './review-policy';
 export * from './sprint';
 export * from './task';
+export * from './planning';

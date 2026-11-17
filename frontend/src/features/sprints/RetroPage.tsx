@@ -82,10 +82,10 @@ export function RetroPage() {
       <>
         <PageHeader eyebrow={`${sprint.name} · ${sprint.start} – ${sprint.end}`} title="Sprint 回顧" />
         <Card>
-          <EmptyState icon={Flag} title={`${sprint.name} 還在進行中`} description="Sprint 結束後才能回顧；Leader 或 PO 可以在這裡或看板結束 Sprint。" />
+          <EmptyState icon={Flag} title={`${sprint.name} 還在進行中`} description="Sprint 結束後才能回顧；Leader 可以在這裡或看板結束 Sprint。" />
           <div className="flex justify-center gap-2">
             <Button onClick={() => navigate('/board')}>回到 Active Board</Button>
-            <Button variant="primary" disabled={!lead} title={lead ? undefined : '只有 Leader / PO 可以結束 Sprint'} onClick={end.open}>
+            <Button variant="primary" disabled={!lead} title={lead ? undefined : '只有 Leader 可以結束 Sprint'} onClick={end.open}>
               結束 Sprint
             </Button>
           </div>
@@ -282,7 +282,7 @@ export function RetroPage() {
           </Card>
           {!closed && (
             <div className="mt-4 flex justify-end">
-              <Button variant="primary" disabled={!lead} title={lead ? undefined : '只有 Leader / PO 可以結束回顧'} loading={close.isPending} onClick={() => close.mutate(sprint.id)}>
+              <Button variant="primary" disabled={!lead} title={lead ? undefined : '只有 Leader 可以結束回顧'} loading={close.isPending} onClick={() => close.mutate(sprint.id)}>
                 結束回顧
               </Button>
             </div>

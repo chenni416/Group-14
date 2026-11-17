@@ -1,15 +1,14 @@
 import { Check, Minus } from 'lucide-react';
 
 type Cell = boolean | string;
-const ROWS: Array<[string, Cell, Cell, Cell]> = [
-  ['AI 拆解會議紀錄', true, true, false],
-  ['調整與核准指派', true, true, false],
-  ['啟動 Sprint', true, false, false],
-  ['設定專案 Review 預設策略', true, true, false],
-  ['覆蓋單一任務 Review 策略', true, true, '負責人'],
-  ['Leader 專審', true, true, false],
-  ['領取 Review（Claim）', true, true, true],
-  ['接受／協商任務', true, true, true],
+const ROWS: Array<[string, Cell, Cell]> = [
+  ['Sprint 規劃（AI 拆解、派工、核准）', true, false],
+  ['啟動 Sprint', true, false],
+  ['設定專案 Review 預設策略', true, false],
+  ['覆蓋單一任務 Review 策略', true, '負責人'],
+  ['Leader 專審', true, false],
+  ['領取 Review（Claim）', true, true],
+  ['接受／協商任務', true, true],
 ];
 
 const CellView = ({ v }: { v: Cell }) =>
@@ -29,7 +28,6 @@ export function PermissionMatrix() {
           <tr className="text-xs text-gray-500">
             <th className="px-2 pb-3 text-left font-medium">動作</th>
             <th className="px-2 pb-3 font-medium">Leader</th>
-            <th className="px-2 pb-3 font-medium">PO</th>
             <th className="px-2 pb-3 font-medium">Member</th>
           </tr>
         </thead>

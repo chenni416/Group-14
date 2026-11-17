@@ -50,7 +50,7 @@ export function DigestPage() {
         <Card>
           <EmptyState icon={Sparkles} title="這是第一個 Sprint" description="還沒有前次 Sprint 的資料，直接建立 Sprint 開始規劃即可。" />
           <div className="flex justify-center">
-            <Button variant="primary" onClick={() => navigate('/sprints?create=1')}>
+            <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
               建立 Sprint
             </Button>
           </div>
@@ -84,7 +84,7 @@ export function DigestPage() {
         eyebrow={`${previous.name} 的結果 → 下一次 Sprint Planning`}
         title="會議前統整"
         actions={
-          <Button variant="primary" disabled={!lead || !!ctx.planning} title={!lead ? '只有 Leader / PO 可以建立 Sprint' : ctx.planning ? '已有規劃中的 Sprint' : undefined} onClick={() => navigate('/sprints?create=1')}>
+          <Button variant="primary" disabled={!lead || !!ctx.planning} title={!lead ? '只有 Leader 可以建立 Sprint' : ctx.planning ? '已有規劃中的 Sprint' : undefined} onClick={() => navigate('/sprints/planning')}>
             <Plus className="h-4 w-4" strokeWidth={1.75} />
             建立下一個 Sprint
           </Button>

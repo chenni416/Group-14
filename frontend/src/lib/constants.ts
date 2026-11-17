@@ -28,7 +28,7 @@ export const TASK_STATES: Record<TaskState, { label: string; tone: Tone }> = {
 export const REVIEW_POLICIES: Record<ReviewMode, { label: string; en: string; usage: string }> = {
   leader: {
     label: 'Leader 專審',
-    en: 'PO / Leader Only',
+    en: 'Leader Only',
     usage: '商業邏輯重大變更、資料庫遷移、架構核心調整',
   },
   pool: {

@@ -2,10 +2,9 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageSkeleton, SegmentedControl } from '@/components/ui';
 import { useCurrentUser, useMembers, useNotifications, useSprintContext } from '@/hooks/queries';
 import { useExecutionPlans, useIssues, useProposals } from '@/hooks/useCollab';
-import { isLead } from '@/lib/permissions';
 import { CHART_COLORS } from '@/lib/constants';
 import { sum } from '@/lib/format';
-import { needsMyReview } from '@/lib/permissions';
+import { isLead, needsMyReview } from '@/lib/permissions';
 import { BurndownChart } from './components/BurndownChart';
 import { MyTasksCard } from './components/MyTasksCard';
 import { PlanningProgress } from './components/PlanningProgress';
@@ -29,7 +28,7 @@ export function DashboardPage() {
   const { boardTasks, active, planning, planningTasks, allTasks } = ctx;
   const total = sum(boardTasks.map((t) => t.storyPoints));
   const done = sum(boardTasks.filter((t) => t.state === 'DONE').map((t) => t.storyPoints));
-  // 待我處理：指派確認與審查、被指派處理的問題、延後或調整的回覆；Leader / PO 另加待決策的提案
+  // 待我處理：指派確認與審查、被指派處理的問題、延後或調整的回覆；Leader 另加待決策的提案
   const actionCount =
     allTasks.filter((t) => (t.assigneeId === me.id && t.state === 'PENDING_MEMBER') || needsMyReview(t, me.id)).length +
     issues.filter((i) => i.ownerId === me.id && (i.status === 'assigned' || i.status === 'reported')).length +
@@ -64,7 +63,7 @@ export function DashboardPage() {
         />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:row-span-3 [&>*]:h-full">
-            <MyTasksCard tasks={allTasks} userId={me.id} plans={plans} />
+            <MyTasksCard tasks={allTasks} userId={me.id} canPlan={isLead(me)} plans={plans} />
           </div>
           <StatusDonut tasks={boardTasks} />
           <BurndownChart sprintId={active?.id} />
@@ -72,7 +71,11 @@ export function DashboardPage() {
             <ReviewQueue tasks={boardTasks} />
           </div>
           <div className="lg:col-span-2">
-            <PlanningProgress sprint={planning?.status === 'planning' ? planning : undefined} tasks={planning?.status === 'planning' ? planningTasks : []} />
+            <PlanningProgress
+              sprint={planning?.status === 'planning' ? planning : undefined}
+              tasks={planning?.status === 'planning' ? planningTasks : []}
+              canPlan={isLead(me)}
+            />
           </div>
           <div className="lg:col-span-3">
             <TeamLoad members={members ?? []} tasks={boardTasks} sprint={active} />

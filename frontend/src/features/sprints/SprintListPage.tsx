@@ -1,15 +1,13 @@
 import { CalendarClock, ClipboardList, Layers, Plus, Sparkles, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, Badge, Button, Card, CardHeader, Modal, PageHeader, PageSkeleton, ProgressBar } from '@/components/ui';
 import { useBacklog, useCurrentUser, useMemberMap, useMembers, useSprintContext, useSprints } from '@/hooks/queries';
-import { useDisclosure } from '@/hooks/useDisclosure';
 import type { Tone } from '@/lib/constants';
 import { sum } from '@/lib/format';
 import { isLead as isLeadRole } from '@/lib/permissions';
 import { capTotal, isUnfinished, PLANNING_STEPS } from '@/lib/planning';
 import type { Sprint, SprintStatus, Task } from '@/types';
-import { CreateSprintDialog } from './components/CreateSprintDialog';
 import { useSprintMutations } from './hooks/useSprintMutations';
 
 const STATUS: Record<SprintStatus, { label: string; tone: Tone }> = {
@@ -38,19 +36,7 @@ export function SprintListPage() {
   const memberMap = useMemberMap();
   const ctx = useSprintContext();
   const { removeBacklog } = useSprintMutations();
-  const create = useDisclosure();
   const [review, setReview] = useState<Sprint | null>(null);
-  const [params, setParams] = useSearchParams();
-  const wantCreate = params.get('create') === '1';
-
-  // 從「會議前統整」按「建立下一個 Sprint」進來時，直接開啟建立對話框
-  const canCreate = !!me && isLeadRole(me) && !!sprints && !sprints.some((s) => s.status === 'planning');
-  useEffect(() => {
-    if (!wantCreate) return;
-    if (canCreate) create.open();
-    setParams({}, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantCreate, canCreate]);
 
   if (!sprints || !me || ctx.isLoading) return <PageSkeleton />;
 
@@ -67,19 +53,21 @@ export function SprintListPage() {
         title="Sprint 列表"
         actions={
           <>
-          <Button onClick={() => navigate('/sprints/digest')}>
-            <ClipboardList className="h-4 w-4" strokeWidth={1.75} />
-            會議前統整
-          </Button>
-          <Button
-            variant="primary"
-            disabled={!lead || hasPlanning}
-            title={!lead ? '只有 Leader / PO 可以建立 Sprint' : hasPlanning ? '已有規劃中的 Sprint，請先完成或啟動它' : undefined}
-            onClick={create.open}
-          >
-            <Plus className="h-4 w-4" strokeWidth={1.75} />
-            建立 Sprint
-          </Button>
+            <Button onClick={() => navigate('/sprints/digest')}>
+              <ClipboardList className="h-4 w-4" strokeWidth={1.75} />
+              會議前統整
+            </Button>
+            {lead && (
+              <Button
+                variant="primary"
+                disabled={hasPlanning}
+                title={hasPlanning ? '已有規劃中的 Sprint，請先完成或啟動它' : undefined}
+                onClick={() => navigate('/sprints/planning')}
+              >
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                建立 Sprint
+              </Button>
+            )}
           </>
         }
       />
@@ -151,10 +139,12 @@ export function SprintListPage() {
                     </div>
                     <div className="flex flex-col items-stretch gap-2">
                       {s.status === 'planning' ? (
-                        <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
-                          <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-                          開啟 Planning Studio
-                        </Button>
+                        lead && (
+                          <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
+                            <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+                            開啟 Planning Studio
+                          </Button>
+                        )
                       ) : s.status === 'active' ? (
                         <Button onClick={() => navigate('/board')}>開啟看板</Button>
                       ) : (
@@ -223,11 +213,10 @@ export function SprintListPage() {
             <CardHeader title="流程" />
             <ol className="space-y-2 text-sm">
               {[
-                '建立 Sprint：名稱、日期、Capacity、會議紀錄與文件',
-                '① 輸入：AI 分析會議紀錄，列出待釐清問題',
-                '② AI 拆解：回答完後產生 Epic → Story → 任務',
-                '③ 審核調整：Leader 修改藍色欄位、新增任務',
-                '④ 核准發送：核准前檢查 → 發送指派邀請',
+                '0 開啟 Sprint 與設定：名稱、日期、Capacity、會議紀錄與文件，按下 AI 分析才建立 Sprint',
+                'A Story 分析確認：AI 切分 Story，Leader 確認範疇與點數',
+                'B Task 拆解與派工：拆解 Task 並指派負責人與審查方式',
+                'C 派工總覽與發送：確認容量後發送指派邀請',
               ].map((x) => (
                 <li key={x} className="rounded-2xl bg-gray-50 px-3 py-2">
                   {x}
@@ -238,7 +227,6 @@ export function SprintListPage() {
         </div>
       </div>
 
-      <CreateSprintDialog open={create.isOpen} onClose={create.close} />
       <Modal open={!!review} onClose={() => setReview(null)} title={`${review?.name ?? ''} 回顧`}>
         {review && (
           <div className="space-y-3 text-sm">

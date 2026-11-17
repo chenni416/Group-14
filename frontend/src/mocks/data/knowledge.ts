@@ -122,7 +122,7 @@ export const DECOMPOSE_TEMPLATES: DecomposeTemplate[] = [
   },
 ];
 
-export const SAMPLE_MINUTES = `# Sprint 3 規劃會議（11/09）
+export const SAMPLE_MINUTES = `# Sprint 3 規劃會議（11/09）：對話式 Prompt Studio 與 PR Review 機制
 Sprint Goal：讓成員能在任務內與 AI 對話微調 Prompt，並上線彈性 Review 機制
 
 ## 討論重點

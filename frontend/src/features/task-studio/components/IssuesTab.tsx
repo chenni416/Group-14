@@ -51,7 +51,7 @@ export function IssuesTab({ task, me, members, memberMap }: Props) {
       <Card className="p-5">
         <CardHeader
           title="提案與討論"
-          description="任何人都可以提案；Leader 或 PO 決策，結果與理由會保留"
+          description="任何人都可以提案；Leader 決策，結果與理由會保留"
           className="mb-3"
           action={
             <Button size="sm" onClick={propose.open}>

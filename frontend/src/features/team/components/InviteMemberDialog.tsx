@@ -43,7 +43,6 @@ export function InviteMemberDialog({ open, onClose }: { open: boolean; onClose: 
           <Field label="角色" htmlFor="iv-role">
             <Select id="iv-role" value={form.role} onChange={(e) => set('role', e.target.value as MemberRole)}>
               <option>Member</option>
-              <option>PO</option>
               <option>Leader</option>
             </Select>
           </Field>

@@ -25,7 +25,7 @@ export function AppShell() {
       <div className="flex min-h-0 flex-1 flex-col-reverse gap-3 md:flex-row md:gap-4">
         <SideNav onHelp={help.open} />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl bg-white">
-          <div id={MAIN_SCROLL_ID} className="scrollbar-thin flex-1 overflow-y-auto p-5 sm:p-8">
+          <div id={MAIN_SCROLL_ID} className="scrollbar-thin flex flex-1 flex-col overflow-y-auto p-5 sm:p-8 [&>*]:shrink-0">
             <Outlet />
           </div>
         </main>
