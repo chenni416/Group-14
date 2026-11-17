@@ -9,7 +9,7 @@ interface Options<TVars, TData> {
   onSuccess?: (data: TData, vars: TVars) => void;
 }
 
-const TASK_KEYS: QueryKey[] = [['tasks'], ['notifications'], ['sprints']];
+const TASK_KEYS: QueryKey[] = [['tasks'], ['notifications'], ['sprints'], ['backlog']];
 
 /** 統一處理錯誤提示與快取失效的 mutation */
 export function useApiMutation<TVars = void, TData = unknown>({

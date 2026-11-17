@@ -19,12 +19,17 @@ export function PlanningProgress({ sprint, tasks, canPlan }: { sprint: Sprint | 
       <CardHeader
         title={`${name} 規劃進度`}
         action={
-          canPlan && (
-            <Button variant="primary" size="sm" onClick={() => navigate('/planning')}>
+          canPlan &&
+          (sprint ? (
+            <Button variant="primary" size="sm" onClick={() => navigate('/sprints/planning')}>
               <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
               Planning Studio
             </Button>
-          )
+          ) : (
+            <Button variant="primary" size="sm" onClick={() => navigate('/sprints')}>
+              Sprint 列表
+            </Button>
+          ))
         }
       />
       {tasks.length ? (
@@ -45,9 +50,13 @@ export function PlanningProgress({ sprint, tasks, canPlan }: { sprint: Sprint | 
         </div>
       ) : (
         <Callout>
-          {canPlan
-            ? `${name} 尚未核准規劃。前往 Planning Studio 貼上會議紀錄，讓 AI 拆解成 Story 與 Task 後派工。`
-            : `Leader 正在規劃 ${name}，核准後你會在「確認與認領」收到指派邀請。`}
+          {!sprint
+            ? canPlan
+              ? '尚未建立下一個 Sprint。前往 Sprint 列表建立後即可開始規劃。'
+              : '目前沒有規劃中的 Sprint。'
+            : canPlan
+              ? `${name} 尚未核准規劃。前往 Planning Studio 貼上會議紀錄，讓 AI 拆解成 Story 與 Task 後派工。`
+              : `Leader 正在規劃 ${name}，核准後你會在「確認與認領」收到指派邀請。`}
         </Callout>
       )}
     </Card>

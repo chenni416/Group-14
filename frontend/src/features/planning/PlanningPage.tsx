@@ -1,4 +1,6 @@
 import { ArrowRight, Sparkles } from 'lucide-react';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RequireLeader } from '@/components/layout/RequireLeader';
 import { Button, Card, EmptyState, PageHeader, PageSkeleton } from '@/components/ui';
 import { useDocs, useMembers, useSprintContext } from '@/hooks/queries';
@@ -28,17 +30,35 @@ function PlanningStudio() {
   const ctx = useSprintContext();
   const { data: members = [] } = useMembers();
   const { data: docs } = useDocs();
-  const { stage, draft, setStage } = usePlanningStore();
+  const { stage, draft, setStage, reset } = usePlanningStore();
   const { generate } = usePlanningMutations();
+  const navigate = useNavigate();
+  const sprint = ctx.planning;
+
+  // 草稿只存在記憶體中：規劃中的 Sprint 換了就清掉，避免舊 Sprint 的 Story 帶進新 Sprint
+  useEffect(() => {
+    if (draft && sprint && draft.sprintId !== sprint.id) reset();
+  }, [draft, sprint, reset]);
 
   if (ctx.isLoading) return <PageSkeleton />;
 
-  const sprint = ctx.planning;
   if (!sprint || sprint.status !== 'planning') {
     return (
       <>
         <PageHeader eyebrow="Sprint Planning Studio" title="Sprint 規劃" />
-        <EmptyState icon={Sparkles} title="目前沒有規劃中的 Sprint" description={`${sprint?.name ?? 'Sprint'} 已啟動，可至 Active Board 追蹤進度。`} />
+        <Card>
+          <EmptyState
+            icon={Sparkles}
+            title="目前沒有規劃中的 Sprint"
+            description="請先到 Sprint 列表建立下一個 Sprint，建立後即可開始規劃。"
+          />
+          <div className="flex justify-center pb-4">
+            <Button variant="primary" onClick={() => navigate('/sprints')}>
+              前往 Sprint 列表
+              <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
+            </Button>
+          </div>
+        </Card>
       </>
     );
   }

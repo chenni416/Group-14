@@ -10,7 +10,9 @@ export const router = createBrowserRouter([
     children: [
       { index: true, lazy: () => import('@/features/dashboard/DashboardPage').then((m) => ({ Component: m.DashboardPage })) },
       { path: 'board', lazy: () => import('@/features/board/BoardPage').then((m) => ({ Component: m.BoardPage })) },
-      { path: 'planning', lazy: () => import('@/features/planning/PlanningPage').then((m) => ({ Component: m.PlanningPage })) },
+      { path: 'sprints', lazy: () => import('@/features/sprints/SprintListPage').then((m) => ({ Component: m.SprintListPage })) },
+      { path: 'sprints/planning', lazy: () => import('@/features/planning/PlanningPage').then((m) => ({ Component: m.PlanningPage })) },
+      { path: 'planning', element: <Navigate to="/sprints/planning" replace /> },
       { path: 'inbox', lazy: () => import('@/features/inbox/InboxPage').then((m) => ({ Component: m.InboxPage })) },
       { path: 'team', lazy: () => import('@/features/team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
       { path: 'onboarding', lazy: () => import('@/features/onboarding/OnboardingPage').then((m) => ({ Component: m.OnboardingPage })) },

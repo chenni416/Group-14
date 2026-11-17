@@ -22,6 +22,7 @@ export const TASK_STATES: Record<TaskState, { label: string; tone: Tone }> = {
   IN_PROGRESS: { label: 'In Progress', tone: 'orange' },
   IN_REVIEW: { label: 'In Review', tone: 'violet' },
   DONE: { label: 'Done', tone: 'sky' },
+  DEFERRED: { label: '延後', tone: 'neutral' },
 };
 
 export const REVIEW_POLICIES: Record<ReviewMode, { label: string; en: string; usage: string }> = {

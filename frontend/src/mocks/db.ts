@@ -1,4 +1,5 @@
 import type {
+  BacklogItem,
   ChatMessage,
   KnowledgeDoc,
   Member,
@@ -10,10 +11,11 @@ import type {
   Task,
 } from '@/types';
 import { ApiError } from '@/types';
-import { DOMAIN_TAGS, GENERIC_AC, SAMPLE_MINUTES } from './data/knowledge';
+import { isUnfinished } from '@/lib/planning';
+import { DOMAIN_TAGS, GENERIC_AC } from './data/knowledge';
 import { seedMembers } from './data/members';
 import { NOTIFICATION_SEEDS, TASK_SEEDS } from './data/tasks';
-import { seedDocs, seedOrg, seedProject, seedSprints } from './data/workspace';
+import { seedBacklog, seedDocs, seedOrg, seedProject, seedSprints } from './data/workspace';
 
 /** Mock 資料庫中的任務：在 Task 之外多存 Prompt 版本與對話紀錄 */
 export interface TaskRecord extends Task {
@@ -21,6 +23,8 @@ export interface TaskRecord extends Task {
   clarifications: string[][];
   promptCursor: number;
   chat: ChatMessage[];
+  /** 從延續事項恢復的任務，重新拆解時保留 */
+  revived: boolean;
 }
 
 export interface MockDb {
@@ -32,7 +36,7 @@ export interface MockDb {
   docs: KnowledgeDoc[];
   tasks: TaskRecord[];
   notifications: Notification[];
-  notes: string;
+  backlog: BacklogItem[];
   seq: number;
 }
 
@@ -75,6 +79,14 @@ export function createTaskRecord(project: Project, init: TaskInit): TaskRecord {
       .replace('{id}', num)
       .replace('{slug}', slug),
     negotiation: null,
+    source: '',
+    carryTag: null,
+    multiSprint: false,
+    clarified: false,
+    carry: true,
+    returnSnapshot: null,
+    prevState: null,
+    revived: false,
     clarifications: [[]],
     promptCursor: 0,
     chat: [],
@@ -127,7 +139,7 @@ function seed(): MockDb {
     docs: seedDocs(),
     tasks,
     notifications,
-    notes: SAMPLE_MINUTES,
+    backlog: seedBacklog(),
     seq: 301,
   };
 }
@@ -159,6 +171,29 @@ export const leader = () => db.members.find((m) => m.role === 'Leader') ?? db.me
 export const isLeadRole = (m: Member) => m.role === 'Leader';
 export const sprintTasks = (sprintId: number) => db.tasks.filter((t) => t.sprintId === sprintId);
 
+/** 目前規劃中的 Sprint；沒有時丟出錯誤 */
+export function planningSprint(): Sprint {
+  const id = db.project.planningSprintId;
+  if (id == null) throw new ApiError('目前沒有規劃中的 Sprint，請先建立 Sprint', 400, 'NO_PLANNING_SPRINT');
+  return findSprint(id);
+}
+
+export const prevSprintId = (id: number) =>
+  db.sprints
+    .map((s) => s.id)
+    .filter((x) => x < id)
+    .sort((a, b) => b - a)[0] ?? null;
+
+/** 規劃中 Sprint 的任務（不含延後與已上看板的帶入任務） */
+export const planTasks = (sprintId: number) =>
+  sprintTasks(sprintId).filter((t) => t.state !== 'DEFERRED' && !['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'].includes(t.state));
+
+/** 上一個 Sprint 尚未完成、可能帶入本次的任務 */
+export function carryTasks(sprintId: number) {
+  const prev = prevSprintId(sprintId);
+  return prev == null ? [] : sprintTasks(prev).filter(isUnfinished);
+}
+
 export function requireLead(action: string) {
   if (!isLeadRole(sessionUser())) throw new ApiError(`只有 Leader 可以${action}`, 403, 'FORBIDDEN');
 }
@@ -174,6 +209,6 @@ export function resolveNotifications(taskId: string, types: NotificationType[]) 
 }
 
 export function toTask(record: TaskRecord): Task {
-  const { clarifications: _c, promptCursor: _p, chat: _h, ...task } = record;
+  const { clarifications: _c, promptCursor: _p, chat: _h, revived: _r, ...task } = record;
   return clone(task);
 }

@@ -1,13 +1,18 @@
 import type {
+  BacklogItem,
   BurndownPoint,
   ChatMessage,
+  CreateSprintInput,
+  CreateTaskInput,
+  Dependency,
+  GenerateDraftInput,
+  GenerateTasksInput,
   InviteMemberInput,
   KnowledgeDoc,
   Member,
   NegotiateInput,
+  NewSprintDefaults,
   Notification,
-  GenerateDraftInput,
-  GenerateTasksInput,
   Organization,
   PlanningDraft,
   Project,
@@ -20,6 +25,8 @@ import type {
   TaskDraft,
   UpdateMemberInput,
   UpdateProjectInput,
+  UpdateSprintInput,
+  UpdateTaskInput,
   UploadDocInput,
 } from '@/types';
 
@@ -55,10 +62,22 @@ export interface DocService {
 
 export interface SprintService {
   list(): Promise<Sprint[]>;
-  updateGoal(id: number, goal: string): Promise<Sprint>;
-  /** 啟動 Sprint，回傳從上個 Sprint 帶入的未完成任務數 */
-  start(id: number): Promise<{ carriedOver: number }>;
+  /** 建立 Sprint 對話框的預設值（日期、Capacity、已帶入延續事項的會議紀錄） */
+  defaults(): Promise<NewSprintDefaults>;
+  create(input: CreateSprintInput): Promise<Sprint>;
+  update(id: number, patch: UpdateSprintInput): Promise<Sprint>;
+  addDocs(id: number, files: UploadDocInput[]): Promise<Sprint>;
+  /** ① 輸入：AI 分析會議紀錄，產生待釐清問題，回傳未回答數 */
+  analyze(id: number, minutes: string): Promise<{ unanswered: number }>;
+  answer(id: number, questionId: string, answer: string): Promise<Sprint>;
+  /** 啟動 Sprint：上個 Sprint 的未完成任務依選擇帶入或延後 */
+  start(id: number): Promise<{ carriedOver: number; deferred: number }>;
   burndown(id: number): Promise<BurndownPoint[]>;
+  /** 延續事項（下次建立 Sprint 時自動帶入會議紀錄） */
+  backlog(): Promise<BacklogItem[]>;
+  removeBacklog(id: string): Promise<void>;
+  /** AI 相依性分析：本次任務與上一個 Sprint 的相依性 */
+  dependencies(id: number): Promise<Dependency[]>;
 }
 
 export interface ReviewResult {
@@ -69,6 +88,22 @@ export interface ReviewResult {
 
 export interface TaskService {
   list(): Promise<Task[]>;
+  create(input: CreateTaskInput): Promise<Task>;
+  update(id: string, patch: UpdateTaskInput): Promise<Task>;
+  remove(id: string): Promise<void>;
+  /** 核准所有草稿並發送指派邀請（會先做核准前檢查），回傳數量 */
+  approveDrafts(): Promise<{ count: number }>;
+  /** 延後到下個 Sprint（記錄到延續事項） */
+  defer(id: string): Promise<Task>;
+  restore(id: string): Promise<Task>;
+  /** 上個 Sprint 未完成的任務：帶入本次或延後 */
+  setCarry(id: string, carry: boolean): Promise<Task>;
+  /** 協商退回：修改後發送給目前負責人（可以是原成員） */
+  resend(id: string): Promise<{ task: Task; changes: string[] }>;
+  /** 協商退回：AI 重新建議負責人（排除提出協商的成員） */
+  suggestAssignee(id: string): Promise<{ task: Task; fits: boolean }>;
+  /** 協商退回：復原到退回當下的內容 */
+  resetReturn(id: string): Promise<Task>;
   /** 協商退回後編輯任務並重新發送指派邀請（回到待確認） */
   revise(id: string, input: ReviseTaskInput): Promise<Task>;
   accept(id: string): Promise<Task>;
@@ -86,12 +121,18 @@ export interface PlanningService {
   getSampleMinutes(): Promise<string>;
   /** AI 分析會議紀錄，產生 Story 切分草稿（尚未拆解 Task，供 Leader 審核） */
   generateDraft(input: GenerateDraftInput): Promise<PlanningDraft>;
-  /** 核准規劃：建立任務並發送指派邀請，回傳任務數 */
   /** 依確認後的 Story 拆解 Task（全部未指派） */
   generateTasks(input: GenerateTasksInput): Promise<TaskDraft[]>;
+  /** 核准規劃：建立任務並發送指派邀請，回傳任務數 */
   submitPlan(draft: PlanningDraft): Promise<{ count: number }>;
   /** 與 AI 對話微調 Story 切分，回傳回覆文字 */
   askStoryAssistant(question: string, storyTitle: string | null): Promise<string>;
+  /** ② AI 拆解規劃中 Sprint 的會議紀錄（待釐清問題需全部回答），回傳新增數 */
+  decompose(sprintId: number): Promise<{ created: number }>;
+  /** 依 AI 容量建議延後任務 */
+  deferSuggested(sprintId: number): Promise<{ deferred: number }>;
+  /** AI 重新平衡指派：只調整 Leader 沒動過的 AI 草稿 */
+  rebalance(sprintId: number): Promise<{ updated: number }>;
 }
 
 export interface NotificationService {

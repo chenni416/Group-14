@@ -17,7 +17,7 @@ interface Props {
 
 /** 階段 0：Sprint Goal、會議紀錄與已掛載的專案脈絡 */
 export function SourceContext({ sprint, analyzing, hasDraft, onAnalyze }: Props) {
-  const { data: savedMinutes } = useMinutes();
+  const { data: savedMinutes } = useMinutes(sprint.id);
   const { data: docs } = useDocs();
   const { updateGoal } = usePlanningMutations();
   const [minutes, setMinutes] = useState('');
@@ -92,7 +92,6 @@ export function SourceContext({ sprint, analyzing, hasDraft, onAnalyze }: Props)
           variant="primary"
           size="lg"
           className="w-full"
-         
           loading={analyzing}
           onClick={() => onAnalyze(goal, minutes)}
         >

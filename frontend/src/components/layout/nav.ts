@@ -11,7 +11,7 @@ export interface NavItem {
 export const SIDE_NAV: NavItem[][] = [
   [
     { to: '/', label: 'Dashboard', icon: LayoutGrid },
-    { to: '/planning', label: 'Sprint 規劃', icon: Sparkles, leaderOnly: true },
+    { to: '/sprints', label: 'Sprint', icon: Sparkles },
     { to: '/inbox', label: '收件匣', icon: Inbox },
     { to: '/board', label: 'Active Board', icon: Kanban },
   ],
@@ -27,7 +27,7 @@ export const HELP_ICON = CircleHelp;
 export const FLOW_NAV: Array<{ to: string; label: string; step: number; leaderOnly?: boolean }> = [
   { to: '/team', label: '團隊設定', step: 1 },
   { to: '/onboarding', label: '專案初始化', step: 2 },
-  { to: '/planning', label: 'Sprint 規劃', step: 3, leaderOnly: true },
+  { to: '/sprints', label: 'Sprint 規劃', step: 3, leaderOnly: true },
   { to: '/inbox', label: '確認與認領', step: 4 },
   { to: '/board', label: 'Active Board', step: 5 },
 ];

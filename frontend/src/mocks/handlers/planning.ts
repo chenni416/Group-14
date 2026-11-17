@@ -2,11 +2,11 @@ import type { Domain, GenerateTasksInput, PlanningDraft, ReviewPolicy, ReviewerA
 import { ApiError } from '@/types';
 import { SCENARIO_STORIES, SCENARIO_TASKS, SIMULATED_RESPONSES } from '../data/planningScenario';
 import { branchName } from '@/lib/planning';
-import { createTaskRecord, db, findMember, findSprint, leader, notify, resolveNotifications, sessionUser, sprintTasks, type TaskRecord } from '../db';
+import { createTaskRecord, db, findMember, leader, notify, planningSprint, resolveNotifications, sessionUser, sprintTasks, type TaskRecord } from '../db';
 
 /** 回傳預設 Mock 場景的 Story 切分（不解析會議紀錄內容）；此時尚未拆解 Task */
 export function generateDraft(goal: string): PlanningDraft {
-  const sprint = findSprint(db.project.planningSprintId);
+  const sprint = planningSprint();
   if (goal.trim()) sprint.goal = goal.trim();
   else if (!sprint.goal) sprint.goal = '讓成員能在任務內與 AI 對話微調 Prompt，並上線彈性 Review 機制';
 

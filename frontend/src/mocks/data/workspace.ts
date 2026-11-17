@@ -1,4 +1,4 @@
-import type { KnowledgeDoc, Organization, Project, Sprint } from '@/types';
+import type { BacklogItem, KnowledgeDoc, Organization, Project, Sprint } from '@/types';
 
 export const seedOrg = (): Organization => ({
   name: 'NYCU ATLAB',
@@ -20,12 +20,45 @@ export const seedProject = (): Project => ({
   sprintLength: '2 週',
   defaultPolicy: { mode: 'pool', targets: [], rule: 'any' },
   activeSprintId: 2,
-  planningSprintId: 3,
+  // 尚未建立 Sprint 3：從「Sprint 列表 → 建立 Sprint」開始規劃
+  planningSprintId: null,
 });
 
+const sprintBase = { minutes: '', docs: [], questions: null, step: 4 as const };
+
 export const seedSprints = (): Sprint[] => [
-  { id: 2, name: 'Sprint 2', start: '10/27', end: '11/09', goal: '完成會議紀錄匯入、AI 拆解與指派推薦的第一版', status: 'active' },
-  { id: 3, name: 'Sprint 3', start: '11/10', end: '11/23', goal: '', status: 'planning' },
+  {
+    ...sprintBase,
+    id: 1,
+    name: 'Sprint 1',
+    start: '10/13',
+    end: '10/26',
+    startDate: '2026-10-13',
+    endDate: '2026-10-26',
+    goal: '完成專案初始化、知識庫上傳與團隊設定',
+    status: 'closed',
+    capacity: { m1: 8, m2: 10, m3: 8, m4: 8, m5: 6 },
+    summary: { total: 20, done: 18, tasks: 7 },
+  },
+  {
+    ...sprintBase,
+    id: 2,
+    name: 'Sprint 2',
+    start: '10/27',
+    end: '11/09',
+    startDate: '2026-10-27',
+    endDate: '2026-11-09',
+    goal: '完成會議紀錄匯入、AI 拆解與指派推薦的第一版',
+    status: 'active',
+    capacity: { m1: 8, m2: 10, m3: 8, m4: 8, m5: 6 },
+    summary: null,
+  },
+];
+
+/** 延續事項：延後或需要跨多個 Sprint 的問題 */
+export const seedBacklog = (): BacklogItem[] => [
+  { id: 'b1', text: 'Email 推播提醒：指派與審查事件寄信通知', fromSprint: 'Sprint 2', kind: 'deferred', taskId: null, usedInSprintId: null },
+  { id: 'b2', text: 'AI 拆解準確率評估：建立標註資料集並每個 Sprint 追蹤', fromSprint: 'Sprint 1', kind: 'multi', taskId: null, usedInSprintId: null },
 ];
 
 export const seedDocs = (): KnowledgeDoc[] => [
