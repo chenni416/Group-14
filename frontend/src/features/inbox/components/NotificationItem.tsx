@@ -1,8 +1,10 @@
-import { Check, Eye, Flag, Undo2, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, Eye, Flag, Lightbulb, Undo2, Zap, type LucideIcon } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button } from '@/components/ui';
+import { Badge, Button, Input } from '@/components/ui';
 import { useTaskActions } from '@/hooks/useTaskActions';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
+import { useUiStore } from '@/stores/ui.store';
 import { cn } from '@/lib/cn';
 import { mention, relativeTime } from '@/lib/format';
 import type { Member, Notification, NotificationType, Task } from '@/types';
@@ -13,11 +15,15 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; className: string }> =
   pool: { icon: Zap, className: 'bg-sky-50 text-sky-600' },
   returned: { icon: Undo2, className: 'bg-red-50 text-red-600' },
   info: { icon: Check, className: 'bg-gray-100 text-gray-600' },
+  issue: { icon: AlertTriangle, className: 'bg-red-50 text-red-600' },
+  proposal: { icon: Lightbulb, className: 'bg-violet-50 text-violet-600' },
+  plan: { icon: CalendarClock, className: 'bg-orange-50 text-orange-600' },
 };
 
 interface Props {
   notification: Notification;
-  task: Task;
+  /** 提案可以沒有關聯任務 */
+  task: Task | undefined;
   members: Map<string, Member>;
   onNegotiate: (task: Task) => void;
 }
@@ -25,21 +31,25 @@ interface Props {
 export function NotificationItem({ notification: n, task, members, onNegotiate }: Props) {
   const navigate = useNavigate();
   const drawer = useTaskDrawer();
-  const { accept, claim } = useTaskActions();
+  const { accept, claim, confirmPlan } = useTaskActions();
+  const setPanel = useUiStore((s) => s.setCollabPanel);
+  const [note, setNote] = useState('');
   const pending = n.status === 'pending';
   const from = mention(members.get(n.fromId)?.name);
-  const ref = (
+  const ref = task ? (
     <span className="font-medium text-gray-900">
       {task.id}: {task.title}
     </span>
+  ) : (
+    <span className="font-medium text-gray-900">提案</span>
   );
 
   let head: React.ReactNode;
   let actions: React.ReactNode = null;
   switch (n.type) {
     case 'invite':
-      head = <>{from} 已指派 {ref} 給您，預估 <span className="tabular-nums">{task.storyPoints}</span> 點</>;
-      if (pending && task.state === 'PENDING_MEMBER')
+      head = <>{from} 已指派 {ref} 給您，預估 <span className="tabular-nums">{task?.storyPoints}</span> 點</>;
+      if (task && pending && task.state === 'PENDING_MEMBER')
         actions = (
           <>
             <Button variant="primary" size="sm" loading={accept.isPending} onClick={() => accept.mutate(task.id)}>
@@ -52,21 +62,24 @@ export function NotificationItem({ notification: n, task, members, onNegotiate }
             <Button variant="ghost" size="sm" onClick={() => drawer.open(task.id)}>
               查看
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/sprints/${task.sprintId}/brief`)}>
+              Sprint 總覽
+            </Button>
           </>
         );
       break;
     case 'review':
       head = <>{from} 請你審查 {ref}</>;
-      if (pending)
+      if (pending && task)
         actions = (
-          <Button variant="primary" size="sm" onClick={() => drawer.open(task.id)}>
+          <Button variant="primary" size="sm" onClick={() => drawer.open(task.id, 'delivery')}>
             開啟審查
           </Button>
         );
       break;
     case 'pool':
       head = <>Review 公共池：{ref}</>;
-      if (pending && !task.reviewerId && task.state === 'IN_REVIEW')
+      if (task && pending && !task.reviewerId && task.state === 'IN_REVIEW')
         actions = (
           <>
             <Button variant="primary" size="sm" loading={claim.isPending} onClick={() => claim.mutate(task.id)}>
@@ -81,11 +94,56 @@ export function NotificationItem({ notification: n, task, members, onNegotiate }
       break;
     case 'returned':
       head = <>{from} 對 {ref} 提出協商</>;
-      if (pending && task.state === 'RETURNED')
+      if (task && pending && task.state === 'RETURNED')
         actions = (
           <Button variant="primary" size="sm" onClick={() => navigate('/sprints/planning')}>
             前往重新指派
           </Button>
+        );
+      break;
+    case 'issue':
+      head = <>{from} 回報了問題 · {ref}</>;
+      if (pending && task)
+        actions = (
+          <>
+            <Button variant="primary" size="sm" onClick={() => drawer.open(task.id, 'issues')}>
+              查看並處理
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setPanel('issues')}>
+              所有問題
+            </Button>
+          </>
+        );
+      break;
+    case 'proposal':
+      head = <>{from} 提出了 {ref}</>;
+      if (pending)
+        actions = (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setPanel('proposals');
+              navigate('/board');
+            }}
+          >
+            查看並決策
+          </Button>
+        );
+      break;
+    case 'plan':
+      head = <>{from} 調整了 {ref}</>;
+      if (pending && task)
+        actions = (
+          <div className="flex w-full flex-wrap items-center gap-2">
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="異議原因（提出異議時必填）" aria-label="異議原因" className="h-8 min-w-[200px] flex-1 rounded-full text-xs" />
+            <Button variant="primary" size="sm" loading={confirmPlan.isPending} onClick={() => confirmPlan.mutate({ id: task.id, status: 'agree', note: '' })}>
+              同意
+            </Button>
+            <Button size="sm" loading={confirmPlan.isPending} onClick={() => confirmPlan.mutate({ id: task.id, status: 'object', note }, { onSuccess: () => setNote('') })}>
+              提出異議
+            </Button>
+          </div>
         );
       break;
     default:

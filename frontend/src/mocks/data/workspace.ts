@@ -13,6 +13,7 @@ export const seedOrg = (): Organization => ({
 
 export const seedProject = (): Project => ({
   name: 'Taskline — 會議到交付平台',
+  goal: '讓團隊在每次 Sprint Planning 後，都清楚誰負責什麼、做到哪裡，並能根據實際成果持續調整計畫。',
   prefix: 'TL',
   provider: 'GitHub',
   repo: 'github.com/atlab/taskline',

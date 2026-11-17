@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { FLOW_NAV } from './nav';
 import { TaskSearch } from './TaskSearch';
@@ -19,38 +19,38 @@ function Logo() {
 }
 
 export function TopBar() {
+  const { pathname } = useLocation();
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-3 lg:flex-nowrap">
       <Logo />
       <nav aria-label="流程" className="order-3 hidden w-full gap-2 overflow-x-auto lg:order-none lg:ml-4 lg:flex lg:w-auto">
-        {FLOW_NAV.map((item, i) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
+        {FLOW_NAV.map((item, i) => {
+          const isActive = item.match(pathname);
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              aria-current={isActive ? 'step' : undefined}
+              className={cn(
                 'inline-flex h-10 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 text-sm font-medium transition-colors duration-150',
                 isActive
                   ? 'border-neutral-900 bg-neutral-900 text-white'
                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span
-                  className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-full text-xs tabular-nums',
-                    isActive ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-600',
-                  )}
-                >
-                  {i + 1}
-                </span>
-                {item.label}
-              </>
-            )}
-          </NavLink>
-        ))}
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-7 w-7 items-center justify-center rounded-full text-xs tabular-nums',
+                  isActive ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-600',
+                )}
+              >
+                {i + 1}
+              </span>
+              {item.label}
+              <span className={cn('hidden text-xs font-normal xl:inline', isActive ? 'text-gray-300' : 'text-gray-400')}>{item.hint}</span>
+            </Link>
+          );
+        })}
       </nav>
       <div className="ml-auto flex min-w-0 items-center gap-2">
         <div className="hidden sm:block">

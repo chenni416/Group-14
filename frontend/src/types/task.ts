@@ -1,3 +1,4 @@
+import type { Delivery } from './acceptance';
 import type { Domain } from './member';
 import type { ReviewPolicy } from './review-policy';
 
@@ -25,12 +26,29 @@ export const EDITABLE_PLAN_STATES: readonly TaskState[] = ['AI_DRAFT', 'DRAFT', 
 export interface PullRequest {
   number: number;
   status: 'open' | 'merged';
+  /** 以下皆為 mock 資料，不串 GitHub */
+  url?: string;
+  tests?: 'passed' | 'failed' | 'none';
+  changedFiles?: string[];
+  summary?: string;
 }
+
+/** 協商針對的項目 */
+export type NegotiateTarget = 'scope' | 'ac' | 'points' | 'assignee' | 'other';
 
 export interface Negotiation {
   byId: string;
   reason: string;
   suggestId: string | null;
+  target?: NegotiateTarget;
+}
+
+/** 成員對「延後或調整」的回覆 */
+export interface PlanConfirm {
+  memberId: string;
+  status: 'agree' | 'object';
+  note: string;
+  at: string;
 }
 
 /** 協商退回當下的內容，用來列出 Leader 修改了哪些地方 */
@@ -84,6 +102,18 @@ export interface Task {
   returnSnapshot: ReturnSnapshot | null;
   /** 延後前的狀態，用來恢復 */
   prevState: TaskState | null;
+  /** G1：任務範圍與責任 */
+  scope: string;
+  outOfScope: string;
+  responsibility: string;
+  /** G1：預期交付成果 */
+  deliverables: string[];
+  /** G2：前置任務編號（需先完成） */
+  dependsOn: string[];
+  /** G2：成員對延後或調整的回覆 */
+  planConfirms: PlanConfirm[];
+  /** G5：成員送審時提交的交付內容 */
+  delivery: Delivery | null;
 }
 
 export interface UpdateTaskInput {
@@ -95,6 +125,10 @@ export interface UpdateTaskInput {
   acceptanceCriteria?: string[];
   policy?: ReviewPolicy;
   multiSprint?: boolean;
+  scope?: string;
+  outOfScope?: string;
+  responsibility?: string;
+  deliverables?: string[];
 }
 
 export interface CreateTaskInput {
@@ -112,4 +146,5 @@ export interface CreateTaskInput {
 export interface NegotiateInput {
   reason: string;
   suggestId: string | null;
+  target?: NegotiateTarget;
 }

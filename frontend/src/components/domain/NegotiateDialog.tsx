@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Button, Field, Modal, Select, Textarea } from '@/components/ui';
+import { Button, Field, Modal, SegmentedControl, Select, Textarea } from '@/components/ui';
 import { useMembers } from '@/hooks/queries';
 import { useTaskActions } from '@/hooks/useTaskActions';
-import type { Task } from '@/types';
+import { NEGOTIATE_TARGETS } from '@/lib/constants';
+import type { NegotiateTarget, Task } from '@/types';
 
 const QUICK_REASONS = ['本週時間不足', '不熟悉此技術', '與其他任務衝突'];
 
@@ -11,12 +12,13 @@ export function NegotiateDialog({ task, open, onClose }: { task: Task | null; op
   const { negotiate } = useTaskActions();
   const [reason, setReason] = useState('');
   const [suggestId, setSuggestId] = useState('');
+  const [target, setTarget] = useState<NegotiateTarget>('points');
 
   if (!task) return null;
 
   const submit = () =>
     negotiate.mutate(
-      { id: task.id, input: { reason, suggestId: suggestId || null } },
+      { id: task.id, input: { reason, suggestId: suggestId || null, target } },
       {
         onSuccess: () => {
           setReason('');
@@ -29,6 +31,15 @@ export function NegotiateDialog({ task, open, onClose }: { task: Task | null; op
   return (
     <Modal open={open} onClose={onClose} title="協商轉移 / 拒絕" description={`${task.id} · ${task.title} · ${task.storyPoints} SP`}>
       <div className="space-y-4">
+        <Field label="想協商的項目">
+          <SegmentedControl<NegotiateTarget>
+            size="sm"
+            aria-label="協商項目"
+            value={target}
+            onChange={setTarget}
+            options={(Object.keys(NEGOTIATE_TARGETS) as NegotiateTarget[]).map((k) => ({ value: k, label: NEGOTIATE_TARGETS[k] }))}
+          />
+        </Field>
         <Field label="原因（會通知 Leader）" htmlFor="ng-reason">
           <div className="mb-2 flex flex-wrap gap-2">
             {QUICK_REASONS.map((r) => (

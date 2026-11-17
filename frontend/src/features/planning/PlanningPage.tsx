@@ -2,7 +2,7 @@ import { useIsMutating } from '@tanstack/react-query';
 import { ChevronRight, List, Play, Plus, Send, Sparkles } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, PageSkeleton } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, PageSkeleton, SegmentedControl } from '@/components/ui';
 import { useCurrentUser, useDependencies, useDocs, useMemberMap, useMembers, useSprintContext } from '@/hooks/queries';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { sum } from '@/lib/format';
@@ -12,6 +12,7 @@ import { DRAFT_STATES, type PlanningStep, type ReviewPolicy, type Task } from '@
 import { useStartSprint } from '@/features/board/hooks/useStartSprint';
 import { AnalyzeProgress } from './components/AnalyzeProgress';
 import { CapacityStrip } from './components/CapacityStrip';
+import { DependencyPanel } from './components/DependencyPanel';
 import { DeferredList } from './components/DeferredList';
 import { DraftTaskCard } from './components/DraftTaskCard';
 import { EditableLegend } from './components/EditableField';
@@ -42,6 +43,7 @@ export function PlanningPage() {
   const [notesMode, setNotesMode] = useState<NotesMode>('edit');
   const [highlight, setHighlight] = useState<string | null>(null);
   const [flagged, setFlagged] = useState(false);
+  const [view, setView] = useState<'tasks' | 'deps'>('tasks');
   const [manualSource, setManualSource] = useState('');
   const manual = useDisclosure();
   const check = useDisclosure();
@@ -170,7 +172,7 @@ export function PlanningPage() {
                   previous={previous}
                   previousTasks={ctx.allTasks.filter((t) => t.sprintId === previous.id && t.state !== 'DEFERRED')}
                   carryTasks={carryTasks}
-                  dependencies={dependencies}
+                  dependencies={dependencies.filter((d) => d.scope === 'prev')}
                   hasPlanTasks={all.length > 0}
                   memberMap={memberMap}
                   taskMap={taskMap}
@@ -191,7 +193,20 @@ export function PlanningPage() {
                 busy={deferSuggested.isPending || rebalance.isPending}
               />
 
-              {workTasks.length === 0 ? (
+              <SegmentedControl<'tasks' | 'deps'>
+                size="sm"
+                aria-label="檢視"
+                className="mb-4"
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: 'tasks', label: '任務' },
+                  { value: 'deps', label: `依賴與平行（${dependencies.length}）` },
+                ]}
+              />
+              {view === 'deps' ? (
+                <DependencyPanel tasks={all} dependencies={dependencies} taskMap={taskMap} memberMap={memberMap} isLead={lead} />
+              ) : workTasks.length === 0 ? (
                 <EmptyState
                   icon={Sparkles}
                   title="還沒有任務"

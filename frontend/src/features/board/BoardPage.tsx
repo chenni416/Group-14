@@ -1,10 +1,19 @@
-import { Card, PageHeader, PageSkeleton, ProgressBar, SegmentedControl } from '@/components/ui';
+import { AlertTriangle, ClipboardList, Flag, Lightbulb } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Callout, Card, PageHeader, PageSkeleton, ProgressBar, SegmentedControl } from '@/components/ui';
+import { ReportIssueDialog } from '@/components/domain/CollabDialogs';
 import { useCurrentUser, useMemberMap, useMembers, useSprintContext } from '@/hooks/queries';
+import { useExecutionPlans, useIssues, useProposals } from '@/hooks/useCollab';
+import { useDisclosure } from '@/hooks/useDisclosure';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
+import { isOpenIssue } from '@/lib/collab';
+import { blockedBy, demoToday, isBehind } from '@/lib/execution';
 import { sum } from '@/lib/format';
-import { needsMyReview } from '@/lib/permissions';
+import { isLead, needsMyReview } from '@/lib/permissions';
 import { useUiStore, type BoardFilter } from '@/stores/ui.store';
-import { BOARD_STATES } from '@/types';
+import { BOARD_STATES, type Task } from '@/types';
+import { EndSprintDialog } from './components/EndSprintDialog';
 import { KanbanColumn } from './components/KanbanColumn';
 import { SprintBanner } from './components/SprintBanner';
 import { TaskCard } from './components/TaskCard';
@@ -13,33 +22,90 @@ const FILTERS = [
   { value: 'all' as const, label: '全部' },
   { value: 'mine' as const, label: '我的任務' },
   { value: 'review' as const, label: '待我審查' },
+  { value: 'blocked' as const, label: '有阻礙' },
 ];
 
 export function BoardPage() {
+  const navigate = useNavigate();
   const ctx = useSprintContext();
   const { data: me } = useCurrentUser();
   const { data: memberList } = useMembers();
+  const { data: plans = [] } = useExecutionPlans();
+  const { data: issues = [] } = useIssues();
+  const { data: proposals = [] } = useProposals();
   const members = useMemberMap();
   const drawer = useTaskDrawer();
-  const { boardFilter, setBoardFilter } = useUiStore();
+  const { boardFilter, setBoardFilter, setCollabPanel } = useUiStore();
+  const report = useDisclosure();
+  const endDialog = useDisclosure();
+  const [reportTask, setReportTask] = useState<string | undefined>();
+
+  const planMap = useMemo(() => new Map(plans.map((p) => [p.taskId, p])), [plans]);
+  const taskMap = useMemo(() => new Map<string, Task>(ctx.allTasks.map((t) => [t.id, t])), [ctx.allTasks]);
+  const issueCount = useMemo(() => {
+    const m = new Map<string, number>();
+    issues.filter(isOpenIssue).forEach((i) => m.set(i.taskId, (m.get(i.taskId) ?? 0) + 1));
+    return m;
+  }, [issues]);
 
   if (ctx.isLoading || !me || !ctx.active) return <PageSkeleton />;
 
   const { active, boardTasks, planning, planningTasks, planningReady } = ctx;
   const leaderId = memberList?.find((m) => m.role === 'Leader')?.id;
+  const today = demoToday(active);
   const visible = boardTasks.filter((t) =>
-    boardFilter === 'mine' ? t.assigneeId === me.id : boardFilter === 'review' ? needsMyReview(t, me.id) : true,
+    boardFilter === 'mine'
+      ? t.assigneeId === me.id
+      : boardFilter === 'review'
+        ? needsMyReview(t, me.id)
+        : boardFilter === 'blocked'
+          ? (issueCount.get(t.id) ?? 0) > 0
+          : true,
   );
   const total = sum(boardTasks.map((t) => t.storyPoints));
   const done = sum(boardTasks.filter((t) => t.state === 'DONE').map((t) => t.storyPoints));
+  const openIssues = issues.filter(isOpenIssue).length;
+  const openProposals = proposals.filter((p) => p.status === 'open').length;
+  const ended = active.status === 'closed';
 
   return (
     <>
       <PageHeader
         eyebrow={`${active.name} · ${active.start} – ${active.end}`}
         title="Active Board"
-        actions={<SegmentedControl<BoardFilter> options={FILTERS} value={boardFilter} onChange={setBoardFilter} aria-label="篩選" />}
+        actions={
+          <>
+            <SegmentedControl<BoardFilter> options={FILTERS} value={boardFilter} onChange={setBoardFilter} aria-label="篩選" />
+            <Button size="sm" onClick={() => navigate(`/sprints/${active.id}/brief`)}>
+              <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.75} />
+              Sprint 總覽
+            </Button>
+            <Button size="sm" onClick={() => setCollabPanel('issues')}>
+              <AlertTriangle className="h-3.5 w-3.5" strokeWidth={1.75} />
+              問題 {openIssues}
+            </Button>
+            <Button size="sm" onClick={() => setCollabPanel('proposals')}>
+              <Lightbulb className="h-3.5 w-3.5" strokeWidth={1.75} />
+              提案 {openProposals}
+            </Button>
+            {isLead(me) && active.status === 'active' && (
+              <Button size="sm" variant="primary" onClick={endDialog.open}>
+                <Flag className="h-3.5 w-3.5" strokeWidth={1.75} />
+                結束 Sprint
+              </Button>
+            )}
+          </>
+        }
       />
+
+      {ended && (
+        <Callout tone="warning" className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <span>{active.name} 已結束，看板內容唯讀。到 Retrospective 回顧這個 Sprint，並訂出下一輪的改善行動。</span>
+          <Button size="sm" variant="primary" onClick={() => navigate(`/sprints/${active.id}/retro`)}>
+            前往回顧
+          </Button>
+        </Callout>
+      )}
 
       {planning?.status === 'planning' && planningTasks.length > 0 && (
         <SprintBanner sprint={planning} tasks={planningTasks} ready={planningReady} canStart={me.role === 'Leader'} />
@@ -49,6 +115,7 @@ export function BoardPage() {
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Sprint Goal</div>
           <div className="mt-1 text-base font-medium text-gray-900">{active.goal || '—'}</div>
+          {ctx.project?.goal && <div className="mt-1 text-xs text-gray-500">專案目標：{ctx.project.goal}</div>}
         </div>
         <div className="w-full sm:w-72">
           <div className="mb-2 flex justify-between text-sm">
@@ -68,13 +135,31 @@ export function BoardPage() {
             return (
               <KanbanColumn key={state} state={state} count={col.length}>
                 {col.map((t) => (
-                  <TaskCard key={t.id} task={t} members={members} leaderId={leaderId} userId={me.id} onOpen={drawer.open} />
+                  <TaskCard
+                    key={t.id}
+                    task={t}
+                    members={members}
+                    leaderId={leaderId}
+                    userId={me.id}
+                    onOpen={drawer.open}
+                    plan={planMap.get(t.id)}
+                    openIssues={issueCount.get(t.id) ?? 0}
+                    waitingOn={blockedBy(t, taskMap)}
+                    behind={isBehind(planMap.get(t.id), today)}
+                    onReport={(id) => {
+                      setReportTask(id);
+                      report.open();
+                    }}
+                  />
                 ))}
               </KanbanColumn>
             );
           })}
         </div>
       </div>
+
+      <ReportIssueDialog open={report.isOpen} onClose={report.close} taskId={reportTask} />
+      <EndSprintDialog open={endDialog.isOpen} onClose={endDialog.close} sprint={active} tasks={ctx.allTasks} />
     </>
   );
 }

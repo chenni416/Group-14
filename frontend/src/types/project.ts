@@ -17,6 +17,8 @@ export type GitProvider = 'GitHub' | 'GitLab';
 
 export interface Project {
   name: string;
+  /** G1：專案整體目標 */
+  goal: string;
   prefix: string;
   provider: GitProvider;
   repo: string;

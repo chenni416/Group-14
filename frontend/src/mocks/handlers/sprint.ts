@@ -1,7 +1,7 @@
 import { TASK_STATES } from '@/lib/constants';
 import { isUnfinished } from '@/lib/planning';
 import type { ClarifyQuestion, Dependency } from '@/types';
-import { CLARIFY_RULES, DEPENDENCY_RULES } from '../data/knowledge';
+import { CLARIFY_RULES, DEPENDENCY_RULES, SAME_SPRINT_RULES } from '../data/knowledge';
 import { db, findSprint, planTasks, prevSprintId, sprintTasks } from '../db';
 
 /** 建立新 Sprint 時自動帶入的「延續事項」：上個 Sprint 未完成、延後、跨 Sprint 的問題 */
@@ -41,24 +41,41 @@ export function findQuestions(minutes: string, previous: ClarifyQuestion[] | nul
   }));
 }
 
-/** AI 相依性分析：本次任務是否依賴上一個 Sprint 的任務 */
+/**
+ * AI 相依性分析：
+ * - prev：本次任務是否依賴上一個 Sprint 的任務
+ * - same：本次任務之間是否有先後順序（被依賴的任務已延後 = 高風險）
+ */
 export function analyzeDependencies(sprintId: number): Dependency[] {
-  const prev = prevSprintId(sprintId);
-  if (prev == null) return [];
-  const prevTasks = sprintTasks(prev);
   const out: Dependency[] = [];
+  const prev = prevSprintId(sprintId);
+  if (prev != null) {
+    const prevTasks = sprintTasks(prev);
+    planTasks(sprintId).forEach((t) =>
+      DEPENDENCY_RULES.forEach((rule) => {
+        if (!rule.task.test(t.title)) return;
+        prevTasks
+          .filter((x) => rule.dependsOn.test(x.title))
+          .forEach((x) =>
+            out.push({
+              scope: 'prev',
+              taskId: t.id,
+              dependsOnId: x.id,
+              reason: rule.reason,
+              risk: x.state === 'DONE' ? 'ok' : x.carry ? 'mid' : 'high',
+            }),
+          );
+      }),
+    );
+  }
+  const all = sprintTasks(sprintId);
   planTasks(sprintId).forEach((t) =>
-    DEPENDENCY_RULES.forEach((rule) => {
+    SAME_SPRINT_RULES.forEach((rule) => {
       if (!rule.task.test(t.title)) return;
-      prevTasks
-        .filter((x) => rule.dependsOn.test(x.title))
+      all
+        .filter((x) => x.id !== t.id && rule.dependsOn.test(x.title))
         .forEach((x) =>
-          out.push({
-            taskId: t.id,
-            dependsOnId: x.id,
-            reason: rule.reason,
-            risk: x.state === 'DONE' ? 'ok' : x.carry ? 'mid' : 'high',
-          }),
+          out.push({ scope: 'same', taskId: t.id, dependsOnId: x.id, reason: rule.reason, risk: x.state === 'DEFERRED' ? 'high' : x.state === 'DONE' ? 'ok' : 'mid' }),
         );
     }),
   );

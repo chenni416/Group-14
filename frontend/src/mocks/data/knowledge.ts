@@ -187,6 +187,15 @@ export const CLARIFY_RULES: ClarifyRule[] = [
   },
 ];
 
+/** 同一個 Sprint 內的相依性規則：task 要等 dependsOn 先完成 */
+export const SAME_SPRINT_RULES: Array<{ task: RegExp; dependsOn: RegExp; reason: string }> = [
+  { task: /Split View/, dependsOn: /脈絡對話 API/, reason: '介面要串接對話 API 才能顯示回覆' },
+  { task: /Living Prompt 畫布/, dependsOn: /版本紀錄與還原 API/, reason: '畫布要讀取並還原後端的 Prompt 版本' },
+  { task: /In Review 卡片狀態視覺/, dependsOn: /Review 狀態視覺規範/, reason: '卡片視覺要依設計規範實作' },
+  { task: /GitHub PR Webhook/, dependsOn: /Review 路由與通知服務/, reason: '收到 PR 事件後要套用審核策略並通知' },
+  { task: /E2E 測試：認領與 Review/, dependsOn: /Review 路由與通知服務|Action Required Inbox/, reason: '功能完成後才能撰寫端對端測試' },
+];
+
 /** 相依性規則：本次任務（task）依賴上一個 Sprint 的任務（dependsOn） */
 export const DEPENDENCY_RULES: Array<{ task: RegExp; dependsOn: RegExp; reason: string }> = [
   { task: /脈絡對話|對話 API/, dependsOn: /知識庫文件索引/, reason: '對話需要檢索知識庫，依賴索引 Pipeline' },

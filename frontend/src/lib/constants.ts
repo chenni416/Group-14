@@ -57,3 +57,11 @@ export const CHART_COLORS = {
   grid: '#F3F4F6',
   axis: '#6B7280',
 } as const;
+
+export const NEGOTIATE_TARGETS = {
+  scope: '工作範圍',
+  ac: '驗收條件',
+  points: '工時 / 點數',
+  assignee: '負責人',
+  other: '其他',
+} as const;

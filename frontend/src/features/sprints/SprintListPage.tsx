@@ -1,6 +1,6 @@
-import { CalendarClock, Layers, Plus, Sparkles, X } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { CalendarClock, ClipboardList, Layers, Plus, Sparkles, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Avatar, Badge, Button, Card, CardHeader, Modal, PageHeader, PageSkeleton, ProgressBar } from '@/components/ui';
 import { useBacklog, useCurrentUser, useMemberMap, useMembers, useSprintContext, useSprints } from '@/hooks/queries';
 import { useDisclosure } from '@/hooks/useDisclosure';
@@ -40,6 +40,17 @@ export function SprintListPage() {
   const { removeBacklog } = useSprintMutations();
   const create = useDisclosure();
   const [review, setReview] = useState<Sprint | null>(null);
+  const [params, setParams] = useSearchParams();
+  const wantCreate = params.get('create') === '1';
+
+  // 從「會議前統整」按「建立下一個 Sprint」進來時，直接開啟建立對話框
+  const canCreate = !!me && isLeadRole(me) && !!sprints && !sprints.some((s) => s.status === 'planning');
+  useEffect(() => {
+    if (!wantCreate) return;
+    if (canCreate) create.open();
+    setParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantCreate, canCreate]);
 
   if (!sprints || !me || ctx.isLoading) return <PageSkeleton />;
 
@@ -55,6 +66,11 @@ export function SprintListPage() {
         eyebrow="Sprint 建立與管理"
         title="Sprint 列表"
         actions={
+          <>
+          <Button onClick={() => navigate('/sprints/digest')}>
+            <ClipboardList className="h-4 w-4" strokeWidth={1.75} />
+            會議前統整
+          </Button>
           <Button
             variant="primary"
             disabled={!lead || hasPlanning}
@@ -64,6 +80,7 @@ export function SprintListPage() {
             <Plus className="h-4 w-4" strokeWidth={1.75} />
             建立 Sprint
           </Button>
+          </>
         }
       />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -132,16 +149,26 @@ export function SprintListPage() {
                         </>
                       )}
                     </div>
-                    {s.status === 'planning' ? (
-                      <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
-                        <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-                        開啟 Planning Studio
+                    <div className="flex flex-col items-stretch gap-2">
+                      {s.status === 'planning' ? (
+                        <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
+                          <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+                          開啟 Planning Studio
+                        </Button>
+                      ) : s.status === 'active' ? (
+                        <Button onClick={() => navigate('/board')}>開啟看板</Button>
+                      ) : (
+                        <Button onClick={() => setReview(s)}>查看結果</Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/sprints/${s.id}/brief`)}>
+                        Sprint 總覽
                       </Button>
-                    ) : s.status === 'active' ? (
-                      <Button onClick={() => navigate('/board')}>開啟看板</Button>
-                    ) : (
-                      <Button onClick={() => setReview(s)}>查看回顧</Button>
-                    )}
+                      {s.status !== 'planning' && (
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/sprints/${s.id}/retro`)}>
+                          Retrospective
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </Card>
               );

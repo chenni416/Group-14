@@ -23,6 +23,7 @@ import { buildPrompt } from '@/mocks/handlers/prompt';
 import { aiReply } from '@/mocks/handlers/chat';
 import { decompose } from '@/mocks/handlers/decompose';
 import { pickRank, plannedLoad, rankFor, reasonFor, suggestAll } from '@/mocks/handlers/assign';
+import { aiCheck } from '@/mocks/handlers/acceptance';
 import { canReview, sendToReview } from '@/mocks/handlers/review';
 import { analyzeDependencies, carryOverText, findQuestions } from '@/mocks/handlers/sprint';
 import { formatSize } from '@/mocks/handlers/knowledge';
@@ -41,6 +42,7 @@ import {
 } from '@/lib/planning';
 import { ApiError, BOARD_STATES, EDITABLE_PLAN_STATES, type BurndownPoint, type ChatMessage, type Sprint } from '@/types';
 import type {
+  ReviewItemsInput,
   NotificationService,
   PlanningService,
   SprintService,
@@ -68,6 +70,26 @@ function deferTask(task: TaskRecord, fromSprint: string, text = task.title) {
   task.state = 'DEFERRED';
   resolveNotifications(task.id, ['returned', 'invite']);
   db.backlog.push({ id: `b${uid()}`, text, fromSprint, kind: 'deferred', taskId: task.id, usedInSprintId: null });
+}
+
+/** G2：延後或調整時通知受影響的負責人，請他同意或提出異議 */
+function askPlanConfirm(task: TaskRecord, what: string) {
+  if (!task.assigneeId || task.assigneeId === me().id) return;
+  notify(task.assigneeId, 'plan', task.id, me().id, `${task.id} ${task.title} 將${what}，請同意或提出異議`);
+}
+
+/** G5：記錄驗收決策與逐條判斷（沿用 AI 的判斷與證據，Reviewer 調整的部分覆蓋） */
+function recordAcceptance(task: TaskRecord, decision: 'approved' | 'changes', reason: string, items: ReviewItemsInput | undefined) {
+  const check = aiCheck(toTask(task));
+  db.records.push({
+    id: `ar-${uid()}`,
+    taskId: task.id,
+    items: check.items.map((it, i) => ({ ...it, reviewer: items?.[i]?.reviewer ?? null, note: items?.[i]?.note ?? '' })),
+    decision,
+    reason,
+    reviewerId: me().id,
+    at: nowIso(),
+  });
 }
 
 export const tasks: TaskService = {
@@ -140,6 +162,7 @@ export const tasks: TaskService = {
       const task = findTask(id);
       if (!EDITABLE_PLAN_STATES.includes(task.state)) throw new ApiError('只有草稿或協商退回的任務可以延後');
       deferTask(task, sprint.name);
+      askPlanConfirm(task, '延後到下一個 Sprint');
       return toTask(task);
     }),
 
@@ -159,6 +182,7 @@ export const tasks: TaskService = {
       const task = findTask(id);
       if (!isUnfinished(task)) throw new ApiError('只有未完成的任務可以帶入或延後');
       task.carry = carry;
+      if (!carry) askPlanConfirm(task, '延後到之後的 Sprint');
       return toTask(task);
     }),
 
@@ -243,7 +267,7 @@ export const tasks: TaskService = {
       if (!input.reason.trim()) throw new ApiError('請填寫原因');
       const task = findTask(id);
       task.state = 'RETURNED';
-      task.negotiation = { byId: me().id, reason: input.reason.trim(), suggestId: input.suggestId };
+      task.negotiation = { byId: me().id, reason: input.reason.trim(), suggestId: input.suggestId, target: input.target };
       task.returnSnapshot = snapshotOf(task);
       resolveNotifications(id, ['invite']);
       notify(leader().id, 'returned', id, me().id, input.reason.trim());
@@ -269,19 +293,22 @@ export const tasks: TaskService = {
       return toTask(task);
     }),
 
-  submitForReview: (id) =>
+  submitForReview: (id, delivery) =>
     respond(() => {
       const task = findTask(id);
       if (task.assigneeId !== me().id) throw new ApiError('只有負責人可以送審', 403);
-      sendToReview(task);
+      if (delivery && !delivery.prUrl.trim()) throw new ApiError('請填寫 PR 連結');
+      sendToReview(task, delivery?.prUrl);
+      if (delivery) task.delivery = { ...delivery, prUrl: delivery.prUrl.trim(), submittedAt: nowIso() };
       return toTask(task);
     }),
 
-  approveReview: (id) =>
+  approveReview: (id, items) =>
     respond(() => {
       const task = findTask(id);
       const user = me();
       if (!canReview(task, user.id)) throw new ApiError('你目前不是這項任務的審查者', 403);
+      recordAcceptance(task, 'approved', '', items);
       const { policy } = task;
       if (policy.mode === 'target') {
         task.approvals.push(user.id);
@@ -299,14 +326,26 @@ export const tasks: TaskService = {
       return { completed: true, approvals: task.approvals.length, required: policy.targets.length };
     }),
 
-  requestChanges: (id, note) =>
+  requestChanges: (id, note, items) =>
     respond(() => {
       if (!note.trim()) throw new ApiError('要求修改時請填寫意見');
       const task = findTask(id);
       if (!canReview(task, me().id)) throw new ApiError('你目前不是這項任務的審查者', 403);
+      recordAcceptance(task, 'changes', note.trim(), items);
       Object.assign(task, { state: 'IN_PROGRESS', reviewerId: null, claimedAt: null, approvals: [] });
       resolveNotifications(id, ['review', 'pool']);
       notify(task.assigneeId, 'info', id, me().id, `要求修改：${note.trim()}`);
+      return toTask(task);
+    }),
+
+  confirmPlan: (id, status, note) =>
+    respond(() => {
+      const task = findTask(id);
+      if (task.assigneeId !== me().id) throw new ApiError('只有被影響的負責人可以回覆', 403);
+      if (status === 'object' && !note.trim()) throw new ApiError('提出異議時請填寫原因');
+      task.planConfirms.push({ memberId: me().id, status, note: note.trim(), at: nowIso() });
+      resolveNotifications(id, ['plan']);
+      notify(leader().id, 'info', id, me().id, status === 'agree' ? '同意延後或調整' : `對延後或調整提出異議：${note.trim()}`);
       return toTask(task);
     }),
 
@@ -440,6 +479,13 @@ export const sprints: SprintService = {
           });
         prev.status = 'closed';
       }
+      // 同一個 Sprint 內的相依性寫進任務，看板才能顯示「等待 TL-xxx」
+      analyzeDependencies(id)
+        .filter((d) => d.scope === 'same')
+        .forEach((d) => {
+          const t = findTask(d.taskId);
+          if (!t.dependsOn.includes(d.dependsOnId)) t.dependsOn.push(d.dependsOnId);
+        });
       next.forEach((t) => (t.state = 'TODO'));
       const sprint = findSprint(id);
       sprint.status = 'active';
@@ -447,6 +493,22 @@ export const sprints: SprintService = {
       db.project.activeSprintId = id;
       db.project.planningSprintId = null;
       return { carriedOver, deferred };
+    }),
+
+  end: (id) =>
+    respond(() => {
+      requireLead('結束 Sprint');
+      const sprint = findSprint(id);
+      if (sprint.status !== 'active') throw new ApiError('只有進行中的 Sprint 可以結束');
+      const all = sprintTasks(id).filter((t) => t.state !== 'DEFERRED');
+      sprint.summary = {
+        total: all.reduce((a, t) => a + t.storyPoints, 0),
+        done: all.filter((t) => t.state === 'DONE').reduce((a, t) => a + t.storyPoints, 0),
+        tasks: all.length,
+      };
+      sprint.status = 'closed';
+      if (!db.retros.some((r) => r.sprintId === id)) db.retros.push({ sprintId: id, status: 'open', entries: [], actions: [] });
+      return { unfinished: sprintTasks(id).filter(isUnfinished).length };
     }),
 
   burndown: (id) =>

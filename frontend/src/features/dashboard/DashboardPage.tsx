@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, PageSkeleton, SegmentedControl } from '@/components/ui';
-import { useCurrentUser, useMembers, useSprintContext } from '@/hooks/queries';
+import { useCurrentUser, useMembers, useNotifications, useSprintContext } from '@/hooks/queries';
+import { useExecutionPlans, useIssues, useProposals } from '@/hooks/useCollab';
+import { isLead } from '@/lib/permissions';
 import { CHART_COLORS } from '@/lib/constants';
 import { sum } from '@/lib/format';
 import { needsMyReview } from '@/lib/permissions';
@@ -17,20 +19,27 @@ export function DashboardPage() {
   const ctx = useSprintContext();
   const { data: me } = useCurrentUser();
   const { data: members } = useMembers();
+  const { data: plans = [] } = useExecutionPlans();
+  const { data: issues = [] } = useIssues();
+  const { data: proposals = [] } = useProposals();
+  const { data: notifications = [] } = useNotifications();
 
   if (ctx.isLoading || !me) return <PageSkeleton />;
 
   const { boardTasks, active, planning, planningTasks, allTasks } = ctx;
   const total = sum(boardTasks.map((t) => t.storyPoints));
   const done = sum(boardTasks.filter((t) => t.state === 'DONE').map((t) => t.storyPoints));
-  const actionCount = allTasks.filter(
-    (t) => (t.assigneeId === me.id && t.state === 'PENDING_MEMBER') || needsMyReview(t, me.id),
-  ).length;
+  // 待我處理：指派確認與審查、被指派處理的問題、延後或調整的回覆；Leader / PO 另加待決策的提案
+  const actionCount =
+    allTasks.filter((t) => (t.assigneeId === me.id && t.state === 'PENDING_MEMBER') || needsMyReview(t, me.id)).length +
+    issues.filter((i) => i.ownerId === me.id && (i.status === 'assigned' || i.status === 'reported')).length +
+    notifications.filter((n) => n.type === 'plan' && n.status === 'pending').length +
+    (isLead(me) ? proposals.filter((p) => p.status === 'open').length : 0);
 
   return (
     <>
       <PageHeader
-        eyebrow="管理並追蹤你的專案"
+        eyebrow={ctx.project?.goal ? `專案目標：${ctx.project.goal}` : '管理並追蹤你的專案'}
         title="Project Dashboard"
         actions={
           <SegmentedControl
@@ -50,12 +59,12 @@ export function DashboardPage() {
             { label: 'Sprint 完成度', value: `${total ? Math.round((done / total) * 100) : 0}%`, hint: `${done} / ${total} SP`, accent: CHART_COLORS.sky },
             { label: '進行中', value: boardTasks.filter((t) => t.state === 'IN_PROGRESS').length, hint: '項任務', accent: CHART_COLORS.orange },
             { label: '審查中', value: boardTasks.filter((t) => t.state === 'IN_REVIEW').length, hint: '項任務', accent: CHART_COLORS.violet },
-            { label: '待我處理', value: actionCount, hint: '指派確認與審查' },
+            { label: '待我處理', value: actionCount, hint: '確認、審查、問題與提案' },
           ]}
         />
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:row-span-3 [&>*]:h-full">
-            <MyTasksCard tasks={allTasks} userId={me.id} />
+            <MyTasksCard tasks={allTasks} userId={me.id} plans={plans} />
           </div>
           <StatusDonut tasks={boardTasks} />
           <BurndownChart sprintId={active?.id} />

@@ -1,11 +1,19 @@
 import type {
+  AcceptanceCheck,
+  AcceptanceItem,
+  AcceptanceRecord,
+  AddRetroActionInput,
   BacklogItem,
   BurndownPoint,
   ChatMessage,
+  CreateProposalInput,
   CreateSprintInput,
   CreateTaskInput,
+  DecideProposalInput,
   Dependency,
+  ExecutionPlan,
   InviteMemberInput,
+  Issue,
   KnowledgeDoc,
   Member,
   NegotiateInput,
@@ -14,9 +22,15 @@ import type {
   Organization,
   Project,
   PromptState,
+  Proposal,
+  ReportIssueInput,
+  Retro,
   ReviewPolicy,
+  SaveExecutionPlanInput,
   SearchHit,
   Sprint,
+  SubmitDeliveryInput,
+  SubmitRetroEntryInput,
   Task,
   UpdateMemberInput,
   UpdateProjectInput,
@@ -65,6 +79,10 @@ export interface SprintService {
   /** ① 輸入：AI 分析會議紀錄，產生待釐清問題，回傳未回答數 */
   analyze(id: number, minutes: string): Promise<{ unanswered: number }>;
   answer(id: number, questionId: string, answer: string): Promise<Sprint>;
+  /** G7：結束進行中的 Sprint，並開啟回顧；回傳未完成任務數 */
+  end(id: number): Promise<{ unfinished: number }>;
+  /** G7：結束進行中的 Sprint 並開啟回顧，回傳未完成任務數 */
+  end(id: number): Promise<{ unfinished: number }>;
   /** 啟動 Sprint：上個 Sprint 的未完成任務依選擇帶入或延後 */
   start(id: number): Promise<{ carriedOver: number; deferred: number }>;
   burndown(id: number): Promise<BurndownPoint[]>;
@@ -74,6 +92,9 @@ export interface SprintService {
   /** AI 相依性分析：本次任務與上一個 Sprint 的相依性 */
   dependencies(id: number): Promise<Dependency[]>;
 }
+
+/** Reviewer 對每條驗收條件的判斷（沿用 AI 時為 null） */
+export type ReviewItemsInput = Pick<AcceptanceItem, 'reviewer' | 'note'>[];
 
 export interface ReviewResult {
   completed: boolean;
@@ -103,9 +124,13 @@ export interface TaskService {
   negotiate(id: string, input: NegotiateInput): Promise<Task>;
   claimReview(id: string): Promise<Task>;
   startDevelopment(id: string): Promise<Task>;
-  submitForReview(id: string): Promise<Task>;
-  approveReview(id: string): Promise<ReviewResult>;
-  requestChanges(id: string, note: string): Promise<Task>;
+  /** G5：送審時一併提交交付內容（PR 連結只是文字，不串 GitHub） */
+  submitForReview(id: string, delivery?: SubmitDeliveryInput): Promise<Task>;
+  /** G5：核准；帶入 items 時一併記錄逐條驗收判斷與證據 */
+  approveReview(id: string, items?: ReviewItemsInput): Promise<ReviewResult>;
+  requestChanges(id: string, note: string, items?: ReviewItemsInput): Promise<Task>;
+  /** G2：成員對延後或調整的回覆 */
+  confirmPlan(id: string, status: 'agree' | 'object', note: string): Promise<Task>;
   updatePolicy(id: string, policy: ReviewPolicy): Promise<Task>;
 }
 
@@ -131,6 +156,52 @@ export interface StudioService {
   ask(taskId: string, question: string): Promise<ChatMessage>;
 }
 
+/** G3：成員的執行計畫 */
+export interface ExecutionService {
+  list(): Promise<ExecutionPlan[]>;
+  get(taskId: string): Promise<ExecutionPlan | null>;
+  /** AI 依任務規格、依賴與專案文件產生計畫建議（尚未確認） */
+  suggest(taskId: string): Promise<ExecutionPlan>;
+  save(taskId: string, input: SaveExecutionPlanInput): Promise<ExecutionPlan>;
+  confirm(taskId: string): Promise<ExecutionPlan>;
+  toggleItem(taskId: string, itemId: string): Promise<ExecutionPlan>;
+  toggleCheckpoint(taskId: string, checkpointId: string): Promise<ExecutionPlan>;
+}
+
+/** G4：問題回報（Report → Assign Owner → Respond → Resolve / Replan） */
+export interface IssueService {
+  list(): Promise<Issue[]>;
+  report(input: ReportIssueInput): Promise<Issue>;
+  assign(id: string, ownerId: string): Promise<Issue>;
+  respond(id: string, text: string): Promise<Issue>;
+  resolve(id: string): Promise<Issue>;
+  replan(id: string): Promise<Issue>;
+}
+
+/** G4：提案（任何人可提案與留言，Leader / PO 決策） */
+export interface ProposalService {
+  list(): Promise<Proposal[]>;
+  create(input: CreateProposalInput): Promise<Proposal>;
+  comment(id: string, text: string): Promise<Proposal>;
+  decide(id: string, input: DecideProposalInput): Promise<Proposal>;
+}
+
+/** G5：AI 驗收檢查與驗收紀錄 */
+export interface AcceptanceService {
+  check(taskId: string): Promise<AcceptanceCheck>;
+  records(taskId: string): Promise<AcceptanceRecord[]>;
+}
+
+/** G7：Sprint 回顧與改善行動 */
+export interface RetroService {
+  get(sprintId: number): Promise<Retro>;
+  list(): Promise<Retro[]>;
+  submitEntry(sprintId: number, input: SubmitRetroEntryInput): Promise<Retro>;
+  addAction(sprintId: number, input: AddRetroActionInput): Promise<Retro>;
+  toggleAction(sprintId: number, actionId: string): Promise<Retro>;
+  close(sprintId: number): Promise<Retro>;
+}
+
 export interface Services {
   auth: AuthService;
   members: MemberService;
@@ -141,4 +212,9 @@ export interface Services {
   planning: PlanningService;
   notifications: NotificationService;
   studio: StudioService;
+  execution: ExecutionService;
+  issues: IssueService;
+  proposals: ProposalService;
+  acceptance: AcceptanceService;
+  retros: RetroService;
 }
