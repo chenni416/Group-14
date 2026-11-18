@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { PlanningChatMessage, PlanningDraft, PlanningStage, StoryDraft, TaskDraft } from '@/types';
 
-const STAGE_ORDER: PlanningStage[] = ['setup', 'stories', 'tasks', 'review'];
+const STAGE_ORDER: PlanningStage[] = ['carry', 'setup', 'stories', 'tasks', 'review'];
 export const stageIndex = (s: PlanningStage) => STAGE_ORDER.indexOf(s);
 
 /** 同一 Story 中、排在 currentId 之後的下一張未指派 Task（循環搜尋，不含自己） */
@@ -71,8 +71,8 @@ interface PlanningState {
 }
 
 const initial = {
-  stage: 'setup' as PlanningStage,
-  reached: 'setup' as PlanningStage,
+  stage: 'carry' as PlanningStage,
+  reached: 'carry' as PlanningStage,
   draft: null,
   selectedStoryId: null,
   activeStoryId: null,

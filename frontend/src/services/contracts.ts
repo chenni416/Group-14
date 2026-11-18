@@ -1,4 +1,5 @@
 import type {
+  BacklogDecision,
   BacklogItem,
   BurndownPoint,
   ChatMessage,
@@ -20,6 +21,7 @@ import type {
   ReviewPolicy,
   ReviseTaskInput,
   SearchHit,
+  SetCarryInput,
   Sprint,
   Task,
   TaskDraft,
@@ -75,6 +77,8 @@ export interface SprintService {
   burndown(id: number): Promise<BurndownPoint[]>;
   /** 延續事項（下次建立 Sprint 時自動帶入會議紀錄） */
   backlog(): Promise<BacklogItem[]>;
+  /** 上輪統整：延續事項納入本輪、繼續保留或移除（移除在啟動 Sprint 時生效） */
+  decideBacklog(id: string, decision: BacklogDecision | null): Promise<BacklogItem>;
   removeBacklog(id: string): Promise<void>;
   /** AI 相依性分析：本次任務與上一個 Sprint 的相依性 */
   dependencies(id: number): Promise<Dependency[]>;
@@ -96,8 +100,10 @@ export interface TaskService {
   /** 延後到下個 Sprint（記錄到延續事項） */
   defer(id: string): Promise<Task>;
   restore(id: string): Promise<Task>;
-  /** 上個 Sprint 未完成的任務：帶入本次或延後 */
-  setCarry(id: string, carry: boolean): Promise<Task>;
+  /** 上輪未完成的任務：帶入本輪（可改派，啟動 Sprint 時套用）或延後；送出派工後不能再改 */
+  setCarry(id: string, input: SetCarryInput): Promise<Task>;
+  /** 成員協商退回帶入／延後決定後，Leader 修改並重新發送確認 */
+  resendCarry(id: string, input: SetCarryInput): Promise<Task>;
   /** 協商退回：修改後發送給目前負責人（可以是原成員） */
   resend(id: string): Promise<{ task: Task; changes: string[] }>;
   /** 協商退回：AI 重新建議負責人（排除提出協商的成員） */

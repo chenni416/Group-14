@@ -1,13 +1,20 @@
-import { ChevronsDownUp, ChevronsUpDown, X } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, History, X } from 'lucide-react';
 import { useState, type DragEvent, type ReactNode } from 'react';
 import { Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
+import { useSprintContext } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
-import { loadByMember } from '@/lib/planning';
-import type { Member, TaskDraft } from '@/types';
+import { capOf, carryOwner, carrySP, loadByMember } from '@/lib/planning';
+import type { Member, Task, TaskDraft } from '@/types';
+import { usePlanCapacity } from '../hooks/usePlanCapacity';
+import { usePlanningMutations } from '../hooks/usePlanning';
 import { usePlanningStore } from '../store';
+import { CarryTaskDrawer } from './CarryTaskDrawer';
+import { PlanTaskDrawer } from './PlanTaskDrawer';
 
 export const TASK_DRAG_TYPE = 'application/x-taskline-task';
+/** 上輪帶入任務卡：只能在成員之間拖曳改派，不能拖到「未指派」 */
+const CARRY_DRAG_TYPE = 'application/x-taskline-carry';
 const UNASSIGNED = '__unassigned__';
 
 interface Props {
@@ -26,7 +33,7 @@ interface Props {
   hideUnassigned?: boolean;
   /** 提供時啟用拖曳：拖到成員直欄為指派，拖回「未指派」或按移除為取消指派（memberId = null） */
   onAssign?: (taskId: string, memberId: string | null) => void;
-  /** 點擊任務小卡 */
+  /** 提供時，任務抽屜顯示「在工作區開啟」並以此聚焦到下方工作區 */
   onTaskClick?: (task: TaskDraft) => void;
   className?: string;
 }
@@ -52,7 +59,7 @@ function MiniTask({ task, draggable, onClick, onRemove }: MiniTaskProps) {
         draggable && 'cursor-grab active:cursor-grabbing',
       )}
     >
-      <button type="button" onClick={onClick} className="block w-full px-2.5 py-2 text-left">
+      <button type="button" aria-label={`調整 ${task.code}`} onClick={onClick} className="block w-full px-2.5 py-2 text-left">
         <span className="flex items-center gap-2 pr-5">
           <span className="font-mono text-[11px] text-gray-500">{task.code}</span>
           <span className="text-[11px] font-medium tabular-nums text-gray-700">{task.storyPoints} SP</span>
@@ -74,6 +81,33 @@ function MiniTask({ task, draggable, onClick, onRemove }: MiniTaskProps) {
   );
 }
 
+/** 上輪帶入的任務卡：拖到其他成員直欄改派，點擊可調整點數、改派或改為延後 */
+function CarryMiniTask({ task, onClick }: { task: Task; onClick: () => void }) {
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CARRY_DRAG_TYPE, task.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      title={task.title}
+      className="cursor-grab rounded-xl border border-dashed border-gray-300 bg-gray-50/70 transition-colors duration-150 hover:border-gray-500 active:cursor-grabbing"
+    >
+      <button type="button" aria-label={`調整上輪帶入 ${task.id}`} onClick={onClick} className="block w-full px-2.5 py-2 text-left">
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-[11px] text-gray-500">{task.id}</span>
+          <span className="text-[11px] font-medium tabular-nums text-gray-700">{carrySP(task)} SP</span>
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-gray-500">
+            <History className="h-3 w-3" strokeWidth={1.75} />
+            上輪帶入
+          </span>
+        </span>
+        <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-gray-900">{task.title}</span>
+      </button>
+    </div>
+  );
+}
+
 interface ColumnProps {
   id: string;
   label: string;
@@ -81,15 +115,19 @@ interface ColumnProps {
   dragOver: string | null;
   setDragOver: (v: string | null | ((d: string | null) => string | null)) => void;
   onDropTask: (taskId: string) => void;
+  /** 提供時接受上輪帶入任務卡的放置（改派） */
+  onDropCarry?: (taskId: string) => void;
   header: ReactNode;
   footer: ReactNode;
   dashed?: boolean;
 }
 
 /** 單一直欄：整欄都是放置區 */
-function Column({ id, label, dropEnabled, dragOver, setDragOver, onDropTask, header, footer, dashed }: ColumnProps) {
+function Column({ id, label, dropEnabled, dragOver, setDragOver, onDropTask, onDropCarry, header, footer, dashed }: ColumnProps) {
   const isOver = dragOver === id;
-  const accept = (e: DragEvent) => dropEnabled && e.dataTransfer.types.includes(TASK_DRAG_TYPE);
+  const accept = (e: DragEvent) =>
+    (dropEnabled && e.dataTransfer.types.includes(TASK_DRAG_TYPE)) ||
+    (!!onDropCarry && e.dataTransfer.types.includes(CARRY_DRAG_TYPE));
   return (
     <section
       aria-label={label}
@@ -104,10 +142,14 @@ function Column({ id, label, dropEnabled, dragOver, setDragOver, onDropTask, hea
       }}
       onDrop={(e) => {
         const taskId = e.dataTransfer.getData(TASK_DRAG_TYPE);
+        const carryId = e.dataTransfer.getData(CARRY_DRAG_TYPE);
         setDragOver(null);
         if (taskId && dropEnabled) {
           e.preventDefault();
           onDropTask(taskId);
+        } else if (carryId && onDropCarry) {
+          e.preventDefault();
+          onDropCarry(carryId);
         }
       }}
       className={cn(
@@ -150,31 +192,54 @@ export function TeamCapacityBar({
   onTaskClick,
   className,
 }: Props) {
-  const { capacityExpanded, toggleCapacity } = usePlanningStore();
+  const { capacityExpanded, toggleCapacity, requestStage } = usePlanningStore();
+  const { planning, carryTasks } = useSprintContext();
+  const { setCarry } = usePlanningMutations();
+  // members 的 capacity 已扣掉上輪帶入任務佔用的點數；這裡把帶入任務放回各成員直欄，
+  // 直欄顯示「新任務 + 帶入任務 / 本輪 Capacity」
+  const { carry } = usePlanCapacity(members);
+  const carried = carryTasks.filter((t) => t.carry === true);
+  const deferredCount = carryTasks.filter((t) => t.carry === false).length;
+  const carryTotal = sum(carried.map(carrySP));
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const load = loadByMember(members, tasks);
+  const total = Object.fromEntries(members.map((m) => [m.id, (load[m.id] ?? 0) + (carry[m.id] ?? 0)]));
+  const editingTask = carried.find((t) => t.id === editing) ?? null;
+  const editingDraft = tasks.find((t) => t.id === editingTaskId) ?? null;
+  const fullMembers = members.map((m) => ({ ...m, capacity: capOf(planning, m) }));
+  const reassignCarry = (taskId: string, memberId: string) => {
+    const t = carried.find((x) => x.id === taskId);
+    if (t && carryOwner(t) !== memberId) setCarry.mutate({ id: taskId, input: { carry: true, assigneeId: memberId } });
+  };
   const unassigned = tasks.filter((t) => !t.assigneeId);
   const unassignedSp = sum(unassigned.map((t) => t.storyPoints));
   const teamCapacity = sum(members.map((m) => m.capacity));
+  const fullCapacity = sum(members.map((m) => capOf(planning, m)));
   const storyPhase = phase === 'stories';
   const expanded = !storyPhase && (forceExpanded || capacityExpanded);
   const dnd = !storyPhase && !!onAssign;
 
-  const list = (items: TaskDraft[], removable: boolean, emptyText: string, columnId: string) =>
-    expanded && (
+  const showCarry = storyPhase || expanded;
+  const list = (items: TaskDraft[], removable: boolean, emptyText: string, columnId: string, carryItems: Task[] = []) =>
+    (expanded || (showCarry && carryItems.length > 0)) && (
       <div className="mt-3 flex flex-1 flex-col gap-2">
-        {items.length ? (
+        {carryItems.map((t) => (
+          <CarryMiniTask key={t.id} task={t} onClick={() => setEditing(t.id)} />
+        ))}
+        {!expanded ? null : items.length ? (
           items.map((t) => (
             <MiniTask
               key={t.id}
               task={t}
               draggable={dnd}
-              onClick={onTaskClick && (() => onTaskClick(t))}
+              onClick={onAssign ? () => setEditingTaskId(t.id) : onTaskClick && (() => onTaskClick(t))}
               onRemove={removable && !hideUnassigned && onAssign ? () => onAssign(t.id, null) : undefined}
             />
           ))
         ) : (
-          <EmptyDrop active={dragOver === columnId} text={emptyText} />
+          !carryItems.length && <EmptyDrop active={dragOver === columnId} text={emptyText} />
         )}
       </div>
     );
@@ -192,12 +257,19 @@ export function TeamCapacityBar({
                   ? '拖曳任務卡到其他成員直欄即可重新指派'
                   : '拖曳任務卡到成員直欄即可指派；拖回「未指派」或按小卡上的移除按鈕可取消指派'
                 : '各成員目前分配到的任務與點數負載'}
+            {carried.length > 0 && `。虛線卡為上輪帶入的任務（${carried.length} 項 · ${carryTotal} SP），可拖曳改派或點擊調整點數、改為延後`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {carryTasks.length > 0 && (
+            <Button size="xs" onClick={() => requestStage('carry')}>
+              <History className="h-3.5 w-3.5" strokeWidth={1.75} />
+              上輪統整{deferredCount > 0 ? ` · 已延後 ${deferredCount} 項` : ''}
+            </Button>
+          )}
           {storyPhase ? (
             <Badge tone={storyPoints > teamCapacity ? 'red' : 'sky'} dot className="tabular-nums">
-              Story 預估 {storyPoints} SP / 全隊容量 {teamCapacity} SP
+              Story 預估 {storyPoints} SP{carryTotal > 0 ? ` + 帶入 ${carryTotal} SP` : ''} / 全隊容量 {fullCapacity} SP
             </Badge>
           ) : (
             <>
@@ -253,8 +325,9 @@ export function TeamCapacityBar({
         )}
 
         {members.map((m) => {
-          const v = load[m.id] ?? 0;
-          const over = v > m.capacity;
+          const v = total[m.id] ?? 0;
+          const cap = capOf(planning, m);
+          const over = v > cap;
           return (
             <Column
               key={m.id}
@@ -264,6 +337,7 @@ export function TeamCapacityBar({
               dragOver={dragOver}
               setDragOver={setDragOver}
               onDropTask={(id) => onAssign?.(id, m.id)}
+              onDropCarry={(id) => reassignCarry(id, m.id)}
               header={
                 <>
                   <div className="flex items-center gap-2">
@@ -272,13 +346,16 @@ export function TeamCapacityBar({
                   </div>
                   <div className="mb-1.5 mt-2.5 flex items-baseline justify-between gap-2 text-xs">
                     <span className={cn('truncate', over ? 'font-medium text-red-600' : 'text-gray-500')}>
-                      {over ? `超載 +${v - m.capacity}` : m.title}
+                      {over ? `超載 +${v - cap}` : m.title}
                     </span>
                     <span className={cn('shrink-0 font-semibold tabular-nums', over ? 'text-red-600' : 'text-gray-900')}>
-                      {v}/{m.capacity} SP
+                      {v}/{cap} SP
                     </span>
                   </div>
-                  <ProgressBar value={v} max={m.capacity} tone={over ? 'red' : 'green'} size="sm" label={`${m.name} 負載`} />
+                  <ProgressBar value={v} max={cap} tone={over ? 'red' : 'green'} size="sm" label={`${m.name} 負載`} />
+                  {(carry[m.id] ?? 0) > 0 && (
+                    <div className="mt-1.5 text-[11px] tabular-nums text-gray-500">含上輪帶入 {carry[m.id]} SP</div>
+                  )}
                 </>
               }
               footer={list(
@@ -286,11 +363,32 @@ export function TeamCapacityBar({
                 true,
                 '尚無指派任務',
                 m.id,
+                carried.filter((t) => carryOwner(t) === m.id),
               )}
             />
           );
         })}
       </div>
+      {onAssign && (
+        <PlanTaskDrawer
+          task={editingDraft}
+          members={fullMembers}
+          load={total}
+          allowUnassign={!hideUnassigned}
+          onAssign={onAssign}
+          onOpenInWorkspace={
+            onTaskClick &&
+            ((t) => {
+              setEditingTaskId(null);
+              onTaskClick(t);
+            })
+          }
+          onClose={() => setEditingTaskId(null)}
+        />
+      )}
+      {planning && (
+        <CarryTaskDrawer task={editingTask} sprint={planning} members={members} load={total} onClose={() => setEditing(null)} />
+      )}
     </Card>
   );
 }

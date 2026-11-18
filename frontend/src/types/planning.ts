@@ -1,7 +1,7 @@
 import type { Domain } from './member';
 
-/** Sprint 規劃流程：0 設定 → A Story 審核 → B Task 拆解與派工 → C 派工總覽與發送 */
-export type PlanningStage = 'setup' | 'stories' | 'tasks' | 'review';
+/** Sprint 規劃流程：1 上輪統整 → 2 設定 → 3 Story 審核 → 4 Task 拆解與派工 → 5 派工總覽與發送 */
+export type PlanningStage = 'carry' | 'setup' | 'stories' | 'tasks' | 'review';
 
 export type BranchPrefix = 'feat' | 'fix' | 'test' | 'refactor' | 'chore';
 export const BRANCH_PREFIXES: BranchPrefix[] = ['feat', 'fix', 'test', 'refactor', 'chore'];

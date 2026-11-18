@@ -5,6 +5,7 @@ import { useTaskActions } from '@/hooks/useTaskActions';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
 import { cn } from '@/lib/cn';
 import { mention, relativeTime } from '@/lib/format';
+import { carrySP } from '@/lib/planning';
 import type { Member, Notification, NotificationType, Task } from '@/types';
 
 const ICONS: Record<NotificationType, { icon: LucideIcon; className: string }> = {
@@ -38,6 +39,29 @@ export function NotificationItem({ notification: n, task, members, onNegotiate }
   let actions: React.ReactNode = null;
   switch (n.type) {
     case 'invite':
+      // 上輪未完成任務的帶入／延後決定
+      if (task.carryStatus != null && task.carry != null) {
+        head = task.carry ? (
+          <>
+            {from} 將上輪的 {ref} 帶入下個 Sprint 交給您，評估本輪需要 <span className="tabular-nums">{carrySP(task)}</span> SP 完成
+          </>
+        ) : (
+          <>{from} 決定將上輪的 {ref} 延後到之後的 Sprint</>
+        );
+        if (pending && task.carryStatus === 'pending')
+          actions = (
+            <>
+              <Button variant="primary" size="sm" loading={accept.isPending} onClick={() => accept.mutate(task.id)}>
+                <Check className="h-3.5 w-3.5" strokeWidth={2} />
+                {task.carry ? '接受帶入' : '確認延後'}
+              </Button>
+              <Button size="sm" onClick={() => onNegotiate(task)}>
+                協商退回
+              </Button>
+            </>
+          );
+        break;
+      }
       head = <>{from} 已指派 {ref} 給您，預估 <span className="tabular-nums">{task.storyPoints}</span> 點</>;
       if (pending && task.state === 'PENDING_MEMBER')
         actions = (
@@ -81,7 +105,7 @@ export function NotificationItem({ notification: n, task, members, onNegotiate }
       break;
     case 'returned':
       head = <>{from} 對 {ref} 提出協商</>;
-      if (pending && task.state === 'RETURNED')
+      if (pending && (task.state === 'RETURNED' || task.carryStatus === 'returned'))
         actions = (
           <Button variant="primary" size="sm" onClick={() => navigate('/sprints/planning')}>
             前往重新指派

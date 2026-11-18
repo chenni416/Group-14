@@ -24,7 +24,7 @@ export const seedProject = (): Project => ({
   planningSprintId: null,
 });
 
-const sprintBase = { minutes: '', docs: [], questions: null, step: 4 as const };
+const sprintBase = { minutes: '', docs: [], questions: null, step: 5 as const };
 
 export const seedSprints = (): Sprint[] => [
   {
@@ -57,8 +57,8 @@ export const seedSprints = (): Sprint[] => [
 
 /** 延續事項：延後或需要跨多個 Sprint 的問題 */
 export const seedBacklog = (): BacklogItem[] => [
-  { id: 'b1', text: 'Email 推播提醒：指派與審查事件寄信通知', fromSprint: 'Sprint 2', kind: 'deferred', taskId: null, usedInSprintId: null },
-  { id: 'b2', text: 'AI 拆解準確率評估：建立標註資料集並每個 Sprint 追蹤', fromSprint: 'Sprint 1', kind: 'multi', taskId: null, usedInSprintId: null },
+  { id: 'b1', text: 'Email 推播提醒：指派與審查事件寄信通知', fromSprint: 'Sprint 2', kind: 'deferred', taskId: null, usedInSprintId: null, decision: null },
+  { id: 'b2', text: 'AI 拆解準確率評估：建立標註資料集並每個 Sprint 追蹤', fromSprint: 'Sprint 1', kind: 'multi', taskId: null, usedInSprintId: null, decision: null },
 ];
 
 export const seedDocs = (): KnowledgeDoc[] => [

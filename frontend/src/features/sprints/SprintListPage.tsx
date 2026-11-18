@@ -7,8 +7,10 @@ import type { Tone } from '@/lib/constants';
 import { sum } from '@/lib/format';
 import { isLead as isLeadRole } from '@/lib/permissions';
 import { capTotal, isUnfinished, PLANNING_STEPS } from '@/lib/planning';
-import type { Sprint, SprintStatus, Task } from '@/types';
+import type { BacklogDecision, Sprint, SprintStatus, Task } from '@/types';
 import { useSprintMutations } from './hooks/useSprintMutations';
+
+const BACKLOG_DECISION_LABEL: Record<BacklogDecision, string> = { include: '納入本輪', keep: '繼續保留', remove: '將移除' };
 
 const STATUS: Record<SprintStatus, { label: string; tone: Tone }> = {
   planning: { label: '規劃中', tone: 'orange' },
@@ -73,7 +75,7 @@ export function SprintListPage() {
               const st = stats(s, ctx.allTasks);
               const planTasks = ctx.allTasks.filter((t) => t.sprintId === s.id && t.state !== 'DEFERRED');
               const unanswered = (s.questions ?? []).filter((q) => !q.answer).length;
-              const step = s.step === 4 && planTasks.some((t) => t.state === 'AI_DRAFT' || t.state === 'DRAFT') ? 3 : s.step;
+              const step = s.step === 5 && planTasks.some((t) => t.state === 'AI_DRAFT' || t.state === 'DRAFT') ? 4 : s.step;
               return (
                 <Card key={s.id} className={s.status === 'planning' ? 'border-orange-200' : undefined}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
@@ -151,7 +153,7 @@ export function SprintListPage() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="延續事項" description="建立下一個 Sprint 時，會自動寫進會議紀錄的「延續事項」區塊。" action={<Badge>下次會議自動帶入</Badge>} />
+            <CardHeader title="延續事項" description="規劃下一個 Sprint 時，在「上輪 Sprint 統整」決定未完成任務帶入或延後，以及延續事項是否納入本輪。" action={<Badge>下次規劃時處理</Badge>} />
             <ul className="divide-y divide-gray-100 text-sm">
               {unfinished.map((t) => (
                 <li key={t.id} className="flex items-center gap-2 py-2">
@@ -159,7 +161,7 @@ export function SprintListPage() {
                   <span className="min-w-0 flex-1 truncate">
                     <span className="font-mono text-xs text-gray-500">{t.id}</span> {t.title}
                   </span>
-                  <Badge tone="orange">未完成</Badge>
+                  <Badge tone={t.carry == null ? 'orange' : 'neutral'}>{t.carry == null ? '未完成' : t.carry ? '帶入' : '延後'}</Badge>
                 </li>
               ))}
               {pendingBacklog.map((b) => (
@@ -172,6 +174,7 @@ export function SprintListPage() {
                     <div className="text-xs text-gray-500">
                       {b.kind === 'multi' ? '跨 Sprint · 自 ' : '延後 · 來自 '}
                       {b.fromSprint}
+                      {b.decision && ` · ${BACKLOG_DECISION_LABEL[b.decision]}`}
                     </div>
                   </div>
                   {lead && (
@@ -197,10 +200,11 @@ export function SprintListPage() {
             <CardHeader title="流程" />
             <ol className="space-y-2 text-sm">
               {[
-                '0 開啟 Sprint 與設定：名稱、日期、Capacity、會議紀錄與文件，按下 AI 分析才建立 Sprint',
-                'A Story 分析確認：AI 切分 Story，Leader 確認範疇與點數',
-                'B Task 拆解與派工：拆解 Task 並指派負責人與審查方式',
-                'C 派工總覽與發送：確認容量後發送指派邀請',
+                '1 上輪 Sprint 統整：檢視完成狀況，決定未完成任務帶入或延後（可改派），處理延續事項',
+                '2 開啟 Sprint 與設定：名稱、日期、Capacity、會議紀錄與文件，按下 AI 分析才建立 Sprint',
+                '3 Story 分析確認：AI 切分 Story，Leader 確認範疇與點數',
+                '4 Task 拆解與派工：拆解 Task 並指派負責人與審查方式',
+                '5 派工總覽與發送：確認容量後發送指派邀請與帶入／延後確認',
               ].map((x) => (
                 <li key={x} className="rounded-2xl bg-gray-50 px-3 py-2">
                   {x}

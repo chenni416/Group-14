@@ -1,5 +1,6 @@
 import {
   BOARD_STATES,
+  type BacklogItem,
   DRAFT_STATES,
   type ClarifyQuestion,
   type Dependency,
@@ -20,8 +21,8 @@ import { sum } from './format';
  * 前端用來即時顯示，mock 後端用同一套規則驗證，確保兩邊結果一致。
  */
 
-/** 規劃流程四階段（與 PlanningStepper 對應，Sprint 列表的進度徽章使用） */
-export const PLANNING_STEPS = ['開啟 Sprint 與設定', 'Story 分析確認', 'Task 拆解與派工', '派工總覽與發送'] as const;
+/** 規劃流程五階段（與 PlanningStepper 對應，Sprint 列表的進度徽章使用） */
+export const PLANNING_STEPS = ['上輪 Sprint 統整', '開啟 Sprint 與設定', 'Story 分析確認', 'Task 拆解與派工', '派工總覽與發送'] as const;
 
 /* ---------- 規劃草稿（Planning Studio） ---------- */
 
@@ -77,21 +78,35 @@ export const capTotal = (sprint: Pick<Sprint, 'capacity'> | undefined, members: 
 export const isUnfinished = (t: Task) =>
   (BOARD_STATES as readonly string[]).includes(t.state) && t.state !== 'DONE';
 
-/** 上個 Sprint 帶入任務的剩餘點數估計 */
-export const carrySP = (t: Task) =>
-  t.state === 'IN_REVIEW' ? 1 : t.state === 'IN_PROGRESS' ? Math.ceil(t.storyPoints / 2) : t.storyPoints;
+/** 上個 Sprint 帶入任務在本輪需要的點數：Leader 重新評估的值，未評估時預設為原點數 */
+export const carrySP = (t: Pick<Task, 'carryPoints' | 'storyPoints'>) => t.carryPoints ?? t.storyPoints;
 
-/** 規劃中 Sprint 的每人負載 = 本次正式任務點數 + 帶入任務的剩餘點數（草稿階段請用 loadByMember） */
-export function planLoad(members: Member[], planTasks: Task[], carryTasks: Task[], excludeIds: string[] = []) {
+export const CARRY_POINTS_MAX = 40;
+
+/** 帶入任務在下個 Sprint 的負責人（有改派時用改派對象） */
+export const carryOwner = (t: Pick<Task, 'carryAssigneeId' | 'assigneeId'>) => t.carryAssigneeId ?? t.assigneeId;
+
+/** 需要確認帶入／延後決定的成員：帶入給新負責人確認，延後給目前負責人確認 */
+export const carryConfirmer = (t: Pick<Task, 'carry' | 'carryAssigneeId' | 'assigneeId'>) =>
+  t.carry === false ? t.assigneeId : carryOwner(t);
+
+/** 帶入任務佔用下個 Sprint 的點數（依改派後的負責人，只計已決定帶入的任務） */
+export function carryLoad(members: Member[], carryTasks: Task[]) {
   const load: Record<string, number> = Object.fromEntries(members.map((m) => [m.id, 0]));
+  carryTasks.forEach((t) => {
+    const owner = carryOwner(t);
+    if (t.carry === true && load[owner] != null) load[owner] += carrySP(t);
+  });
+  return load;
+}
+
+/** 規劃中 Sprint 的每人負載 = 本次正式任務點數 + 帶入任務的本輪預估點數（草稿階段請用 loadByMember） */
+export function planLoad(members: Member[], planTasks: Task[], carryTasks: Task[], excludeIds: string[] = []) {
+  const load = carryLoad(members, carryTasks);
   planTasks.forEach((t) => {
     const cur = load[t.assigneeId];
     if (t.state === 'DEFERRED' || !t.assigneeId || excludeIds.includes(t.id) || cur == null) return;
     load[t.assigneeId] = cur + t.storyPoints;
-  });
-  carryTasks.forEach((t) => {
-    const cur = load[t.assigneeId];
-    if (t.carry && cur != null) load[t.assigneeId] = cur + carrySP(t);
   });
   return load;
 }
@@ -202,6 +217,23 @@ export function deferSuggestions({ sprint, members, planTasks, carryTasks, depen
 }
 
 /* ---------- 會議紀錄 ---------- */
+
+/** 會議紀錄中系統自動帶入的延續事項區塊標題 */
+export const CARRY_HEADER = '## 延續事項（系統自動帶入）';
+
+const backlogLine = (b: BacklogItem) =>
+  b.kind === 'multi' ? `- [跨 Sprint] ${b.text}（自 ${b.fromSprint} 延續）` : `- [延後] ${b.text}（${b.fromSprint} 延後）`;
+
+/** 「納入本輪」的延續事項寫進會議紀錄的區塊；帶入的未完成任務直接以原任務延續，不寫進會議紀錄以免重複拆解 */
+export const carryBlock = (items: BacklogItem[]) => (items.length ? [CARRY_HEADER, ...items.map(backlogLine)].join('\n') : '');
+
+/** 以新的延續事項區塊取代會議紀錄中原本的區塊（區塊固定放在最後） */
+export function replaceCarryBlock(minutes: string, block: string) {
+  const idx = minutes.indexOf(CARRY_HEADER);
+  const body = (idx >= 0 ? minutes.slice(0, idx) : minutes).trimEnd();
+  if (!block) return body;
+  return body ? `${body}\n\n${block}` : block;
+}
 
 const BULLET = /^\s*([-*•]|\d+[.)、])\s+/;
 export const isBullet = (line: string) => BULLET.test(line);

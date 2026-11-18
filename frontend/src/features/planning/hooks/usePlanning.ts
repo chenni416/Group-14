@@ -3,11 +3,13 @@ import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
 import type {
+  BacklogDecision,
   CreateTaskInput,
   GenerateDraftInput,
   GenerateTasksInput,
   PlanningDraft,
   ReviseTaskInput,
+  SetCarryInput,
   UpdateSprintInput,
   UpdateTaskInput,
 } from '@/types';
@@ -104,8 +106,24 @@ export function usePlanningMutations() {
     onSuccess: (t) => toast(`${t.id} 已延後，下次建立 Sprint 時會自動帶入會議紀錄`),
   });
   const restoreTask = useApiMutation({ mutationFn: api.tasks.restore });
+  /* ---- 上輪統整 ---- */
   const setCarry = useApiMutation({
-    mutationFn: ({ id, carry }: { id: string; carry: boolean }) => api.tasks.setCarry(id, carry),
+    mutationFn: ({ id, input }: { id: string; input: SetCarryInput }) => api.tasks.setCarry(id, input),
+    invalidate: [['tasks']],
+  });
+  const setCarryMany = useApiMutation({
+    mutationFn: ({ ids, carry }: { ids: string[]; carry: boolean }) =>
+      Promise.all(ids.map((id) => api.tasks.setCarry(id, { carry }))),
+    invalidate: [['tasks']],
+    onSuccess: (_r, { ids, carry }) => toast(`已將 ${ids.length} 項任務設為${carry ? '帶入本輪' : '延後'}`),
+  });
+  const resendCarry = useApiMutation({
+    mutationFn: ({ id, input }: { id: string; input: SetCarryInput }) => api.tasks.resendCarry(id, input),
+    onSuccess: (t) => toast(`已更新 ${t.id} 的決定並重新發送通知`),
+  });
+  const decideBacklog = useApiMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: BacklogDecision }) => api.sprints.decideBacklog(id, decision),
+    invalidate: [['backlog'], ['sprints']],
   });
   const deferSuggested = useApiMutation({
     mutationFn: (sprintId: number) => api.planning.deferSuggested(sprintId),
@@ -152,6 +170,9 @@ export function usePlanningMutations() {
     deferTask,
     restoreTask,
     setCarry,
+    setCarryMany,
+    resendCarry,
+    decideBacklog,
     deferSuggested,
     rebalance,
     resend,

@@ -1,34 +1,42 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { PLANNING_STEPS } from '@/lib/planning';
 import type { PlanningStage } from '@/types';
 import { stageIndex, usePlanningStore } from '../store';
 
-const STEPS: Array<{ stage: PlanningStage; marker: string; label: string }> = [
-  { stage: 'setup', marker: '0', label: '開啟 Sprint 與設定' },
-  { stage: 'stories', marker: 'A', label: 'Story 分析確認' },
-  { stage: 'tasks', marker: 'B', label: 'Task 拆解與派工' },
-  { stage: 'review', marker: 'C', label: '派工總覽與發送' },
-];
+const STAGES: PlanningStage[] = ['carry', 'setup', 'stories', 'tasks', 'review'];
+const STEPS = STAGES.map((stage, i) => ({ stage, marker: String(i + 1), label: PLANNING_STEPS[i] }));
 
-/** 規劃流程步驟條：可切換到已到達的階段檢視 */
-export function PlanningStepper() {
+/**
+ * 規劃流程步驟條：可切換到已到達的階段檢視。
+ * carryReady：上輪統整已全部決定，才能前往「開啟 Sprint 與設定」。
+ */
+export function PlanningStepper({ carryReady }: { carryReady: boolean }) {
   const { stage, reached, draft, requestStage } = usePlanningStore();
   const current = stageIndex(stage);
+  const isEnabled = (s: PlanningStage, i: number) =>
+    s === 'carry' || (carryReady && (s === 'setup' || (!!draft && i <= stageIndex(reached))));
 
   return (
     <ol className="flex flex-wrap items-center gap-2" aria-label="規劃流程">
       {STEPS.map((s, i) => {
         const active = s.stage === stage;
         const done = i < current;
-        const enabled = i === 0 || (!!draft && i <= stageIndex(reached));
+        const enabled = isEnabled(s.stage, i);
         return (
           <li key={s.stage} className="flex items-center gap-2">
-            {i > 0 && <span className={cn('h-px w-6', i <= stageIndex(reached) && draft ? 'bg-gray-900' : 'bg-gray-200')} aria-hidden />}
+            {i > 0 && <span className={cn('h-px w-6', enabled && i <= stageIndex(reached) ? 'bg-gray-900' : 'bg-gray-200')} aria-hidden />}
             <button
               type="button"
               disabled={!enabled}
               aria-current={active ? 'step' : undefined}
-              title={s.stage === 'setup' && !active ? '返回修改 Sprint 設定' : undefined}
+              title={
+                s.stage === 'setup' && !carryReady
+                  ? '請先完成上輪 Sprint 統整'
+                  : s.stage === 'setup' && !active
+                    ? '返回修改 Sprint 設定'
+                    : undefined
+              }
               onClick={() => requestStage(s.stage)}
               className={cn(
                 'inline-flex h-10 items-center gap-2 rounded-full border pl-1.5 pr-4 text-sm font-medium transition-colors duration-150',

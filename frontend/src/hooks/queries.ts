@@ -58,15 +58,17 @@ export function useSprintContext() {
     const deferredTasks: Task[] = planning
       ? all.filter((t) => t.sprintId === planning.id && t.state === 'DEFERRED')
       : [];
-    /** 上一個 Sprint 與其未完成（可帶入本次）的任務 */
+    /** 要統整的上一輪 Sprint：有規劃中的 Sprint 時取它的前一個，否則為進行中的 Sprint */
     const previous = planning
       ? [...(sprints.data ?? [])].filter((s) => s.id < planning.id).sort((a, b) => b.id - a.id)[0]
-      : undefined;
+      : active;
+    /** 上一輪未完成（帶入或延後）的任務 */
     const carryTasks: Task[] = previous ? all.filter((t) => t.sprintId === previous.id && isUnfinished(t)) : [];
     const planningReady =
       planning?.status === 'planning' &&
       planningTasks.length > 0 &&
-      planningTasks.every((t) => t.state === 'ASSIGNED');
+      planningTasks.every((t) => t.state === 'ASSIGNED') &&
+      carryTasks.every((t) => t.carryStatus == null || t.carryStatus === 'accepted');
     return {
       isLoading: project.isLoading || sprints.isLoading || tasks.isLoading,
       project: p,

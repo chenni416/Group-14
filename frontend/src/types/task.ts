@@ -22,6 +22,9 @@ export const DRAFT_STATES: readonly TaskState[] = ['AI_DRAFT', 'DRAFT'];
 /** Leader 可在 Planning Studio 修改的狀態（草稿與協商退回） */
 export const EDITABLE_PLAN_STATES: readonly TaskState[] = ['AI_DRAFT', 'DRAFT', 'RETURNED'];
 
+/** 帶入／延後決定的成員確認：待確認、已接受、協商退回 */
+export type CarryStatus = 'pending' | 'accepted' | 'returned';
+
 export interface PullRequest {
   number: number;
   status: 'open' | 'merged';
@@ -79,8 +82,14 @@ export interface Task {
   multiSprint: boolean;
   /** 驗收條件已套用待釐清問題的回答 */
   clarified: boolean;
-  /** 未完成時是否帶入下一個 Sprint（false = 延後） */
-  carry: boolean;
+  /** 上輪未完成任務的決定：true 帶入下一個 Sprint、false 延後、null 尚未決定 */
+  carry: boolean | null;
+  /** 帶入時改派的負責人（啟動 Sprint 時套用）；null 表示維持原負責人 */
+  carryAssigneeId: string | null;
+  /** Leader 重新評估的本輪完成剩餘工作所需點數；null 表示沿用原點數 */
+  carryPoints: number | null;
+  /** 送出派工後，成員對帶入／延後決定的確認狀態；null 表示尚未送出 */
+  carryStatus: CarryStatus | null;
   returnSnapshot: ReturnSnapshot | null;
   /** 延後前的狀態，用來恢復 */
   prevState: TaskState | null;
@@ -121,4 +130,11 @@ export interface ReviseTaskInput {
   acceptanceCriteria: string[];
   assigneeId: string;
   policy: ReviewPolicy;
+}
+
+/** 上輪未完成任務：帶入或延後，帶入時可改派並重新評估點數（省略表示不變） */
+export interface SetCarryInput {
+  carry: boolean | null;
+  assigneeId?: string | null;
+  points?: number;
 }

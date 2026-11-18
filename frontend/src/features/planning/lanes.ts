@@ -1,5 +1,5 @@
 import type { Tone } from '@/lib/constants';
-import type { TaskState } from '@/types';
+import type { Task, TaskState } from '@/types';
 
 export type LaneKey = 'pending' | 'returned' | 'accepted';
 
@@ -11,3 +11,7 @@ export const LANES: Array<{ key: LaneKey; label: string; tone: Tone; states: Tas
 ];
 
 export const laneOf = (state: TaskState): LaneKey | undefined => LANES.find((l) => l.states.includes(state))?.key;
+
+/** 上輪帶入／延後決定的追蹤狀態欄（依成員確認狀態） */
+export const carryLaneOf = (t: Pick<Task, 'carryStatus'>): LaneKey =>
+  t.carryStatus === 'returned' ? 'returned' : t.carryStatus === 'accepted' ? 'accepted' : 'pending';

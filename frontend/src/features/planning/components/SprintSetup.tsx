@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { Avatar, Badge, Button, Card, CardHeader, Field, Input, Label, Modal, Tag, Textarea } from '@/components/ui';
 import { useSprintDefaults, useSprintMutations } from '@/features/sprints/hooks/useSprintMutations';
-import { useDocs, useMembers } from '@/hooks/queries';
+import { useDocs, useMembers, useSprintContext } from '@/hooks/queries';
 import { sum } from '@/lib/format';
+import { CARRY_HEADER, carryLoad, carrySP } from '@/lib/planning';
 import { ragStatus } from '@/lib/rag';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
@@ -23,7 +24,6 @@ interface SetupForm {
   docs: SprintDoc[];
 }
 
-const CARRY_HEADER = '## 延續事項（系統自動帶入）';
 const CARRY_LINE = /^- \[(延續|延後|跨 Sprint)\]/gm;
 
 const fromSprint = (s: Sprint): SetupForm => ({
@@ -73,6 +73,7 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
   const isNew = !sprint;
   const { data: members = [] } = useMembers();
   const { data: knowledge } = useDocs();
+  const { carryTasks } = useSprintContext();
   const { data: defaults } = useSprintDefaults(isNew);
   const { createSprint } = useSprintMutations();
   const { generate, updateSprint } = usePlanningMutations();
@@ -128,6 +129,8 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
   const patch = (p: Partial<SetupForm>) => setForm({ ...form, ...p });
   const totalCap = sum(members.map((m) => form.capacity[m.id] ?? m.capacity));
   const carryCount = (form.minutes.match(CARRY_LINE) ?? []).length;
+  const carried = carryTasks.filter((t) => t.carry === true);
+  const carriedLoad = carryLoad(members, carryTasks);
   const rag = ragStatus(knowledge ?? []);
 
   /** 寫入目前的設定：新建模式建立 Sprint，編輯模式更新 Sprint。成功回傳 true */
@@ -221,7 +224,7 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
           <Card>
             <CardHeader
               title="本次 Capacity"
-              description="依成員本次可投入的時間直接估點，不需匯入課表或行事曆。"
+              description={`依成員本次可投入的時間直接估點，不需匯入課表或行事曆。${carried.length ? '上輪帶入的任務會佔用其中的點數。' : ''}`}
               action={
                 <span className="text-sm">
                   總計 <b className="tabular-nums">{totalCap}</b> SP
@@ -234,7 +237,10 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
                   <Avatar member={m} size="xs" />
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {m.name}
-                    <span className="text-xs text-gray-500"> · {m.title}</span>
+                    <span className="text-xs text-gray-500">
+                      {' '}
+                      · {carriedLoad[m.id] ? `帶入 ${carriedLoad[m.id]} SP` : m.title}
+                    </span>
                   </span>
                   <Input
                     type="number"
@@ -290,7 +296,9 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
               onChange={(e) => patch({ minutes: e.target.value })}
             />
             {carryCount > 0 && (
-              <p className="mt-1.5 text-xs text-gray-500">已自動帶入 {carryCount} 項延續事項（上個 Sprint 未完成、延後、跨 Sprint 的項目）</p>
+              <p className="mt-1.5 text-xs text-gray-500">
+                已帶入 {carryCount} 項延續事項（在「上輪 Sprint 統整」選擇納入本輪的項目）。帶入的未完成任務會直接延續，不寫進會議紀錄。
+              </p>
             )}
           </Card>
 
@@ -352,6 +360,12 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
                 <div className="flex items-center justify-between">
                   <dt className="text-gray-500">總 Capacity</dt>
                   <dd className="tabular-nums">{totalCap} SP</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-gray-500">上輪帶入</dt>
+                  <dd className="tabular-nums">
+                    {carried.length} 項 · {sum(carried.map(carrySP))} SP
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-gray-500">延續事項</dt>

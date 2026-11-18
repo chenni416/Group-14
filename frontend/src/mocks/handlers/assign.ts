@@ -4,7 +4,7 @@ import { carryTasks, db, planTasks } from '../db';
 
 type Load = Record<string, number>;
 
-/** 規劃中 Sprint 的每人負載：本次任務 + 上個 Sprint 帶入任務的剩餘點數 */
+/** 規劃中 Sprint 的每人負載：本次任務 + 上個 Sprint 帶入任務的本輪預估點數 */
 export function plannedLoad(sprintId: number, exclude: Task[] = []): Load {
   return planLoad(db.members, planTasks(sprintId), carryTasks(sprintId), exclude.map((t) => t.id));
 }

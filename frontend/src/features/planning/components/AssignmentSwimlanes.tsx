@@ -1,8 +1,9 @@
 import { Avatar } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
-import type { Member, Task } from '@/types';
-import { LANES, type LaneKey } from '../lanes';
+import { capOf, carryConfirmer, carrySP } from '@/lib/planning';
+import type { Member, Sprint, Task } from '@/types';
+import { LANES, carryLaneOf, type LaneKey } from '../lanes';
 
 /** 三個狀態欄的色彩層次：表頭、數字膠囊、任務卡、泳道格子底色（低飽和度，視覺份量一致） */
 const LANE_STYLE: Record<LaneKey, { dot: string; header: string; count: string; card: string; cell: string }> = {
@@ -33,7 +34,10 @@ const LANE_STYLE: Record<LaneKey, { dot: string; header: string; count: string; 
 const GRID = 'grid grid-cols-[220px_repeat(3,minmax(0,1fr))]';
 
 interface Props {
+  sprint: Sprint;
   tasks: Task[];
+  /** 上輪未完成任務的帶入／延後決定（已發送給成員確認） */
+  carryTasks: Task[];
   members: Member[];
   onOpen: (taskId: string) => void;
 }
@@ -41,15 +45,18 @@ interface Props {
 function TaskSummaryCard({
   task,
   lane,
+  carry,
   returnedBy,
   onOpen,
 }: {
   task: Task;
   lane: LaneKey;
+  /** 上輪帶入／延後的決定卡 */
+  carry?: boolean;
   returnedBy?: Member;
   onOpen: () => void;
 }) {
-  const returned = task.state === 'RETURNED';
+  const returned = carry ? task.carryStatus === 'returned' : task.state === 'RETURNED';
   return (
     <button
       type="button"
@@ -58,9 +65,16 @@ function TaskSummaryCard({
     >
       <span className="flex items-center justify-between gap-2">
         <span className="font-mono text-[11px] text-gray-500">{task.id}</span>
-        <span className="text-[11px] font-medium tabular-nums text-gray-700">{task.storyPoints} SP</span>
+        <span className="text-[11px] font-medium tabular-nums text-gray-700">
+          {carry ? (task.carry ? `本輪 ${carrySP(task)} SP` : '—') : `${task.storyPoints} SP`}
+        </span>
       </span>
       <span className="mt-1 line-clamp-2 block text-sm leading-snug text-gray-900">{task.title}</span>
+      {carry && (
+        <span className="mt-2 inline-flex h-5 items-center rounded-full border border-gray-200 bg-white px-2 text-[11px] text-gray-600">
+          {task.carry ? '上輪帶入' : '上輪延後'}
+        </span>
+      )}
       {returned && task.negotiation && (
         <span className="mt-2 block rounded-lg bg-rose-100/50 px-2.5 py-2 text-xs leading-relaxed text-rose-800">
           <span className="font-medium">{returnedBy?.name ?? '成員'}：</span>
@@ -75,12 +89,17 @@ function TaskSummaryCard({
  * 已送出規劃的追蹤看板：成員為橫向泳道，貫穿「待確認／協商退回／已接受」三個狀態直欄。
  * 表頭在桌面寬度下固定於主內容區頂端；手機寬度改為橫向捲動。
  */
-export function AssignmentSwimlanes({ tasks, members, onOpen }: Props) {
+export function AssignmentSwimlanes({ sprint, tasks, carryTasks, members, onOpen }: Props) {
   const memberMap = new Map(members.map((m) => [m.id, m]));
+  const carryIds = new Set(carryTasks.map((t) => t.id));
+  const laneKey = (t: Task) => (carryIds.has(t.id) ? carryLaneOf(t) : LANES.find((l) => l.states.includes(t.state))?.key);
   const lanesOf = (list: Task[]) =>
-    Object.fromEntries(LANES.map((l) => [l.key, list.filter((t) => l.states.includes(t.state))])) as Record<LaneKey, Task[]>;
-  const totals = lanesOf(tasks);
-  const rows = members.filter((m) => tasks.some((t) => t.assigneeId === m.id));
+    Object.fromEntries(LANES.map((l) => [l.key, list.filter((t) => laneKey(t) === l.key)])) as Record<LaneKey, Task[]>;
+  const all = [...tasks, ...carryTasks];
+  const totals = lanesOf(all);
+  // 決定卡放在需要確認的成員泳道：帶入給新負責人、延後給目前負責人
+  const ownerOf = (t: Task) => (carryIds.has(t.id) ? carryConfirmer(t) : t.assigneeId);
+  const rows = members.filter((m) => all.some((t) => ownerOf(t) === m.id));
 
   return (
     <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0 lg:overflow-visible">
@@ -115,10 +134,11 @@ export function AssignmentSwimlanes({ tasks, members, onOpen }: Props) {
 
         {/* 成員泳道 */}
         {rows.map((m) => {
-          const mine = tasks.filter((t) => t.assigneeId === m.id);
+          const mine = all.filter((t) => ownerOf(t) === m.id);
           const lanes = lanesOf(mine);
-          const load = sum(mine.map((t) => t.storyPoints));
-          const over = load > m.capacity;
+          const load = sum(mine.map((t) => (carryIds.has(t.id) ? (t.carry ? carrySP(t) : 0) : t.storyPoints)));
+          const cap = capOf(sprint, m);
+          const over = load > cap;
           return (
             <section key={m.id} aria-label={`${m.name} 的泳道`} className={cn(GRID, 'rounded-2xl border border-gray-100 bg-white')}>
               <div className="flex items-start gap-2.5 p-4">
@@ -127,7 +147,7 @@ export function AssignmentSwimlanes({ tasks, members, onOpen }: Props) {
                   <div className="truncate text-sm font-medium text-gray-900">{m.name}</div>
                   <div className="truncate text-xs text-gray-500">{m.title}</div>
                   <div className={cn('mt-1.5 text-xs tabular-nums', over ? 'font-semibold text-red-600' : 'text-gray-700')}>
-                    {load} / {m.capacity} SP
+                    {load} / {cap} SP
                   </div>
                 </div>
               </div>
@@ -145,6 +165,7 @@ export function AssignmentSwimlanes({ tasks, members, onOpen }: Props) {
                           key={t.id}
                           task={t}
                           lane={l.key}
+                          carry={carryIds.has(t.id)}
                           returnedBy={t.negotiation ? memberMap.get(t.negotiation.byId) : undefined}
                           onOpen={() => onOpen(t.id)}
                         />

@@ -1,30 +1,21 @@
-import { TASK_STATES } from '@/lib/constants';
-import { isUnfinished } from '@/lib/planning';
+import { carryBlock, replaceCarryBlock } from '@/lib/planning';
 import type { ClarifyQuestion, Dependency } from '@/types';
 import { CLARIFY_RULES, DEPENDENCY_RULES } from '../data/knowledge';
 import { db, findSprint, planTasks, prevSprintId, sprintTasks } from '../db';
 
-/** 建立新 Sprint 時自動帶入的「延續事項」：上個 Sprint 未完成、延後、跨 Sprint 的問題 */
-export function carryOverText(prevId: number | null): { text: string; count: number } {
-  const lines: string[] = [];
-  if (prevId != null) {
-    const prev = findSprint(prevId);
-    sprintTasks(prevId)
-      .filter(isUnfinished)
-      .forEach((t) =>
-        lines.push(`- [延續] ${t.id} ${t.title}（${prev.name} 未完成 · ${TASK_STATES[t.state].label} · ${t.storyPoints} SP）`),
-      );
-  }
-  db.backlog
-    .filter((b) => b.usedInSprintId == null)
-    .forEach((b) =>
-      lines.push(
-        b.kind === 'multi'
-          ? `- [跨 Sprint] ${b.text}（自 ${b.fromSprint} 延續）`
-          : `- [延後] ${b.text}（${b.fromSprint} 延後）`,
-      ),
-    );
-  return { text: lines.length ? ['## 延續事項（系統自動帶入）', ...lines].join('\n') : '', count: lines.length };
+/**
+ * 建立新 Sprint 時自動帶入會議紀錄的「延續事項」：只放在「上輪 Sprint 統整」選擇納入本輪、尚未寫進其他 Sprint 的項目。
+ * 帶入的上輪未完成任務會以原任務移到新 Sprint，不寫進會議紀錄。
+ */
+export function carryOverText(sprintId: number | null = null): { text: string; count: number } {
+  const items = db.backlog.filter((b) => b.decision === 'include' && (b.usedInSprintId == null || b.usedInSprintId === sprintId));
+  return { text: carryBlock(items), count: items.length };
+}
+
+/** 規劃中 Sprint 的會議紀錄：依目前「納入本輪」的延續事項重寫延續區塊 */
+export function syncCarryBlock(sprintId: number) {
+  const sprint = findSprint(sprintId);
+  sprint.minutes = replaceCarryBlock(sprint.minutes, carryOverText(sprintId).text);
 }
 
 /** AI 找出會議紀錄沒講清楚的地方；保留先前已回答的內容 */
@@ -57,7 +48,7 @@ export function analyzeDependencies(sprintId: number): Dependency[] {
             taskId: t.id,
             dependsOnId: x.id,
             reason: rule.reason,
-            risk: x.state === 'DONE' ? 'ok' : x.carry ? 'mid' : 'high',
+            risk: x.state === 'DONE' ? 'ok' : x.carry === false ? 'high' : 'mid',
           }),
         );
     }),

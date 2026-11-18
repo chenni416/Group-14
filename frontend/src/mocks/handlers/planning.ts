@@ -1,8 +1,20 @@
 import type { Domain, GenerateTasksInput, PlanningDraft, ReviewPolicy, ReviewerAssignment, TaskDraft } from '@/types';
 import { ApiError } from '@/types';
 import { SCENARIO_STORIES, SCENARIO_TASKS, SIMULATED_RESPONSES } from '../data/planningScenario';
-import { branchName } from '@/lib/planning';
-import { createTaskRecord, db, findMember, leader, notify, planningSprint, resolveNotifications, sessionUser, sprintTasks, type TaskRecord } from '../db';
+import { branchName, carryConfirmer, carrySP } from '@/lib/planning';
+import {
+  carryTasks,
+  createTaskRecord,
+  db,
+  findMember,
+  leader,
+  notify,
+  planningSprint,
+  resolveNotifications,
+  sessionUser,
+  sprintTasks,
+  type TaskRecord,
+} from '../db';
 
 /** 回傳預設 Mock 場景的 Story 切分（不解析會議紀錄內容）；此時尚未拆解 Task */
 export function generateDraft(goal: string): PlanningDraft {
@@ -27,6 +39,9 @@ export function submitPlan(draft: PlanningDraft): number {
   if (sprintTasks(draft.sprintId).length) throw new ApiError('本 Sprint 已送出規劃，不能重複核准', 409, 'CONFLICT');
   const unassigned = draft.tasks.filter((t) => !t.assigneeId);
   if (unassigned.length) throw new ApiError(`還有 ${unassigned.length} 張 Task 尚未指派負責人`);
+  const carried = carryTasks(draft.sprintId);
+  const undecided = carried.filter((t) => t.carry == null);
+  if (undecided.length) throw new ApiError(`上輪還有 ${undecided.length} 項未完成任務尚未決定帶入或延後`);
 
   const me = sessionUser();
   const created = new Map<string, TaskRecord>();
@@ -57,7 +72,41 @@ export function submitPlan(draft: PlanningDraft): number {
     notify(assigneeId, 'invite', record.id, me.id, `預估 ${t.storyPoints} 點，請確認是否接受`);
   });
   simulateMemberResponses(created);
+  dispatchCarry(carried);
   return draft.tasks.length;
+}
+
+/**
+ * 上輪未完成任務的帶入／延後決定一起發送給成員確認：帶入給（改派後的）負責人、延後給目前負責人。
+ * 決定送出後鎖定，只有成員協商退回時 Leader 才能修改。
+ * 示範用：Leader 自己的直接確認；第一項帶入給其他成員的任務模擬協商退回，其餘模擬已接受。
+ */
+function dispatchCarry(list: TaskRecord[]) {
+  const me = sessionUser();
+  const lead = leader();
+  const returnId = list.find((t) => t.carry && carryConfirmer(t) !== me.id)?.id;
+  list.forEach((t) => {
+    const to = carryConfirmer(t);
+    t.carryStatus = 'pending';
+    notify(
+      to,
+      'invite',
+      t.id,
+      me.id,
+      t.carry ? `上輪未完成，Leader 評估本輪需要 ${carrySP(t)} 點完成，將帶入下個 Sprint，請確認是否接受` : '上輪未完成，Leader 決定延後到之後的 Sprint，請確認',
+    );
+    if (to !== me.id && t.id === returnId) {
+      const reason = '這輪要支援 Demo 準備，剩下的部分希望改派給其他成員或延後';
+      t.carryStatus = 'returned';
+      t.negotiation = { byId: to, reason, suggestId: null };
+      resolveNotifications(t.id, ['invite']);
+      notify(lead.id, 'returned', t.id, to, reason);
+      return;
+    }
+    t.carryStatus = 'accepted';
+    resolveNotifications(t.id, ['invite']);
+    if (to !== me.id) notify(lead.id, 'info', t.id, to, t.carry ? '已接受帶入下個 Sprint' : '已確認延後');
+  });
 }
 
 /** 規則式模擬 Story 微調對話（僅回覆建議，不實際修改草稿） */

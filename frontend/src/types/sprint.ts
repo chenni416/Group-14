@@ -1,7 +1,7 @@
 export type SprintStatus = 'planning' | 'active' | 'closed';
 
-/** Planning Studio 四步驟：① 輸入 → ② AI 拆解 → ③ 審核調整 → ④ 核准發送 */
-export type PlanningStep = 1 | 2 | 3 | 4;
+/** 規劃五階段：1 上輪統整 → 2 設定 → 3 Story → 4 Task 與派工 → 5 派工總覽與發送 */
+export type PlanningStep = 1 | 2 | 3 | 4 | 5;
 
 export interface SprintDoc {
   name: string;
@@ -46,7 +46,10 @@ export interface Sprint {
   summary: SprintSummary | null;
 }
 
-/** 延續事項：延後或跨 Sprint 的問題，建立下一個 Sprint 時自動帶入會議紀錄 */
+/** 延續事項在「上輪 Sprint 統整」的處理：納入本輪、繼續保留、移除 */
+export type BacklogDecision = 'include' | 'keep' | 'remove';
+
+/** 延續事項：延後或跨 Sprint 的問題；選擇「納入本輪」的項目會寫進本次會議紀錄 */
 export interface BacklogItem {
   id: string;
   text: string;
@@ -55,6 +58,8 @@ export interface BacklogItem {
   taskId: string | null;
   /** 已寫入哪個 Sprint 的會議紀錄；null 表示尚未帶入 */
   usedInSprintId: number | null;
+  /** 本次規劃的處理方式；null 表示尚未決定 */
+  decision: BacklogDecision | null;
 }
 
 export interface NewSprintDefaults {
@@ -63,7 +68,7 @@ export interface NewSprintDefaults {
   startDate: string;
   endDate: string;
   capacity: Record<string, number>;
-  /** 已預先帶入「延續事項」的會議紀錄 */
+  /** 已預先帶入「納入本輪」延續事項的會議紀錄 */
   minutes: string;
   carryCount: number;
 }

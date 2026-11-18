@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { RequireLeader } from '@/components/layout/RequireLeader';
 import { PageHeader, PageSkeleton } from '@/components/ui';
-import { useMembers, useSprintContext } from '@/hooks/queries';
+import { useMembers } from '@/hooks/queries';
 import { PlanningStepper } from './components/PlanningStepper';
 import { SprintSetup } from './components/SprintSetup';
 import { SubmittedPlanBoard } from './components/SubmittedPlanBoard';
+import { usePlanCapacity } from './hooks/usePlanCapacity';
+import { CarryReviewStep, useCarryReview } from './steps/CarryReviewStep';
 import { FinalReviewStep } from './steps/FinalReviewStep';
 import { StoryReviewStep } from './steps/StoryReviewStep';
 import { TaskBreakdownStep } from './steps/TaskBreakdownStep';
@@ -19,12 +21,14 @@ export function PlanningPage() {
 }
 
 /**
- * Sprint 規劃：0 開啟 Sprint 與設定 → A Story 審核 → B Task 拆解與派工 → C 派工總覽與發送。
- * 沒有規劃中的 Sprint 時直接進入新建模式；規劃送出後改為滿版泳道追蹤看板。
+ * Sprint 規劃：1 上輪 Sprint 統整 → 2 開啟 Sprint 與設定 → 3 Story 審核 → 4 Task 拆解與派工 → 5 派工總覽與發送。
+ * 沒有規劃中的 Sprint 時為新建模式（統整與設定）；規劃送出後改為滿版泳道追蹤看板。
  */
 function PlanningStudio() {
-  const ctx = useSprintContext();
+  const ctx = useCarryReview();
   const { data: members = [] } = useMembers();
+  // Story／Task／派工總覽的容量 = 本輪 Capacity − 帶入任務佔用
+  const { planMembers } = usePlanCapacity(members);
   const { stage, draft, reset } = usePlanningStore();
   const sprint = ctx.planning?.status === 'planning' ? ctx.planning : undefined;
 
@@ -40,8 +44,8 @@ function PlanningStudio() {
     return <SubmittedPlanBoard sprint={sprint} tasks={ctx.planningTasks} members={members} ready={ctx.planningReady} />;
   }
 
-  // 新建模式只有設定階段
-  const current = sprint ? stage : 'setup';
+  // 統整尚未完成時只能停在階段 1；新建模式只有統整與設定兩個階段
+  const current = !ctx.ready ? 'carry' : sprint || stage === 'carry' ? stage : 'setup';
 
   return (
     <>
@@ -50,13 +54,14 @@ function PlanningStudio() {
         title={sprint ? `${sprint.name} 規劃` : '建立 Sprint'}
         align="center"
         className="mb-6"
-        actions={<PlanningStepper />}
+        actions={<PlanningStepper carryReady={ctx.ready} />}
       />
 
+      {current === 'carry' && <CarryReviewStep members={members} />}
       {current === 'setup' && <SprintSetup sprint={sprint} />}
-      {current === 'stories' && <StoryReviewStep members={members} />}
-      {current === 'tasks' && <TaskBreakdownStep members={members} />}
-      {current === 'review' && <FinalReviewStep members={members} />}
+      {current === 'stories' && <StoryReviewStep members={planMembers} />}
+      {current === 'tasks' && <TaskBreakdownStep members={planMembers} />}
+      {current === 'review' && <FinalReviewStep members={planMembers} />}
     </>
   );
 }
