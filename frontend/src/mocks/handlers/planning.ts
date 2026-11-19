@@ -1,5 +1,6 @@
 import type { Domain, GenerateTasksInput, PlanningDraft, ReviewPolicy, ReviewerAssignment, StoryDraft, TaskDraft } from '@/types';
 import { ApiError } from '@/types';
+import { DEPENDENCY_RULES, SAME_SPRINT_RULES } from '../data/knowledge';
 import { SCENARIO_STORIES, SCENARIO_TASKS, SIMULATED_RESPONSES } from '../data/planningScenario';
 import { branchName, carryConfirmer, carrySP, dependencyIssues, storyCode, taskCode } from '@/lib/planning';
 import {
@@ -175,7 +176,7 @@ const guessDomain = (text: string): Domain =>
  * Leader 手動新增的 Story 依「範疇」每項拆一張（無範疇則一張）。所有 Task 皆未指派。
  */
 export function generateTasks({ sprintId, stories }: GenerateTasksInput): TaskDraft[] {
-  return stories.flatMap((story) => {
+  const drafts = stories.flatMap((story) => {
     const scenario = SCENARIO_TASKS.filter((t) => t.storyId === story.id);
     if (scenario.length)
       return scenario.map((t, ti) => ({ ...t, assigneeId: null, no: ti + 1, code: taskCode(sprintId, story.no, ti + 1) }));
@@ -197,9 +198,28 @@ export function generateTasks({ sprintId, stories }: GenerateTasksInput): TaskDr
       reviewer: { mode: 'pool' as const, memberId: null },
       analysis: `依 Story「${story.title}」的範疇拆出，屬手動新增項目，尚無 AI 細部技術分析。`,
       assignReason: '手動新增的 Story 沒有 AI 指派建議，請依成員技能與負載自行指派。',
-      dependsOn: [],
+      dependsOn: [] as TaskDraft['dependsOn'],
+      manual: true,
     }));
   });
+  const prevTasks = carryTasks(sprintId).filter((t) => t.carry !== false);
+  // 預設場景的相依由 AI 拆解直接提供；手動新增的 Story 拆出的 Task 依關鍵字規則帶入相依，Leader 再於第 4 階段調整
+  return drafts.map(({ manual, ...t }: TaskDraft & { manual?: boolean }) => (manual ? { ...t, dependsOn: ruleDependencies(t, drafts, prevTasks) } : t));
+}
+
+/** AI 依任務標題比對相依規則：本 Sprint 內的先後順序與上一輪帶入的任務 */
+function ruleDependencies(task: TaskDraft, batch: TaskDraft[], prevTasks: TaskRecord[]): TaskDraft['dependsOn'] {
+  const out: TaskDraft['dependsOn'] = [];
+  const add = (id: string, reason: string) => out.some((d) => d.id === id) || out.push({ id, reason });
+  SAME_SPRINT_RULES.forEach((rule) => {
+    if (!rule.task.test(task.title)) return;
+    batch.filter((x) => x.id !== task.id && rule.dependsOn.test(x.title)).forEach((x) => add(x.id, rule.reason));
+  });
+  DEPENDENCY_RULES.forEach((rule) => {
+    if (!rule.task.test(task.title)) return;
+    prevTasks.filter((x) => rule.dependsOn.test(x.title)).forEach((x) => add(x.id, rule.reason));
+  });
+  return out;
 }
 
 /** 示範用：套用 SIMULATED_RESPONSES，部分任務直接變為「已接受」或「協商退回」 */

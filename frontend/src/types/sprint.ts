@@ -96,8 +96,9 @@ export interface UpdateSprintInput {
 
 export type DependencyRisk = 'high' | 'mid' | 'ok';
 
-/** AI 相依性分析：本次任務依賴上一個 Sprint 的哪個任務 */
+/** AI 相依性分析：本次任務依賴上一個 Sprint（prev）或本 Sprint（same）的哪個任務 */
 export interface Dependency {
+  scope: 'prev' | 'same';
   taskId: string;
   dependsOnId: string;
   reason: string;

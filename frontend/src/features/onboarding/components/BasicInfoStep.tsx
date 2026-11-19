@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, CardHeader, Field, Input, Select, SegmentedControl } from '@/components/ui';
+import { Card, CardHeader, Field, Input, Select, SegmentedControl, Textarea } from '@/components/ui';
 import type { GitProvider, Organization, Project } from '@/types';
 import { useOnboardingMutations } from '../hooks/useOnboarding';
 
@@ -52,6 +52,19 @@ export function BasicInfoStep({ project, org, editable }: { project: Project; or
               </Select>
             </Field>
           </div>
+          <Field label="Project Goal（專案目標，必填）" htmlFor="pj-goal">
+            <Textarea
+              id="pj-goal"
+              rows={3}
+              value={draft.goal}
+              disabled={!editable}
+              placeholder="這個專案最終要達成什麼？會顯示在 Sprint 總覽與 Dashboard。"
+              onChange={(e) => setDraft((d) => ({ ...d, goal: e.target.value }))}
+              onBlur={() => draft.goal.trim() && draft.goal !== project.goal && updateProject.mutate({ goal: draft.goal.trim() })}
+              aria-invalid={!draft.goal.trim()}
+            />
+            {!draft.goal.trim() && <p className="mt-1 text-xs text-red-600">請填寫專案目標</p>}
+          </Field>
           <Field label="Repository" htmlFor="pj-repo">
             <div className="flex flex-col gap-2 sm:flex-row">
               <SegmentedControl<GitProvider>

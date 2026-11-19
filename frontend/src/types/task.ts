@@ -1,3 +1,4 @@
+import type { Delivery } from './acceptance';
 import type { Domain } from './member';
 import type { ReviewPolicy } from './review-policy';
 
@@ -28,12 +29,29 @@ export type CarryStatus = 'pending' | 'accepted' | 'returned';
 export interface PullRequest {
   number: number;
   status: 'open' | 'merged';
+  /** 以下皆為 mock 資料，不串 GitHub */
+  url?: string;
+  tests?: 'passed' | 'failed' | 'none';
+  changedFiles?: string[];
+  summary?: string;
 }
+
+/** 協商針對的項目 */
+export type NegotiateTarget = 'scope' | 'ac' | 'points' | 'assignee' | 'other';
 
 export interface Negotiation {
   byId: string;
   reason: string;
   suggestId: string | null;
+  target?: NegotiateTarget;
+}
+
+/** 成員對「延後或調整」的回覆 */
+export interface PlanConfirm {
+  memberId: string;
+  status: 'agree' | 'object';
+  note: string;
+  at: string;
 }
 
 /** 協商退回當下的內容，用來列出 Leader 修改了哪些地方 */
@@ -90,11 +108,21 @@ export interface Task {
   carryPoints: number | null;
   /** 送出派工後，成員對帶入／延後決定的確認狀態；null 表示尚未送出 */
   carryStatus: CarryStatus | null;
-  /** 規劃時標註的相依任務（Task.id） */
+  /** 前置任務（需先完成）：規劃時 AI 帶入、Leader 確認的相依，附原因 */
   dependsOn: { id: string; reason: string }[];
   returnSnapshot: ReturnSnapshot | null;
   /** 延後前的狀態，用來恢復 */
   prevState: TaskState | null;
+  /** G1：任務範圍與責任 */
+  scope: string;
+  outOfScope: string;
+  responsibility: string;
+  /** G1：預期交付成果 */
+  deliverables: string[];
+  /** G2：成員對延後或調整的回覆 */
+  planConfirms: PlanConfirm[];
+  /** G5：成員送審時提交的交付內容 */
+  delivery: Delivery | null;
 }
 
 export interface UpdateTaskInput {
@@ -106,6 +134,10 @@ export interface UpdateTaskInput {
   acceptanceCriteria?: string[];
   policy?: ReviewPolicy;
   multiSprint?: boolean;
+  scope?: string;
+  outOfScope?: string;
+  responsibility?: string;
+  deliverables?: string[];
 }
 
 export interface CreateTaskInput {
@@ -123,6 +155,7 @@ export interface CreateTaskInput {
 export interface NegotiateInput {
   reason: string;
   suggestId: string | null;
+  target?: NegotiateTarget;
 }
 
 /** 協商退回後，Leader 編輯並重新派工 */

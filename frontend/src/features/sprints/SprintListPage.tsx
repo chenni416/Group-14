@@ -1,4 +1,4 @@
-import { CalendarClock, Layers, Plus, Sparkles, X } from 'lucide-react';
+import { CalendarClock, ClipboardList, Layers, Plus, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, Badge, Button, Card, CardHeader, Modal, PageHeader, PageSkeleton, ProgressBar } from '@/components/ui';
@@ -54,17 +54,23 @@ export function SprintListPage() {
         eyebrow="Sprint 建立與管理"
         title="Sprint 列表"
         actions={
-          lead && (
-            <Button
-              variant="primary"
-              disabled={hasPlanning}
-              title={hasPlanning ? '已有規劃中的 Sprint，請先完成或啟動它' : undefined}
-              onClick={() => navigate('/sprints/planning')}
-            >
-              <Plus className="h-4 w-4" strokeWidth={1.75} />
-              建立 Sprint
+          <>
+            <Button onClick={() => navigate('/sprints/digest')}>
+              <ClipboardList className="h-4 w-4" strokeWidth={1.75} />
+              會議前統整
             </Button>
-          )
+            {lead && (
+              <Button
+                variant="primary"
+                disabled={hasPlanning}
+                title={hasPlanning ? '已有規劃中的 Sprint，請先完成或啟動它' : undefined}
+                onClick={() => navigate('/sprints/planning')}
+              >
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                建立 Sprint
+              </Button>
+            )}
+          </>
         }
       />
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -133,18 +139,28 @@ export function SprintListPage() {
                         </>
                       )}
                     </div>
-                    {s.status === 'planning' ? (
-                      lead && (
-                        <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
-                          <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-                          開啟 Planning Studio
+                    <div className="flex flex-col items-stretch gap-2">
+                      {s.status === 'planning' ? (
+                        lead && (
+                          <Button variant="primary" onClick={() => navigate('/sprints/planning')}>
+                            <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+                            開啟 Planning Studio
+                          </Button>
+                        )
+                      ) : s.status === 'active' ? (
+                        <Button onClick={() => navigate('/board')}>開啟看板</Button>
+                      ) : (
+                        <Button onClick={() => setReview(s)}>查看結果</Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/sprints/${s.id}/brief`)}>
+                        Sprint 總覽
+                      </Button>
+                      {s.status !== 'planning' && (
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/sprints/${s.id}/retro`)}>
+                          Retrospective
                         </Button>
-                      )
-                    ) : s.status === 'active' ? (
-                      <Button onClick={() => navigate('/board')}>開啟看板</Button>
-                    ) : (
-                      <Button onClick={() => setReview(s)}>查看回顧</Button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </Card>
               );

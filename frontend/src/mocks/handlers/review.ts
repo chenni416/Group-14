@@ -1,14 +1,17 @@
 import { ApiError } from '@/types';
+import { enrichPr } from '../data/delivery';
 import { db, leader, notify, nowIso, type TaskRecord } from '../db';
 
-/** 發布 PR 並依 Review 策略路由通知 */
-export function sendToReview(task: TaskRecord) {
+/** 發布 PR 並依 Review 策略路由通知（PR 資料為 mock，不串 GitHub） */
+export function sendToReview(task: TaskRecord, prUrl?: string) {
   const { policy } = task;
   if (policy.mode === 'target' && !policy.targets.length) {
     throw new ApiError('指定成員模式至少需選一位審查者');
   }
   task.state = 'IN_REVIEW';
-  task.pr = { number: 35 + Math.floor(Math.random() * 40), status: 'open' };
+  const fromUrl = Number(prUrl?.match(/(\d+)\/?$/)?.[1]);
+  task.pr = enrichPr(task, { number: fromUrl > 0 ? fromUrl : 35 + Math.floor(Math.random() * 40), status: 'open' });
+  if (prUrl?.trim()) task.pr.url = prUrl.trim();
   task.reviewStartedAt = nowIso();
   task.approvals = [];
   task.reviewerId = null;

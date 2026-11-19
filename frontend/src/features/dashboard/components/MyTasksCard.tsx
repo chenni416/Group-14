@@ -6,7 +6,8 @@ import { cn } from '@/lib/cn';
 import { needsMyReview } from '@/lib/permissions';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
 import { useUiStore, type MyTasksTab } from '@/stores/ui.store';
-import type { Task, TaskState } from '@/types';
+import { formatDay, nextChecklistItem, nextCheckpoint } from '@/lib/execution';
+import type { ExecutionPlan, Task, TaskState } from '@/types';
 
 const SOFT: Partial<Record<TaskState, string>> = {
   IN_PROGRESS: 'bg-orange-50',
@@ -20,7 +21,7 @@ const TABS = [
   { value: 'todo' as const, label: '待我處理' },
 ];
 
-export function MyTasksCard({ tasks, userId, canPlan }: { tasks: Task[]; userId: string; canPlan: boolean }) {
+export function MyTasksCard({ tasks, userId, canPlan, plans }: { tasks: Task[]; userId: string; canPlan: boolean; plans: ExecutionPlan[] }) {
   const navigate = useNavigate();
   const drawer = useTaskDrawer();
   const { myTasksTab, setMyTasksTab } = useUiStore();
@@ -75,6 +76,23 @@ export function MyTasksCard({ tasks, userId, canPlan }: { tasks: Task[]; userId:
               <div className="mt-1 text-xs tabular-nums text-gray-500">
                 {t.id} · {TASK_STATES[t.state].label} · {t.storyPoints} SP
               </div>
+              {(() => {
+                // G3：讓成員一眼知道下一步，以及下一個階段性成果何時到期
+                const plan = plans.find((p) => p.taskId === t.id && p.confirmedAt);
+                const next = nextChecklistItem(plan);
+                const cp = nextCheckpoint(plan);
+                if (t.assigneeId !== userId || !plan || (!next && !cp)) return null;
+                return (
+                  <div className="mt-2 space-y-0.5 border-t border-white/70 pt-2 text-xs text-gray-600">
+                    {next && <div>下一步：{next.text}</div>}
+                    {cp && (
+                      <div className="tabular-nums">
+                        Checkpoint：{cp.title} · {formatDay(cp.dueAt)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </button>
           ))
         ) : (

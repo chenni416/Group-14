@@ -16,6 +16,7 @@ const FILTERS = [
   { value: 'invite' as const, label: '指派邀請' },
   { value: 'review' as const, label: 'Review' },
   { value: 'returned' as const, label: '協商退回' },
+  { value: 'collab' as const, label: '問題與提案' },
 ];
 
 export function InboxPage() {
@@ -30,7 +31,11 @@ export function InboxPage() {
 
   const taskMap = new Map(ctx.allTasks.map((t) => [t.id, t]));
   const list = (notifications ?? []).filter(
-    (n) => inboxFilter === 'all' || n.type === inboxFilter || (inboxFilter === 'review' && n.type === 'pool'),
+    (n) =>
+      inboxFilter === 'all' ||
+      n.type === inboxFilter ||
+      (inboxFilter === 'review' && n.type === 'pool') ||
+      (inboxFilter === 'collab' && ['issue', 'proposal', 'plan'].includes(n.type)),
   );
   const mine = ctx.planningTasks.filter((t) => t.assigneeId === me.id);
   // 上輪帶入給我的任務（以本輪預估點數計）：確認後算已接受，其餘算待確認
@@ -53,7 +58,7 @@ export function InboxPage() {
           {list.length ? (
             list.map((n) => {
               const task = taskMap.get(n.taskId);
-              return task ? (
+              return task || n.type === 'proposal' || n.refId ? (
                 <NotificationItem key={n.id} notification={n} task={task} members={members} onNegotiate={setNegotiating} />
               ) : null;
             })

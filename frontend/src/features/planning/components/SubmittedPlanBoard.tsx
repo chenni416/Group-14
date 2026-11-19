@@ -1,12 +1,14 @@
 import { Play } from 'lucide-react';
-import { useState } from 'react';
-import { Badge, Button, PageHeader } from '@/components/ui';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Badge, Button, PageHeader, SegmentedControl } from '@/components/ui';
+import { useDependencies, useMemberMap, useSprintContext, useTasks } from '@/hooks/queries';
 import { useStartSprint } from '@/features/board/hooks/useStartSprint';
-import { useSprintContext } from '@/hooks/queries';
 import { planLoad } from '@/lib/planning';
 import type { Member, Sprint, Task } from '@/types';
 import { AssignmentSwimlanes } from './AssignmentSwimlanes';
 import { CarryTaskDrawer } from './CarryTaskDrawer';
+import { DependencyPanel } from './DependencyPanel';
 import { PlannedTaskDrawer } from './PlannedTaskDrawer';
 
 interface Props {
@@ -19,10 +21,16 @@ interface Props {
 
 /** 已核准並發送派工通知後：滿版泳道追蹤看板，取代 Source Context 與規劃流程 */
 export function SubmittedPlanBoard({ sprint, tasks, members, ready }: Props) {
+  const navigate = useNavigate();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<'lanes' | 'deps'>('lanes');
   const start = useStartSprint();
   // 已發送給成員確認的上輪帶入／延後決定
   const carryTasks = useSprintContext().carryTasks.filter((t) => t.carryStatus != null);
+  const { data: dependencies = [] } = useDependencies(sprint.id);
+  const { data: allTasks = [] } = useTasks();
+  const memberMap = useMemberMap();
+  const taskMap = useMemo(() => new Map<string, Task>(allTasks.map((t) => [t.id, t])), [allTasks]);
   const openTask = tasks.find((t) => t.id === openId) ?? null;
   const openCarry = carryTasks.find((t) => t.id === openId) ?? null;
 
@@ -38,6 +46,7 @@ export function SubmittedPlanBoard({ sprint, tasks, members, ready }: Props) {
             <Badge tone="sky" dot>
               派工通知已發送
             </Badge>
+            <Button onClick={() => navigate(`/sprints/${sprint.id}/brief`)}>Sprint 總覽</Button>
             <Button
               variant="primary"
               disabled={!ready}
@@ -55,7 +64,22 @@ export function SubmittedPlanBoard({ sprint, tasks, members, ready }: Props) {
         追蹤成員確認狀態。點擊任務卡可查看完整內容；協商退回的任務可直接編輯並重新發送通知。上輪帶入與延後的決定已鎖定，成員協商退回後才能修改。
       </p>
 
-      <AssignmentSwimlanes sprint={sprint} tasks={tasks} carryTasks={carryTasks} members={members} onOpen={setOpenId} />
+      <SegmentedControl<'lanes' | 'deps'>
+        size="sm"
+        aria-label="檢視"
+        className="mb-5"
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'lanes', label: '派工追蹤' },
+          { value: 'deps', label: `依賴與平行（${dependencies.length}）` },
+        ]}
+      />
+      {view === 'lanes' ? (
+        <AssignmentSwimlanes sprint={sprint} tasks={tasks} carryTasks={carryTasks} members={members} onOpen={setOpenId} />
+      ) : (
+        <DependencyPanel tasks={tasks} dependencies={dependencies} taskMap={taskMap} memberMap={memberMap} isLead />
+      )}
 
       <PlannedTaskDrawer task={openTask} sprintTasks={tasks} carryTasks={carryTasks} sprint={sprint} members={members} onClose={() => setOpenId(null)} />
       <CarryTaskDrawer

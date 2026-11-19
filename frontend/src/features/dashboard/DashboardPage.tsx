@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PageHeader, PageSkeleton, SegmentedControl } from '@/components/ui';
 import { useCurrentUser, useMembers, useSprintContext } from '@/hooks/queries';
+import { useExecutionPlans } from '@/hooks/useCollab';
 import { isLead } from '@/lib/permissions';
 import { BOARD_STATES, type ReviewPolicy } from '@/types';
 import { DEMO_PROJECTS, useProjectStore } from '@/stores/project.store';
@@ -27,6 +28,7 @@ export function DashboardPage() {
   const ctx = useSprintContext();
   const { data: me } = useCurrentUser();
   const { data: members = [] } = useMembers();
+  const { data: plans = [] } = useExecutionPlans();
   const currentId = useProjectStore((s) => s.currentId);
   const [tab, setTab] = useState<Tab>('overview');
 
@@ -37,6 +39,7 @@ export function DashboardPage() {
   const demo = DEMO_PROJECTS.find((p) => p.id === currentId);
   const isMain = !demo || demo.id === 'taskline';
   const lead = isLead(me);
+  const goal = isMain ? project?.goal : demo.goal;
 
   // 各卡片使用的資料：Taskline 用真實資料，示意專案用假資料
   const demoBoard = demo ? demo.tasks.filter((t) => (BOARD_STATES as readonly string[]).includes(t.state)) : [];
@@ -49,7 +52,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        eyebrow="管理並追蹤你的專案"
+        eyebrow={goal ? `專案目標：${goal}` : '管理並追蹤你的專案'}
         title="Project Dashboard"
         actions={
           <SegmentedControl<Tab>
@@ -72,7 +75,11 @@ export function DashboardPage() {
             {isMain ? <ActivityFeed /> : <ActivityFeed items={demo.activity} />}
           </div>
           <div className="[&>*]:h-full">
-            {isMain ? <MyTasksCard tasks={allTasks} userId={me.id} canPlan={lead} /> : <DemoMyTasksCard tasks={demo.tasks} userId={me.id} />}
+            {isMain ? (
+              <MyTasksCard tasks={allTasks} userId={me.id} canPlan={lead} plans={plans} />
+            ) : (
+              <DemoMyTasksCard tasks={demo.tasks} userId={me.id} />
+            )}
           </div>
         </div>
       )}

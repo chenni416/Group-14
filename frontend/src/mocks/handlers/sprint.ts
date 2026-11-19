@@ -1,7 +1,7 @@
 import { carryBlock, replaceCarryBlock } from '@/lib/planning';
 import type { ClarifyQuestion, Dependency } from '@/types';
-import { CLARIFY_RULES, DEPENDENCY_RULES } from '../data/knowledge';
-import { db, findSprint, planTasks, prevSprintId, sprintTasks } from '../db';
+import { CLARIFY_RULES } from '../data/knowledge';
+import { db, findSprint, sprintTasks } from '../db';
 
 /**
  * 建立新 Sprint 時自動帶入會議紀錄的「延續事項」：只放在「上輪 Sprint 統整」選擇納入本輪、尚未寫進其他 Sprint 的項目。
@@ -32,25 +32,23 @@ export function findQuestions(minutes: string, previous: ClarifyQuestion[] | nul
   }));
 }
 
-/** AI 相依性分析：本次任務是否依賴上一個 Sprint 的任務 */
+/**
+ * 本 Sprint 的相依：來自規劃時 AI 帶入、Leader 確認並隨派工寫進任務的 dependsOn（附原因）。
+ * - prev：依賴上一個 Sprint 的任務（上輪決定延後 = 高風險）
+ * - same：依賴本 Sprint 的任務（前置任務已延後 = 高風險）
+ * 依賴與平行面板、會前統整、核准前檢查都讀這份結果。
+ */
 export function analyzeDependencies(sprintId: number): Dependency[] {
-  const prev = prevSprintId(sprintId);
-  if (prev == null) return [];
-  const prevTasks = sprintTasks(prev);
+  const byId = new Map(db.tasks.map((t) => [t.id, t]));
   const out: Dependency[] = [];
-  planTasks(sprintId).forEach((t) =>
-    DEPENDENCY_RULES.forEach((rule) => {
-      if (!rule.task.test(t.title)) return;
-      prevTasks
-        .filter((x) => rule.dependsOn.test(x.title))
-        .forEach((x) =>
-          out.push({
-            taskId: t.id,
-            dependsOnId: x.id,
-            reason: rule.reason,
-            risk: x.state === 'DONE' ? 'ok' : x.carry === false ? 'high' : 'mid',
-          }),
-        );
+  sprintTasks(sprintId).forEach((t) =>
+    t.dependsOn.forEach((d) => {
+      const x = byId.get(d.id);
+      if (!x) return;
+      const scope = x.sprintId === sprintId ? 'same' : 'prev';
+      const risk =
+        x.state === 'DONE' ? 'ok' : x.state === 'DEFERRED' || (scope === 'prev' && x.carry === false) ? 'high' : 'mid';
+      out.push({ scope, taskId: t.id, dependsOnId: x.id, reason: d.reason, risk });
     }),
   );
   const order = { high: 0, mid: 1, ok: 2 };

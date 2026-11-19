@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from '@/components/ui';
+import { CollabPanel } from '@/features/board/components/CollabPanel';
 import { TaskStudioDrawer } from '@/features/task-studio/TaskStudioDrawer';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { MAIN_SCROLL_ID, scrollMainToTop } from '@/lib/mainScroll';
@@ -29,6 +30,7 @@ export function AppShell() {
           </div>
         </main>
       </div>
+      <CollabPanel />
       <TaskStudioDrawer />
       <HelpModal open={help.isOpen} onClose={help.close} />
       <Toaster />

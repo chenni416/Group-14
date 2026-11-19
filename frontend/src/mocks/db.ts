@@ -1,21 +1,29 @@
 import type {
+  AcceptanceRecord,
   BacklogItem,
   ChatMessage,
+  ExecutionPlan,
+  Issue,
   KnowledgeDoc,
   Member,
   Notification,
   NotificationType,
   Organization,
   Project,
+  Proposal,
+  Retro,
   Sprint,
   Task,
 } from '@/types';
 import { ApiError } from '@/types';
 import { isUnfinished } from '@/lib/planning';
+import { seedIssues, seedProposals, seedRetros } from './data/collab';
+import { enrichPr, makeDelivery } from './data/delivery';
 import { DOMAIN_TAGS, GENERIC_AC } from './data/knowledge';
 import { seedMembers } from './data/members';
 import { NOTIFICATION_SEEDS, TASK_SEEDS } from './data/tasks';
 import { seedBacklog, seedDocs, seedOrg, seedProject, seedSprints } from './data/workspace';
+import { buildPlan } from './handlers/execution';
 
 /** Mock 資料庫中的任務：在 Task 之外多存 Prompt 版本與對話紀錄 */
 export interface TaskRecord extends Task {
@@ -37,6 +45,15 @@ export interface MockDb {
   tasks: TaskRecord[];
   notifications: Notification[];
   backlog: BacklogItem[];
+  /** G3：每項任務最多一份執行計畫 */
+  plans: ExecutionPlan[];
+  /** G4：問題與提案 */
+  issues: Issue[];
+  proposals: Proposal[];
+  /** G5：驗收紀錄（每次驗收決策一筆） */
+  records: AcceptanceRecord[];
+  /** G7：每個 Sprint 一份回顧 */
+  retros: Retro[];
   seq: number;
 }
 
@@ -98,6 +115,12 @@ export function createTaskRecord(project: Project, init: TaskInit): TaskRecord {
     dependsOn: [],
     returnSnapshot: null,
     prevState: null,
+    scope: '',
+    outOfScope: '',
+    responsibility: '',
+    deliverables: [],
+    planConfirms: [],
+    delivery: null,
     revived: false,
     clarifications: [[]],
     promptCursor: 0,
@@ -107,8 +130,23 @@ export function createTaskRecord(project: Project, init: TaskInit): TaskRecord {
   if (!task.acceptanceCriteria.length) task.acceptanceCriteria = ['成果與會議決議一致', ...GENERIC_AC[task.domain]];
   if (!task.tags.length) task.tags = [...DOMAIN_TAGS[task.domain]];
   if (!task.description) task.description = `${task.title}。詳細規格見 PRD 對應章節。`;
+  if (!task.scope) task.scope = `完成「${task.title}」，並通過上列驗收條件。`;
+  if (!task.outOfScope) task.outOfScope = '不包含規格以外的新需求；有新想法請走提案。';
+  if (!task.responsibility) task.responsibility = '負責實作、更新執行計畫進度，遇到阻礙時回報問題。';
+  if (!task.deliverables.length) task.deliverables = [`${task.title} 的實作（PR）`, '對應的測試或驗證紀錄'];
   return task;
 }
+
+/** 種子任務的前置任務（G2），格式與規劃時標註的相依相同 */
+const SEED_DEPENDS: Record<string, { id: string; reason: string }[]> = {
+  'S-222': [{ id: 'S-213', reason: '推薦理由要檢索知識庫中的成員技能資料，需要索引 Pipeline 先完成' }],
+  'S-243': [{ id: 'S-241', reason: 'E2E 登入流程需要 GitHub OAuth 登入先完成' }],
+};
+
+/** 種子任務送審時附帶的「未完成項目」與「待確認問題」，讓驗收畫面展示這些欄位 */
+const SEED_DELIVERY_EXTRA: Record<string, { unfinished?: string; questions?: string }> = {
+  'S-231': { unfinished: '深色模式的配色尚未處理', questions: '空狀態插圖是否需要設計稿確認？' },
+};
 
 function seed(): MockDb {
   const project = seedProject();
@@ -129,9 +167,28 @@ function seed(): MockDb {
       approvals: s.approvals ?? [],
       claimedAt: s.claimedHoursAgo != null ? hoursAgo(s.claimedHoursAgo) : null,
       reviewStartedAt: s.reviewHoursAgo != null ? hoursAgo(s.reviewHoursAgo) : null,
-      pr: s.pr ?? null,
+      pr: s.pr ? enrichPr({ id: s.id, domain: s.domain, title: s.title }, s.pr) : null,
+      dependsOn: SEED_DEPENDS[s.id] ?? [],
     }),
   );
+  // 已送審或完成的任務附上 mock 的交付內容，驗收畫面才有資料
+  tasks.forEach((t) => {
+    if (!t.pr) return;
+    t.delivery = makeDelivery(t, hoursAgo(t.state === 'DONE' ? 72 : 6), SEED_DELIVERY_EXTRA[t.id]);
+  });
+  const sprints = seedSprints();
+  const docs = seedDocs();
+  const taskMap = new Map<string, Task>(tasks.map((t) => [t.id, t]));
+  // 進行中的任務已有確認過的執行計畫（部分完成）；TODO 任務沒有，可體驗「讓 AI 建議」
+  const plans = tasks
+    .filter((t) => t.state === 'IN_PROGRESS')
+    .map((t, i) => {
+      const plan = buildPlan(t, sprints[1]!, { taskMap, docs });
+      plan.confirmedAt = hoursAgo(30);
+      plan.checklist.slice(0, 2 + i).forEach((c) => (c.done = true));
+      plan.checkpoints[0]!.reachedAt = hoursAgo(20);
+      return plan;
+    });
   const notifications: Notification[] = NOTIFICATION_SEEDS.map((n) => ({
     id: uid(),
     toId: n.toId,
@@ -142,16 +199,40 @@ function seed(): MockDb {
     createdAt: hoursAgo(n.hoursAgo),
     status: n.status ?? 'pending',
   }));
+  const issues = seedIssues();
+  const proposals = seedProposals();
+  // 種子問題與提案的通知（問題通知處理人；待決策提案通知 Leader）
+  const extra = (n: Omit<Notification, 'id' | 'status' | 'createdAt'> & { hoursAgo: number }): Notification => ({
+    id: uid(),
+    toId: n.toId,
+    fromId: n.fromId,
+    type: n.type,
+    taskId: n.taskId,
+    refId: n.refId,
+    text: n.text,
+    createdAt: hoursAgo(n.hoursAgo),
+    status: 'pending',
+  });
+  notifications.push(
+    extra({ toId: 'm3', fromId: 'm2', type: 'issue', taskId: 'S-222', refId: 'IS-1', text: '請你協助處理：指派推薦需要成員負載資料', hoursAgo: 30 }),
+    extra({ toId: 'm1', fromId: 'm3', type: 'issue', taskId: 'S-213', refId: 'IS-3', text: '問題待指派：索引大型文件耗時過長', hoursAgo: 5 }),
+    extra({ toId: 'm1', fromId: 'm4', type: 'proposal', taskId: '', refId: 'PP-1', text: '新提案待決策：Review 通知同步寄送 Email', hoursAgo: 26 }),
+  );
   return {
     sessionUserId: 'm1',
     org: seedOrg(),
     project,
     members: seedMembers(),
-    sprints: seedSprints(),
-    docs: seedDocs(),
+    sprints,
+    docs,
     tasks,
     notifications,
     backlog: seedBacklog(),
+    plans,
+    issues,
+    proposals,
+    records: [],
+    retros: seedRetros(),
     seq: 301,
   };
 }
@@ -210,8 +291,8 @@ export function requireLead(action: string) {
   if (!isLeadRole(sessionUser())) throw new ApiError(`只有 Leader 可以${action}`, 403, 'FORBIDDEN');
 }
 
-export function notify(toId: string, type: NotificationType, taskId: string, fromId: string, text: string) {
-  db.notifications.unshift({ id: uid(), toId, type, taskId, fromId, text, createdAt: nowIso(), status: 'pending' });
+export function notify(toId: string, type: NotificationType, taskId: string, fromId: string, text: string, refId?: string) {
+  db.notifications.unshift({ id: uid(), toId, type, taskId, refId, fromId, text, createdAt: nowIso(), status: 'pending' });
 }
 
 export function resolveNotifications(taskId: string, types: NotificationType[]) {
