@@ -4,6 +4,7 @@ import {
   DRAFT_STATES,
   type ClarifyQuestion,
   type Dependency,
+  type Domain,
   type Member,
   type PlanningDraft,
   type ReturnSnapshot,
@@ -14,7 +15,7 @@ import {
   type Task,
   type TaskDraft,
 } from '@/types';
-import { REVIEW_POLICIES } from './constants';
+import { DOMAINS, REVIEW_POLICIES } from './constants';
 import { sum } from './format';
 
 /**
@@ -498,4 +499,165 @@ export function workdayLabels(iso: string, n: number) {
     d.setDate(d.getDate() + 1);
   }
   return out;
+}
+
+/* ---------- 送出前檢查：超載處理建議與重新建議負責人 ---------- */
+
+/** 成員本輪負責的一項工作（本輪 Task 或上輪帶入任務） */
+export interface LoadItem {
+  id: string;
+  code: string;
+  title: string;
+  points: number;
+  domain: Domain;
+  carry: boolean;
+  assigneeId: string;
+  /** 本輪有哪些項目在等它完成 */
+  unlocks: string[];
+  /** 它要等的、同一位成員負責的項目編號（接續自己的前置任務） */
+  continues: string | null;
+  /** AI 原本就建議由這位成員處理 */
+  suggested: boolean;
+}
+
+export type OverloadAction =
+  | { kind: 'keep'; reason: string }
+  | { kind: 'reassign'; to: string; reason: string }
+  | { kind: 'defer'; reason: string };
+
+export interface OverloadPlan {
+  memberId: string;
+  load: number;
+  cap: number;
+  excess: number;
+  items: { item: LoadItem; action: OverloadAction }[];
+  /** 照建議改派與延後後能否解除超載 */
+  resolved: boolean;
+  /** 超出不多（2 SP 以內）或無法解除時，優先建議調高本輪點數 */
+  preferCapacity: boolean;
+}
+
+type PlanMember = Pick<Member, 'id' | 'name' | 'domain' | 'tags'>;
+
+/** 各領域代表技能：成員同領域，或技能標籤包含其中之一，就視為能接手該領域的任務 */
+const DOMAIN_SKILLS: Record<Domain, string[]> = {
+  FE: ['React', 'TypeScript', 'Tailwind'],
+  BE: ['FastAPI', 'PostgreSQL', 'Python'],
+  AI: ['LLM', 'RAG', 'LangChain'],
+  QA: ['Playwright', 'Vitest', 'GitHub Actions'],
+  DS: ['Figma', 'Design System', 'UX Research'],
+};
+export const canTake = (m: Pick<Member, 'domain' | 'tags'>, domain: Domain) =>
+  m.domain === domain || m.tags.some((t) => DOMAIN_SKILLS[domain].includes(t));
+
+/**
+ * 超載成員的處理建議（規則模擬 AI）：
+ * 1. 依「是否只有他具備該技能、是否接續自己的前置任務、AI 是否原本就建議他」排出最該留給他的任務
+ * 2. 從最不需要留給他的任務開始處理：有具備相關技能且有餘裕的成員 → 建議改派
+ * 3. 沒有人能接手、且本輪沒有其他任務在等它 → 建議延後
+ * 解除超載後其餘項目都建議維持不動。
+ */
+export function overloadPlans(members: PlanMember[], caps: Record<string, number>, load: Record<string, number>, items: LoadItem[]): OverloadPlan[] {
+  const loads = { ...load };
+  const plans: OverloadPlan[] = [];
+
+  members.forEach((x) => {
+    const cap = caps[x.id] ?? 0;
+    const total = load[x.id] ?? 0;
+    if (total <= cap) return;
+    const excess = total - cap;
+    const mine = items.filter((i) => i.assigneeId === x.id);
+    const sole = (i: LoadItem) => !members.some((m) => m.id !== x.id && canTake(m, i.domain));
+    // 上輪帶入的任務已經在進行，留給原負責人略優先
+    const keepScore = (i: LoadItem) => (sole(i) ? 3 : 0) + (i.continues ? 2 : 0) + (i.suggested ? 1 : 0) + (i.carry ? 0.5 : 0);
+    const strongReason = (i: LoadItem) =>
+      i.continues
+        ? `接續 ${x.name} 自己的 ${i.continues}，由同一人處理銜接最順`
+        : sole(i)
+          ? `只有 ${x.name} 具備${DOMAINS[i.domain].label}技能，交給別人需要重新熟悉`
+          : i.suggested
+            ? `技能與領域最吻合，AI 原本就建議由 ${x.name} 處理`
+            : null;
+    const room = (m: PlanMember) => (caps[m.id] ?? 0) - (loads[m.id] ?? 0);
+
+    let remaining = excess;
+    const actions = new Map<string, OverloadAction>();
+    [...mine]
+      // 同樣適合移出的項目中，優先挑「剛好能解除超載」的最小項目，盡量少動
+      .sort((a, b) => {
+        const fitA = a.points >= excess ? 0 : 1;
+        const fitB = b.points >= excess ? 0 : 1;
+        return keepScore(a) - keepScore(b) || fitA - fitB || (fitA === 0 ? a.points - b.points : b.points - a.points);
+      })
+      .forEach((i) => {
+        if (remaining <= 0) {
+          actions.set(i.id, { kind: 'keep', reason: strongReason(i) ?? '其他調整已解除超載，維持不動' });
+          return;
+        }
+        const target = i.continues
+          ? undefined
+          : members
+              .filter((m) => m.id !== x.id && canTake(m, i.domain) && room(m) >= i.points)
+              .sort((a, b) => Number(b.domain === i.domain) - Number(a.domain === i.domain) || room(b) - room(a))[0];
+        if (target) {
+          loads[target.id] = (loads[target.id] ?? 0) + i.points;
+          actions.set(i.id, {
+            kind: 'reassign',
+            to: target.id,
+            reason: `${target.name}${target.domain === i.domain ? ` 同為${DOMAINS[i.domain].label}領域` : ` 具備${DOMAINS[i.domain].label}相關技能`}，指派後 ${loads[target.id]}/${caps[target.id] ?? 0} SP`,
+          });
+          remaining -= i.points;
+        } else if (!i.unlocks.length && !i.continues) {
+          actions.set(i.id, {
+            kind: 'defer',
+            reason: `沒有其他任務在等它，且沒有具備相關技能的成員有餘裕接手；延後到下輪影響最小`,
+          });
+          remaining -= i.points;
+        } else {
+          actions.set(i.id, {
+            kind: 'keep',
+            reason:
+              strongReason(i) ??
+              `${i.unlocks.length} 項任務在等它，且沒有具備相關技能的成員有餘裕接手`,
+          });
+        }
+      });
+
+    plans.push({
+      memberId: x.id,
+      load: total,
+      cap,
+      excess,
+      items: mine.map((i) => ({ item: i, action: actions.get(i.id)! })),
+      resolved: remaining <= 0,
+      preferCapacity: excess <= 2 || remaining > 0,
+    });
+  });
+  return plans;
+}
+
+/** 重新建議負責人：只從具備相關技能的成員中挑選（同領域與 AI 原建議優先，並考慮剩餘點數），排除目前的負責人 */
+export function suggestAssignee(
+  task: { domain: Domain; storyPoints: number; assigneeId: string | null; suggestedAssigneeId: string | null },
+  members: Member[],
+  load: Record<string, number>,
+): { member: Member | null; reason: string } {
+  const label = DOMAINS[task.domain].label;
+  const ranked = members
+    .filter((m) => m.id !== task.assigneeId && canTake(m, task.domain))
+    .map((m) => {
+      const room = m.capacity - (load[m.id] ?? 0);
+      const score = (m.domain === task.domain ? 0.6 : 0.4) + (m.id === task.suggestedAssigneeId ? 0.2 : 0) + 0.2 * Math.max(0, Math.min(1, room / Math.max(m.capacity, 1)));
+      return { member: m, room, after: (load[m.id] ?? 0) + task.storyPoints, score };
+    })
+    .sort((a, b) => Number(b.room >= task.storyPoints) - Number(a.room >= task.storyPoints) || b.score - a.score);
+  const best = ranked[0];
+  if (!best) return { member: null, reason: `沒有其他具備${label}技能的成員，建議維持目前的負責人，或延後此任務。` };
+  const why = best.member.domain === task.domain ? `同為${label}領域` : `具備${label}相關技能`;
+  if (best.room < task.storyPoints)
+    return {
+      member: best.member,
+      reason: `${why}，但指派後 ${best.after}/${best.member.capacity} SP 會超過 Capacity；具備相關技能的成員目前都沒有餘裕，也可以考慮延後。`,
+    };
+  return { member: best.member, reason: `${why}，指派後 ${best.after}/${best.member.capacity} SP` };
 }

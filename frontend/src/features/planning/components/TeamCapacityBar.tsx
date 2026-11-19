@@ -1,7 +1,7 @@
 import { ChevronsDownUp, ChevronsUpDown, History, X } from 'lucide-react';
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
-import { useSprintContext } from '@/hooks/queries';
+import { useCurrentUser, useSprintContext } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
 import { capOf, carryOwner, carrySP, loadByMember } from '@/lib/planning';
@@ -123,10 +123,12 @@ interface ColumnProps {
   header: ReactNode;
   footer: ReactNode;
   dashed?: boolean;
+  /** 目前登入者自己的欄位：以藍色邊框標示 */
+  self?: boolean;
 }
 
 /** 單一直欄：整欄都是放置區 */
-function Column({ id, label, dropEnabled, dragOver, setDragOver, onDropTask, onDropCarry, header, footer, dashed }: ColumnProps) {
+function Column({ id, label, dropEnabled, dragOver, setDragOver, onDropTask, onDropCarry, header, footer, dashed, self }: ColumnProps) {
   const isOver = dragOver === id;
   const accept = (e: DragEvent) =>
     (dropEnabled && e.dataTransfer.types.includes(TASK_DRAG_TYPE)) ||
@@ -157,7 +159,7 @@ function Column({ id, label, dropEnabled, dragOver, setDragOver, onDropTask, onD
       }}
       className={cn(
         'flex flex-col rounded-2xl border p-3 transition-colors duration-150',
-        dashed ? 'border-dashed border-gray-200 bg-gray-50/60' : 'border-gray-100',
+        dashed ? 'border-dashed border-gray-200 bg-gray-50/60' : self ? 'border-sky-300 bg-sky-50/30' : 'border-gray-100',
         isOver && 'border-transparent bg-neutral-50/50 ring-2 ring-neutral-900',
       )}
     >
@@ -197,6 +199,7 @@ export function TeamCapacityBar({
 }: Props) {
   const { capacityExpanded, toggleCapacity } = usePlanningStore();
   const { planning, carryTasks } = useSprintContext();
+  const { data: me } = useCurrentUser();
   const { setCarry } = usePlanningMutations();
   // members 的 capacity 已扣掉上輪帶入任務佔用的點數；這裡把帶入任務放回各成員直欄，
   // 直欄顯示「新任務 + 帶入任務 / 本輪 Capacity」
@@ -355,6 +358,7 @@ export function TeamCapacityBar({
               key={m.id}
               id={m.id}
               label={`${m.name} 的任務欄`}
+              self={m.id === me?.id}
               dropEnabled={dnd}
               dragOver={dragOver}
               setDragOver={setDragOver}
@@ -365,6 +369,9 @@ export function TeamCapacityBar({
                   <div className="flex items-center gap-2">
                     <Avatar member={m} size="xs" />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{m.name}</span>
+                    {m.id === me?.id && (
+                      <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-1.5 text-[10px] font-medium leading-4 text-sky-700">Leader 本人</span>
+                    )}
                   </div>
                   <div className="mb-1.5 mt-2.5 flex items-baseline justify-between gap-2 text-xs">
                     <span className={cn('truncate', over ? 'font-medium text-red-600' : 'text-gray-500')}>

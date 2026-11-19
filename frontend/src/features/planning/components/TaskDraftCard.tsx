@@ -1,9 +1,9 @@
-import { ChevronDown, GripVertical, Plus, Trash2, Undo2, X } from 'lucide-react';
+import { ChevronDown, GripVertical, Plus, Sparkles, Trash2, Undo2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Button, IconButton, Input, Label, SegmentedControl, Select, Tag } from '@/components/ui';
 import { DOMAINS, STORY_POINT_OPTIONS } from '@/lib/constants';
 import { cn } from '@/lib/cn';
-import { REVIEWER_LABELS, toSlug } from '@/lib/planning';
+import { REVIEWER_LABELS, suggestAssignee, toSlug } from '@/lib/planning';
 import { BRANCH_PREFIXES, type BranchPrefix, type Member, type ReviewerMode, type TaskDraft } from '@/types';
 import { usePlanningStore } from '../store';
 import { DependencyChips } from './DependencyChips';
@@ -207,6 +207,8 @@ interface FieldsProps {
 /** Task 的可編輯欄位（分支、點數、負責人、驗收條件、審查人員），工作區卡片與 Team Capacity 抽屜共用 */
 export function TaskDraftFields({ task, branch, members, load, onChange, onAssign, allowUnassign = true, className }: FieldsProps) {
   const [newAc, setNewAc] = useState('');
+  /** null：尚未詢問 */
+  const [suggestion, setSuggestion] = useState<ReturnType<typeof suggestAssignee> | null>(null);
   const leaderId = members.find((m) => m.role === 'Leader')?.id;
   const addAc = () => {
     if (!newAc.trim()) return;
@@ -264,6 +266,42 @@ export function TaskDraftFields({ task, branch, members, load, onChange, onAssig
           </Select>
         </Section>
       </div>
+
+      {/* 5-1. AI 重新建議負責人 */}
+      {suggestion === null ? (
+        <Button size="xs" variant="ghost" className="-mt-2" onClick={() => setSuggestion(suggestAssignee(task, members, load))}>
+          <Sparkles className="h-3.5 w-3.5 text-violet-600" strokeWidth={1.75} />
+          AI 重新建議負責人
+        </Button>
+      ) : !suggestion.member ? (
+        <div className="-mt-1 flex flex-wrap items-center gap-2 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2" aria-label="AI 建議負責人">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-600" strokeWidth={1.75} />
+          <p className="min-w-0 flex-1 text-xs text-gray-700">{suggestion.reason}</p>
+          <Button size="xs" onClick={() => setSuggestion(null)}>
+            知道了
+          </Button>
+        </div>
+      ) : (
+        <div className="-mt-1 flex flex-wrap items-center gap-2 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2" aria-label="AI 建議負責人">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-600" strokeWidth={1.75} />
+          <p className="min-w-0 flex-1 text-xs text-gray-700">
+            建議改由 <span className="font-medium text-gray-900">{suggestion.member.name}</span> 處理：{suggestion.reason}
+          </p>
+          <Button
+            size="xs"
+            variant="primary"
+            onClick={() => {
+              if (suggestion.member) onAssign(suggestion.member.id);
+              setSuggestion(null);
+            }}
+          >
+            套用
+          </Button>
+          <Button size="xs" onClick={() => setSuggestion(null)}>
+            略過
+          </Button>
+        </div>
+      )}
 
       {/* 4. 驗收條件 */}
       <Section label="驗收條件">

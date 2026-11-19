@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
 import { dependencyIssues, loadByMember } from '@/lib/planning';
 import type { Member } from '@/types';
+import { OverloadCheck } from '../components/OverloadCheck';
 import { TeamCapacityBar } from '../components/TeamCapacityBar';
 import { useAssignDraftTask } from '../hooks/useAssignDraftTask';
 import { useDraftDeps } from '../hooks/useDraftDeps';
@@ -46,6 +47,7 @@ export function FinalReviewStep({ members }: { members: Member[] }) {
 
   return (
     <div>
+      <OverloadCheck members={members} />
       {issues.length > 0 && (
         <Callout
           tone={blocking.length ? 'danger' : 'warning'}
