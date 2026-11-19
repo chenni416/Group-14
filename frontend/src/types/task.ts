@@ -90,6 +90,8 @@ export interface Task {
   carryPoints: number | null;
   /** 送出派工後，成員對帶入／延後決定的確認狀態；null 表示尚未送出 */
   carryStatus: CarryStatus | null;
+  /** 規劃時標註的相依任務（Task.id） */
+  dependsOn: { id: string; reason: string }[];
   returnSnapshot: ReturnSnapshot | null;
   /** 延後前的狀態，用來恢復 */
   prevState: TaskState | null;

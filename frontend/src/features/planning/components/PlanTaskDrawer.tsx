@@ -40,7 +40,7 @@ export function PlanTaskDrawer({ task, members, load, allowUnassign = true, onAs
             {story && <span className="truncate text-gray-500">{story.title}</span>}
           </>
         }
-        title="調整本輪任務"
+        title={task.deferred ? '已延後的任務' : '調整本輪任務'}
         footer={
           <>
             <Button variant="ghost" className="mr-auto" onClick={() => setConfirmRemove(true)}>
@@ -60,10 +60,15 @@ export function PlanTaskDrawer({ task, members, load, allowUnassign = true, onAs
         }
       >
         <div className="space-y-5">
+          {task.deferred && (
+            <p className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              已延後到之後的 Sprint：本輪不處理、不計入負載，送出派工時寫進延續事項。可在下方「相依與排序」取消延後。
+            </p>
+          )}
           <Input value={task.title} aria-label="任務標題" onChange={(e) => updateTask(task.id, { title: e.target.value })} className="font-medium" />
           <TaskDraftFields
             task={task}
-            branch={branchName(draft, task)}
+            branch={branchName(task)}
             members={members}
             load={load}
             allowUnassign={allowUnassign}

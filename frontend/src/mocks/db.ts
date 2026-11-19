@@ -87,6 +87,7 @@ export function createTaskRecord(project: Project, init: TaskInit): TaskRecord {
     carryAssigneeId: null,
     carryPoints: null,
     carryStatus: null,
+    dependsOn: [],
     returnSnapshot: null,
     prevState: null,
     revived: false,
@@ -121,6 +122,8 @@ function seed(): MockDb {
       claimedAt: s.claimedHoursAgo != null ? hoursAgo(s.claimedHoursAgo) : null,
       reviewStartedAt: s.reviewHoursAgo != null ? hoursAgo(s.reviewHoursAgo) : null,
       pr: s.pr ?? null,
+      // 分支與任務編號同一組數字：S-212 ↔ feat/S212-…
+      branch: `${s.domain === 'QA' ? 'test' : 'feat'}/S${s.id.replace(/^S-/, '')}-${s.slug}`,
     }),
   );
   const notifications: Notification[] = NOTIFICATION_SEEDS.map((n) => ({

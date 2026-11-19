@@ -1,7 +1,7 @@
-import type { Domain, GenerateTasksInput, PlanningDraft, ReviewPolicy, ReviewerAssignment, TaskDraft } from '@/types';
+import type { Domain, GenerateTasksInput, PlanningDraft, ReviewPolicy, ReviewerAssignment, StoryDraft, TaskDraft } from '@/types';
 import { ApiError } from '@/types';
 import { SCENARIO_STORIES, SCENARIO_TASKS, SIMULATED_RESPONSES } from '../data/planningScenario';
-import { branchName, carryConfirmer, carrySP } from '@/lib/planning';
+import { branchName, carryConfirmer, carrySP, dependencyIssues, storyCode, taskCode } from '@/lib/planning';
 import {
   carryTasks,
   createTaskRecord,
@@ -14,6 +14,7 @@ import {
   sessionUser,
   sprintTasks,
   type TaskRecord,
+  uid,
 } from '../db';
 
 /** 回傳預設 Mock 場景的 Story 切分（不解析會議紀錄內容）；此時尚未拆解 Task */
@@ -24,7 +25,7 @@ export function generateDraft(goal: string): PlanningDraft {
 
   return {
     sprintId: sprint.id,
-    stories: SCENARIO_STORIES.map((s, i) => ({ ...s, code: `S${sprint.id}-${i + 1}` })),
+    stories: SCENARIO_STORIES.map((s, i) => ({ ...s, no: i + 1, code: storyCode(sprint.id, i + 1) })),
     tasks: [],
   };
 }
@@ -35,21 +36,35 @@ const toPolicy = (r: ReviewerAssignment): ReviewPolicy =>
     : { mode: r.mode === 'leader' ? 'leader' : 'pool', targets: [], rule: 'any' };
 
 /** 核准規劃：草稿轉為正式任務（待成員確認）並發送指派邀請 */
-export function submitPlan(draft: PlanningDraft): number {
-  if (sprintTasks(draft.sprintId).length) throw new ApiError('本 Sprint 已送出規劃，不能重複核准', 409, 'CONFLICT');
+export function submitPlan(input: PlanningDraft): number {
+  if (sprintTasks(input.sprintId).length) throw new ApiError('本 Sprint 已送出規劃，不能重複核准', 409, 'CONFLICT');
+  // 延後的項目留在草稿中標註，送出時不派工、改寫進延續事項
+  const deferredStories = input.stories.filter((s) => s.deferred);
+  const deferredTasks = input.tasks.filter((t) => t.deferred);
+  const draft = { ...input, stories: input.stories.filter((s) => !s.deferred), tasks: input.tasks.filter((t) => !t.deferred) };
   const unassigned = draft.tasks.filter((t) => !t.assigneeId);
   if (unassigned.length) throw new ApiError(`還有 ${unassigned.length} 張 Task 尚未指派負責人`);
   const carried = carryTasks(draft.sprintId);
   const undecided = carried.filter((t) => t.carry == null);
   if (undecided.length) throw new ApiError(`上輪還有 ${undecided.length} 項未完成任務尚未決定帶入或延後`);
+  const blocking = dependencyIssues(input, carried).filter((i) => i.level === 'blocking');
+  if (blocking[0]) throw new ApiError(`${blocking[0].text}，請先一起延後或移除相依`);
+  const taken = draft.tasks.find((t) => db.tasks.some((x) => x.id === t.code));
+  if (taken) throw new ApiError(`任務編號 ${taken.code} 已被使用`, 409, 'CONFLICT');
 
   const me = sessionUser();
   const created = new Map<string, TaskRecord>();
+  // 草稿 id → 正式任務編號；上輪帶入任務的 id 本身就是正式編號
+  const idOf = new Map(draft.tasks.map((t) => [t.id, t.code]));
+  const carriedIds = new Set(carried.map((t) => t.id));
   draft.tasks.forEach((t) => {
     const assigneeId = findMember(t.assigneeId!).id;
     const story = draft.stories.find((s) => s.id === t.storyId);
     const record = createTaskRecord(db.project, {
-      id: `${db.project.prefix}-${db.seq++}`,
+      id: t.code,
+      dependsOn: t.dependsOn
+        .map((d) => ({ id: idOf.get(d.id) ?? (carriedIds.has(d.id) ? d.id : ''), reason: d.reason }))
+        .filter((d) => d.id),
       sprintId: draft.sprintId,
       title: t.title,
       domain: t.domain,
@@ -65,15 +80,40 @@ export function submitPlan(draft: PlanningDraft): number {
       suggestReason: t.assignReason,
       policy: toPolicy(t.reviewer),
       description: t.analysis,
-      branch: branchName(draft, t),
+      branch: branchName(t),
     });
     db.tasks.push(record);
     created.set(t.id, record);
     notify(assigneeId, 'invite', record.id, me.id, `預估 ${t.storyPoints} 點，請確認是否接受`);
   });
+  recordDeferred(draft.sprintId, deferredStories, deferredTasks);
   simulateMemberResponses(created);
   dispatchCarry(carried);
   return draft.tasks.length;
+}
+
+/** 本輪延後的 Story／Task 寫進延續事項：延後的 Story 一筆（含其 Task），個別延後的 Task 各一筆 */
+function recordDeferred(sprintId: number, stories: StoryDraft[], tasks: TaskDraft[]) {
+  const sprint = db.sprints.find((s) => s.id === sprintId);
+  const from = sprint?.name ?? `Sprint ${sprintId}`;
+  const storyIds = new Set(stories.map((s) => s.id));
+  stories.forEach((s) => {
+    const count = tasks.filter((t) => t.storyId === s.id).length;
+    db.backlog.push({
+      id: `b${uid()}`,
+      text: `${s.code} ${s.title}${count ? `（${count} 張 Task）` : ''}`,
+      fromSprint: from,
+      kind: 'deferred',
+      taskId: null,
+      usedInSprintId: null,
+      decision: null,
+    });
+  });
+  tasks
+    .filter((t) => !storyIds.has(t.storyId))
+    .forEach((t) =>
+      db.backlog.push({ id: `b${uid()}`, text: `${t.code} ${t.title}`, fromSprint: from, kind: 'deferred', taskId: null, usedInSprintId: null, decision: null }),
+    );
 }
 
 /**
@@ -134,19 +174,18 @@ const guessDomain = (text: string): Domain =>
  * 依確認後的 Story 拆解 Task：預設場景的 Story 回傳對應的 Mock Task；
  * Leader 手動新增的 Story 依「範疇」每項拆一張（無範疇則一張）。所有 Task 皆未指派。
  */
-export function generateTasks({ stories, existingTaskCount }: GenerateTasksInput): TaskDraft[] {
-  let n = db.seq + existingTaskCount;
-  const code = () => `${db.project.prefix}-${n++}`;
-
+export function generateTasks({ sprintId, stories }: GenerateTasksInput): TaskDraft[] {
   return stories.flatMap((story) => {
     const scenario = SCENARIO_TASKS.filter((t) => t.storyId === story.id);
-    if (scenario.length) return scenario.map((t) => ({ ...t, assigneeId: null, code: code() }));
+    if (scenario.length)
+      return scenario.map((t, ti) => ({ ...t, assigneeId: null, no: ti + 1, code: taskCode(sprintId, story.no, ti + 1) }));
 
     const items = story.scope.length ? story.scope : [story.title];
     return items.map((item, ti) => ({
       id: `${story.id}-tk-${ti + 1}`,
       storyId: story.id,
-      code: code(),
+      no: ti + 1,
+      code: taskCode(sprintId, story.no, ti + 1),
       title: item,
       domain: guessDomain(item),
       branchPrefix: 'feat' as const,
@@ -158,6 +197,7 @@ export function generateTasks({ stories, existingTaskCount }: GenerateTasksInput
       reviewer: { mode: 'pool' as const, memberId: null },
       analysis: `依 Story「${story.title}」的範疇拆出，屬手動新增項目，尚無 AI 細部技術分析。`,
       assignReason: '手動新增的 Story 沒有 AI 指派建議，請依成員技能與負載自行指派。',
+      dependsOn: [],
     }));
   });
 }

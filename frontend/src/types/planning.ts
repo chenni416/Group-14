@@ -20,8 +20,17 @@ export interface MinutesQuote {
   text: string;
 }
 
+/** 規劃草稿中的相依：依賴的 Story／Task（Task 也可以依賴上輪帶入的正式任務） */
+export interface DraftDependency {
+  /** 依賴對象：StoryDraft.id、TaskDraft.id，或上輪帶入任務的 Task.id */
+  id: string;
+  reason: string;
+}
+
 export interface StoryDraft {
   id: string;
+  /** Story 序號（建立時決定，之後不重排），對應編號 S3-1 的 1 */
+  no: number;
   /** 識別碼，例如 S3-1 */
   code: string;
   title: string;
@@ -34,12 +43,18 @@ export interface StoryDraft {
   rationale: string;
   /** 對應的會議紀錄原文，用於溯源 */
   sources: MinutesQuote[];
+  /** 依賴的其他 Story */
+  dependsOn: DraftDependency[];
+  /** 延後到之後的 Sprint：留在原位並標註，不計容量、不派工，送出前可以取消延後 */
+  deferred?: boolean;
 }
 
 export interface TaskDraft {
   id: string;
   storyId: string;
-  /** 任務編號，例如 TL-301 */
+  /** Story 內的 Task 序號（建立時決定，之後不重排） */
+  no: number;
+  /** 任務編號 S-{Sprint}{Story 序號}{Task 序號}，例如 S-321，數字與分支名稱 S321 相同 */
   code: string;
   title: string;
   domain: Domain;
@@ -55,6 +70,10 @@ export interface TaskDraft {
   analysis: string;
   /** AI 指派建議理由 */
   assignReason: string;
+  /** 依賴的 Task（本輪 Task 或上輪帶入任務） */
+  dependsOn: DraftDependency[];
+  /** 延後到之後的 Sprint：留在原位並標註，不計容量、不派工，送出前可以取消延後 */
+  deferred?: boolean;
 }
 
 export interface PlanningDraft {

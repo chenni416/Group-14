@@ -26,18 +26,231 @@ export const PLANNING_STEPS = ['上輪 Sprint 統整', '開啟 Sprint 與設定'
 
 /* ---------- 規劃草稿（Planning Studio） ---------- */
 
-/** 分支命名：{前綴}/S{Sprint編號}{Story序號}{Task序號}-{摘要敘述} */
-export function branchName(draft: Pick<PlanningDraft, 'sprintId' | 'stories' | 'tasks'>, task: TaskDraft): string {
-  const storyIdx = draft.stories.findIndex((s) => s.id === task.storyId) + 1;
-  const taskIdx = draft.tasks.filter((t) => t.storyId === task.storyId).findIndex((t) => t.id === task.id) + 1;
-  return `${task.branchPrefix}/S${draft.sprintId}${storyIdx}${taskIdx}-${task.branchSlug || 'task'}`;
+/** Story 編號：S{Sprint}-{Story 序號}，例如 S3-2 */
+export const storyCode = (sprintId: number, no: number) => `S${sprintId}-${no}`;
+
+/** Task 編號：S-{Sprint}{Story 序號}{Task 序號}，例如 S-321；數字與分支名稱的 S321 相同，方便對照查詢 */
+export const taskCode = (sprintId: number, storyNo: number, no: number) => `S-${sprintId}${storyNo}${no}`;
+
+/** 分支命名：{前綴}/S{Sprint}{Story 序號}{Task 序號}-{摘要敘述}，數字取自 Task 編號 */
+export function branchName(task: Pick<TaskDraft, 'code' | 'branchPrefix' | 'branchSlug'>): string {
+  return `${task.branchPrefix}/S${task.code.replace(/^S-/, '')}-${task.branchSlug || 'task'}`;
+}
+
+/** 補齊舊草稿缺少的欄位（相依、序號） */
+export function normalizeDraft(draft: PlanningDraft): PlanningDraft {
+  const stories = draft.stories.map((s, i) => ({ ...s, no: s.no ?? i + 1, dependsOn: s.dependsOn ?? [] }));
+  const tasks = draft.tasks.map((t) => ({ ...t, no: t.no ?? 0, dependsOn: t.dependsOn ?? [] }));
+  return { sprintId: draft.sprintId, stories, tasks };
+}
+
+/** 本輪要處理的項目（排除延後） */
+export const isActive = (x: { deferred?: boolean }) => !x.deferred;
+export const activeTasks = (draft: Pick<PlanningDraft, 'tasks'>) => draft.tasks.filter(isActive);
+
+/* ---------- 相依性與延後（規劃草稿） ---------- */
+
+type DepNode = { id: string; dependsOn: { id: string }[] };
+
+/** 依賴 id 的項目（直接） */
+export const dependentsOf = <T extends DepNode>(items: T[], id: string) => items.filter((x) => x.dependsOn.some((d) => d.id === id));
+
+/** 加入 from → to 的相依是否會形成循環（to 已經直接或間接依賴 from） */
+export function wouldCycle(items: DepNode[], from: string, to: string): boolean {
+  if (from === to) return true;
+  const map = new Map(items.map((x) => [x.id, x]));
+  const seen = new Set<string>();
+  const stack = [to];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (cur === from) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    map.get(cur)?.dependsOn.forEach((d) => stack.push(d.id));
+  }
+  return false;
+}
+
+/** 延後 ids 時，所有直接或間接依賴它們的項目（不含 ids 本身） */
+export function dependentClosure<T extends DepNode>(items: T[], ids: string[]): T[] {
+  const out = new Map<string, T>();
+  const queue = [...ids];
+  while (queue.length) {
+    const id = queue.shift()!;
+    dependentsOf(items, id).forEach((x) => {
+      if (ids.includes(x.id) || out.has(x.id)) return;
+      out.set(x.id, x);
+      queue.push(x.id);
+    });
+  }
+  return [...out.values()];
+}
+
+export interface DependencyIssue {
+  /** blocking：依賴的項目已延後，送出前必須處理；warning：只提示 */
+  level: 'blocking' | 'warning';
+  kind: 'story' | 'task';
+  /** 有問題的項目（依賴方） */
+  itemId: string;
+  itemCode: string;
+  /** 被依賴的項目 */
+  depId: string;
+  depCode: string;
+  text: string;
+}
+
+/**
+ * 送出前的相依檢查（只看本輪要處理的項目）：
+ * - 需等待的 Story／Task 已延後 → blocking
+ * - 需等待的 Task 尚未指派、需等待的上輪任務已延後 → warning
+ */
+export function dependencyIssues(draft: Pick<PlanningDraft, 'stories' | 'tasks'>, carryTasks: Task[]): DependencyIssue[] {
+  const issues: DependencyIssue[] = [];
+  const stories = new Map(draft.stories.map((s) => [s.id, s]));
+  const tasks = new Map(draft.tasks.map((t) => [t.id, t]));
+  const carry = new Map(carryTasks.map((t) => [t.id, t]));
+
+  draft.stories.filter(isActive).forEach((s) =>
+    s.dependsOn.forEach((d) => {
+      const dep = stories.get(d.id);
+      if (dep?.deferred)
+        issues.push({ level: 'blocking', kind: 'story', itemId: s.id, itemCode: s.code, depId: dep.id, depCode: dep.code, text: `${s.code} 需等待的 ${dep.code} 已延後` });
+    }),
+  );
+  draft.tasks.filter(isActive).forEach((t) =>
+    t.dependsOn.forEach((d) => {
+      const base = { kind: 'task' as const, itemId: t.id, itemCode: t.code, depId: d.id };
+      const dep = tasks.get(d.id);
+      if (dep?.deferred) return issues.push({ ...base, level: 'blocking', depCode: dep.code, text: `${t.code} 需等待的 ${dep.code} 已延後` });
+      if (dep && !dep.assigneeId) return issues.push({ ...base, level: 'warning', depCode: dep.code, text: `${t.code} 需等待的 ${dep.code} 尚未指派` });
+      const prev = carry.get(d.id);
+      if (prev && prev.carry === false)
+        issues.push({ ...base, level: 'warning', depCode: prev.id, text: `${t.code} 需等待上輪的 ${prev.id}，但它已延後到之後的 Sprint` });
+    }),
+  );
+  return issues;
+}
+
+/** 相依關係中的一端（顯示用） */
+export interface DepRef {
+  id: string;
+  code: string;
+  title: string;
+  reason: string;
+  deferred: boolean;
+  /** 上輪帶入的任務 */
+  carry: boolean;
+  assigned: boolean;
+}
+
+export interface DepAdvice {
+  /** defer 建議延後、next 可能延至下輪、wait 依順序完成但前置未指派、order 依順序本輪完成、first 優先完成 */
+  kind: 'defer' | 'next' | 'wait' | 'order' | 'first';
+  label: string;
+  text: string;
+}
+
+export interface DepPlan {
+  /** 完成順位：沒有需等待的項目為 1，每多一層前置 +1 */
+  order: number;
+  /** 包含自己在內、最長前置鏈的點數總和 */
+  chainSp: number;
+  chain: string[];
+  /** 需先完成（等待它們完成後接續） */
+  waitFor: DepRef[];
+  /** 完成後才能接續的項目 */
+  unlocks: DepRef[];
+  advice: DepAdvice | null;
+}
+
+const codesText = (refs: { code: string }[]) => refs.map((r) => r.code).join('、');
+
+/**
+ * 相依排序與建議（Story 與 Task 分開計算）：
+ * - 需等待的項目已延後 → 建議延後
+ * - 前置鏈總點數超過 limit（Task 用單人本輪 Capacity 上限、Story 用全隊 Capacity）→ 可能延至下輪
+ * - 有需等待的項目 → 第 N 順位，等它們完成後接續（前置未指派時以橘色提醒）
+ * - 只有後續項目 → 建議優先完成
+ * 已延後的項目若仍有本輪項目需要它，提示一起延後或取消延後。
+ */
+export function dependencyPlan(
+  items: { id: string; code: string; title: string; points: number; deferred?: boolean; assigned: boolean; dependsOn: { id: string; reason: string }[] }[],
+  external: Map<string, { code: string; title: string; points: number; deferred: boolean }>,
+  limit: number,
+): Map<string, DepPlan> {
+  const byId = new Map(items.map((x) => [x.id, x]));
+  const ref = (id: string, reason: string): DepRef | null => {
+    const x = byId.get(id);
+    if (x) return { id, code: x.code, title: x.title, reason, deferred: !!x.deferred, carry: false, assigned: x.assigned };
+    const e = external.get(id);
+    return e ? { id, code: e.code, title: e.title, reason, deferred: e.deferred, carry: true, assigned: true } : null;
+  };
+
+  const memo = new Map<string, { order: number; chainSp: number; chain: string[] }>();
+  const walk = (id: string, seen: Set<string>): { order: number; chainSp: number; chain: string[] } => {
+    const hit = memo.get(id);
+    if (hit) return hit;
+    const x = byId.get(id);
+    const e = external.get(id);
+    if (!x) return { order: 1, chainSp: e && !e.deferred ? e.points : 0, chain: e ? [e.code] : [] };
+    let best = { order: 0, chainSp: 0, chain: [] as string[] };
+    if (!seen.has(id)) {
+      const next = new Set(seen).add(id);
+      x.dependsOn.forEach((d) => {
+        const dep = byId.get(d.id);
+        if ((dep && dep.deferred) || (!dep && !external.has(d.id))) return;
+        const r = walk(d.id, next);
+        if (r.chainSp > best.chainSp || r.order > best.order) best = r;
+      });
+    }
+    const out = { order: best.order + 1, chainSp: best.chainSp + x.points, chain: [...best.chain, x.code] };
+    memo.set(id, out);
+    return out;
+  };
+
+  const plans = new Map<string, DepPlan>();
+  items.forEach((x) => {
+    const waitFor = x.dependsOn.map((d) => ref(d.id, d.reason)).filter((r): r is DepRef => r != null);
+    const unlocks = items
+      .filter((y) => y.dependsOn.some((d) => d.id === x.id))
+      .map((y) => ({ ...ref(y.id, y.dependsOn.find((d) => d.id === x.id)!.reason)! }));
+    const { order, chainSp, chain } = x.deferred ? { order: 0, chainSp: 0, chain: [] } : walk(x.id, new Set());
+    const activeUnlocks = unlocks.filter((u) => !u.deferred);
+    let advice: DepAdvice | null = null;
+
+    if (x.deferred) {
+      if (activeUnlocks.length)
+        advice = { kind: 'defer', label: '影響後續', text: `已延後，但 ${codesText(activeUnlocks)} 需要它先完成才能銜接；建議一起延後，或取消延後。` };
+    } else {
+      const deferredWait = waitFor.filter((w) => w.deferred);
+      const pendingWait = waitFor.filter((w) => !w.deferred && !w.assigned);
+      if (deferredWait.length)
+        advice = { kind: 'defer', label: '建議延後', text: `需等待的 ${codesText(deferredWait)} 已延後，本輪無法銜接；建議一起延後到下輪，或移除相依。` };
+      else if (chain.length > 1 && chainSp > limit)
+        advice = {
+          kind: 'next',
+          label: '可能延至下輪',
+          text: `前置鏈 ${chain.join(' → ')} 共 ${chainSp} SP，超過一輪約 ${limit} SP 的進度；建議提早開始前置項目，若來不及就延至下輪。`,
+        };
+      else if (waitFor.length)
+        advice = {
+          kind: pendingWait.length ? 'wait' : 'order',
+          label: `第 ${order} 順位`,
+          text: `建議本輪完成：等 ${codesText(waitFor)} 完成後接續。${pendingWait.length ? `其中 ${codesText(pendingWait)} 還沒有負責人，指派後才能確定銜接時間。` : ''}`,
+        };
+      else if (activeUnlocks.length)
+        advice = { kind: 'first', label: '優先完成', text: `建議本輪優先完成：${codesText(activeUnlocks)} 需要它先完成才能接續。` };
+    }
+    plans.set(x.id, { order, chainSp, chain, waitFor, unlocks, advice });
+  });
+  return plans;
 }
 
 /** 各成員已分配的 Story Points（規劃草稿 TaskDraft；正式任務加延續任務請用 planLoad） */
 export function loadByMember(members: Member[], tasks: TaskDraft[]): Record<string, number> {
   const load: Record<string, number> = Object.fromEntries(members.map((m) => [m.id, 0]));
   tasks.forEach((t) => {
-    if (t.assigneeId) load[t.assigneeId] = (load[t.assigneeId] ?? 0) + t.storyPoints;
+    if (t.assigneeId && !t.deferred) load[t.assigneeId] = (load[t.assigneeId] ?? 0) + t.storyPoints;
   });
   return load;
 }

@@ -1,3 +1,4 @@
+import { Hourglass } from 'lucide-react';
 import { Avatar } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
@@ -73,6 +74,16 @@ function TaskSummaryCard({
       {carry && (
         <span className="mt-2 inline-flex h-5 items-center rounded-full border border-gray-200 bg-white px-2 text-[11px] text-gray-600">
           {task.carry ? '上輪帶入' : '上輪延後'}
+        </span>
+      )}
+      {!carry && task.dependsOn.length > 0 && (
+        <span className="mt-2 flex flex-wrap gap-1" title={task.dependsOn.map((d) => `${d.id}：${d.reason}`).join('\n')}>
+          {task.dependsOn.map((d) => (
+            <span key={d.id} className="inline-flex h-5 items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 text-[10px] text-gray-600">
+              <Hourglass className="h-3 w-3" strokeWidth={1.75} />
+              <span className="font-mono">等 {d.id} 完成</span>
+            </span>
+          ))}
         </span>
       )}
       {returned && task.negotiation && (

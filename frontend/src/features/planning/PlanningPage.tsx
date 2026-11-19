@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { RequireLeader } from '@/components/layout/RequireLeader';
 import { PageHeader, PageSkeleton } from '@/components/ui';
 import { useMembers } from '@/hooks/queries';
+import { DeferDialog } from './components/DeferDialog';
 import { PlanningStepper } from './components/PlanningStepper';
+import { RestoreDialog } from './components/RestoreDialog';
 import { SprintSetup } from './components/SprintSetup';
 import { SubmittedPlanBoard } from './components/SubmittedPlanBoard';
 import { usePlanCapacity } from './hooks/usePlanCapacity';
@@ -62,6 +64,8 @@ function PlanningStudio() {
       {current === 'stories' && <StoryReviewStep members={planMembers} />}
       {current === 'tasks' && <TaskBreakdownStep members={planMembers} />}
       {current === 'review' && <FinalReviewStep members={planMembers} />}
+      <DeferDialog />
+      <RestoreDialog />
     </>
   );
 }

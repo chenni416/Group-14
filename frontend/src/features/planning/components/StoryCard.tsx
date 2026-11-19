@@ -1,9 +1,12 @@
-import { Check, Pencil } from 'lucide-react';
+import { Check, Clock, Pencil, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Button, IconButton, Input, Label, Select, Tag, Textarea } from '@/components/ui';
 import { STORY_POINT_OPTIONS } from '@/lib/constants';
 import { cn } from '@/lib/cn';
 import type { StoryDraft } from '@/types';
+import { usePlanningStore } from '../store';
+import { DependencyChips } from './DependencyChips';
+import { DependencyEditor } from './DependencyEditor';
 
 interface Props {
   story: StoryDraft;
@@ -18,21 +21,57 @@ const SP_OPTIONS = [...STORY_POINT_OPTIONS, 10, 11, 12, 13];
 export function StoryCard({ story, selected, defaultEditing = false, onSelect, onChange }: Props) {
   const [editing, setEditing] = useState(defaultEditing);
   const [scopeText, setScopeText] = useState(story.scope.join('\n'));
+  const { requestDefer, requestRestore } = usePlanningStore();
 
   return (
     <article
       onClick={onSelect}
       className={cn(
-        'cursor-pointer rounded-2xl border bg-white p-5 transition-colors duration-150',
-        selected ? 'border-neutral-900' : 'border-gray-100 hover:border-gray-300',
+        'cursor-pointer rounded-2xl border p-5 transition-colors duration-150',
+        story.deferred ? 'border-dashed bg-gray-50/70' : 'bg-white',
+        selected ? 'border-neutral-900' : story.deferred ? 'border-gray-300' : 'border-gray-100 hover:border-gray-300',
       )}
     >
       <div className="mb-3 flex items-center gap-2">
         <Badge tone="dark" className="font-mono">
           {story.code}
         </Badge>
-        <Badge className="tabular-nums">{story.storyPoints} SP</Badge>
-        <span className="text-xs text-gray-500">預估範疇 {story.scope.length} 項</span>
+        <Badge className={cn('tabular-nums', story.deferred && 'text-gray-400 line-through')}>{story.storyPoints} SP</Badge>
+        {story.deferred ? (
+          <Badge>已延後 · 本輪不處理</Badge>
+        ) : (
+          <span className="text-xs text-gray-500">預估範疇 {story.scope.length} 項</span>
+        )}
+        {!editing && story.deferred && (
+          <Button
+            size="xs"
+            className="ml-auto"
+            aria-label={`取消延後 ${story.code}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              requestRestore('story', story.id);
+            }}
+          >
+            <Undo2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+            取消延後
+          </Button>
+        )}
+        {!editing && !story.deferred && (
+          <Button
+            size="xs"
+            variant="ghost"
+            className="ml-auto"
+            aria-label={`延後 ${story.code}`}
+            title="延後到之後的 Sprint，本輪不處理"
+            onClick={(e) => {
+              e.stopPropagation();
+              requestDefer('story', story.id);
+            }}
+          >
+            <Clock className="h-3.5 w-3.5" strokeWidth={1.75} />
+            延後
+          </Button>
+        )}
         {editing ? (
           <Button
             size="xs"
@@ -52,7 +91,6 @@ export function StoryCard({ story, selected, defaultEditing = false, onSelect, o
             aria-label={`編輯 ${story.code}`}
             size="sm"
             variant="ghost"
-            className="ml-auto"
             onClick={(e) => {
               e.stopPropagation();
               onSelect();
@@ -90,11 +128,13 @@ export function StoryCard({ story, selected, defaultEditing = false, onSelect, o
               <Textarea id={`${story.id}-scope`} rows={3} value={scopeText} onChange={(e) => setScopeText(e.target.value)} />
             </div>
           </div>
+          <DependencyEditor kind="story" item={story} />
         </div>
       ) : (
         <>
-          <h3 className="text-base font-semibold tracking-tight text-gray-900">{story.title}</h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-gray-600">{story.userStory}</p>
+          <h3 className={cn('text-base font-semibold tracking-tight', story.deferred ? 'text-gray-500' : 'text-gray-900')}>{story.title}</h3>
+          <p className={cn('mt-1.5 text-sm leading-relaxed', story.deferred ? 'text-gray-400' : 'text-gray-600')}>{story.userStory}</p>
+          <DependencyChips itemId={story.id} className="mt-2.5" />
           {story.scope.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {story.scope.map((s) => (

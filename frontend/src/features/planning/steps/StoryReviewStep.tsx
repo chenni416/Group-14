@@ -23,11 +23,12 @@ export function StoryReviewStep({ members }: { members: Member[] }) {
 
   const { stories, tasks } = draft;
   const selected = stories.find((s) => s.id === selectedStoryId);
-  const totalSp = sum(stories.map((s) => s.storyPoints));
+  const totalSp = sum(stories.filter((s) => !s.deferred).map((s) => s.storyPoints));
+  const deferredCount = stories.filter((s) => s.deferred).length;
 
   // 只替尚未拆解的 Story 產生 Task；全部都已拆解時直接進入階段 B
   const confirmStories = () => {
-    const pending = stories.filter((s) => !tasks.some((t) => t.storyId === s.id));
+    const pending = stories.filter((s) => !s.deferred && !tasks.some((t) => t.storyId === s.id));
     if (!pending.length) return setStage('tasks');
     generateTasks.mutate({ sprintId: draft.sprintId, stories: pending, existingTaskCount: tasks.length });
   };
@@ -42,7 +43,7 @@ export function StoryReviewStep({ members }: { members: Member[] }) {
             <CardHeader
               className="shrink-0"
               title="Story 切分"
-              description={`${stories.length} 個 Story · 預估 ${totalSp} SP`}
+              description={`${stories.length - deferredCount} 個 Story · 預估 ${totalSp} SP${deferredCount ? ` · ${deferredCount} 個已延後` : ''}`}
               action={
                 <Button size="sm" onClick={() => setNewStoryId(addStory())}>
                   <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />

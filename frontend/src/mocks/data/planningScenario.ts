@@ -5,9 +5,10 @@ import type { StoryDraft, TaskDraft } from '@/types';
  * 行號對應 SAMPLE_MINUTES，用於右側「會議紀錄溯源」。
  * 未來由後端 AI 拆解 API 產生同樣結構的資料。
  */
-export const SCENARIO_STORIES: Omit<StoryDraft, 'code'>[] = [
+export const SCENARIO_STORIES: Omit<StoryDraft, 'code' | 'no'>[] = [
   {
     id: 'st-1',
+    dependsOn: [],
     title: '任務內 AI 對話釐清規格',
     userStory: '身為開發成員，我想要在任務詳情中直接詢問專案脈絡，以便不用重打背景就能釐清規格並取得可用的 Prompt。',
     storyPoints: 11,
@@ -21,6 +22,7 @@ export const SCENARIO_STORIES: Omit<StoryDraft, 'code'>[] = [
   },
   {
     id: 'st-2',
+    dependsOn: [],
     title: '彈性 PR Review 路由',
     userStory: '身為 Leader，我想要依任務的關鍵程度設定審核方式，以便重要變更由合適的人把關、一般任務能快速被認領審查。',
     storyPoints: 10,
@@ -35,6 +37,7 @@ export const SCENARIO_STORIES: Omit<StoryDraft, 'code'>[] = [
   },
   {
     id: 'st-3',
+    dependsOn: [{ id: 'st-2', reason: '收件匣的 Review 通知與 E2E 測試需要 Review 路由與通知服務先完成' }],
     title: '任務認領收件匣與流程測試',
     userStory: '身為開發成員，我想要在開工前接受或協商被指派的任務，以便工作量在 Sprint 啟動前取得共識。',
     storyPoints: 6,
@@ -48,10 +51,11 @@ export const SCENARIO_STORIES: Omit<StoryDraft, 'code'>[] = [
   },
 ];
 
-export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
+export const SCENARIO_TASKS: Omit<TaskDraft, 'code' | 'no'>[] = [
   // Story 1
   {
     id: 'tk-1', storyId: 'st-1', title: '任務詳情 Split View 介面（規格／對話）', domain: 'FE',
+    dependsOn: [{ id: 'tk-2', reason: '對話區需要串接脈絡對話 API 的串流回應' }],
     branchPrefix: 'feat', branchSlug: 'task-split-view', storyPoints: 3,
     acceptanceCriteria: ['左側為任務規格與 Prompt 畫布，右側為對話區', '對話訊息支援串流顯示與 Markdown', '375px 手機寬度改為上下排列'],
     assigneeId: null, suggestedAssigneeId: 'm1', reviewer: { mode: 'member', memberId: 'm5' },
@@ -60,6 +64,7 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   },
   {
     id: 'tk-2', storyId: 'st-1', title: '專案脈絡對話 API（掛載知識庫 RAG）', domain: 'AI',
+    dependsOn: [{ id: 'S-213', reason: 'RAG 需要上輪「知識庫文件索引 Pipeline」產生的向量資料' }],
     branchPrefix: 'feat', branchSlug: 'context-chat-api', storyPoints: 5,
     acceptanceCriteria: ['每次對話自動帶入任務規格、Sprint Goal 與相關文件片段', '回覆附上引用來源文件', '單次回應延遲 p90 < 3 秒'],
     assigneeId: null, suggestedAssigneeId: 'm3', reviewer: { mode: 'leader', memberId: null },
@@ -68,6 +73,7 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   },
   {
     id: 'tk-3', storyId: 'st-1', title: 'Prompt 版本紀錄與還原 API', domain: 'BE',
+    dependsOn: [],
     branchPrefix: 'feat', branchSlug: 'prompt-versions', storyPoints: 3,
     acceptanceCriteria: ['每次對話更新產生新版本並記錄差異', '可還原至任一歷史版本', '資料表變更附 Alembic migration'],
     assigneeId: null, suggestedAssigneeId: 'm2', reviewer: { mode: 'pool', memberId: null },
@@ -77,6 +83,7 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   // Story 2
   {
     id: 'tk-4', storyId: 'st-2', title: 'Review Policy 設定元件（三種模式）', domain: 'FE',
+    dependsOn: [],
     branchPrefix: 'feat', branchSlug: 'review-policy-ui', storyPoints: 2,
     acceptanceCriteria: ['支援 Leader 專審、團隊搶單、指定成員', '指定成員可設定需 1 人或全員同意', '任務層級設定可覆蓋專案預設'],
     assigneeId: null, suggestedAssigneeId: 'm1', reviewer: { mode: 'pool', memberId: null },
@@ -85,6 +92,7 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   },
   {
     id: 'tk-5', storyId: 'st-2', title: 'Review 路由與通知服務', domain: 'BE',
+    dependsOn: [],
     branchPrefix: 'feat', branchSlug: 'review-routing', storyPoints: 5,
     acceptanceCriteria: ['依策略發送個人通知或推送公共池', 'Claim 具併發保護，同時只有一人認領成功', '全員同意模式需全部核准才轉 Done'],
     assigneeId: null, suggestedAssigneeId: 'm2', reviewer: { mode: 'leader', memberId: null },
@@ -93,6 +101,7 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   },
   {
     id: 'tk-6', storyId: 'st-2', title: 'GitHub PR Webhook 接收與簽章驗證', domain: 'BE',
+    dependsOn: [{ id: 'tk-5', reason: 'Webhook 收到 PR 事件後要交給 Review 路由服務套用審核策略' }],
     branchPrefix: 'feat', branchSlug: 'pr-webhook', storyPoints: 3,
     acceptanceCriteria: ['驗證 X-Hub-Signature-256，失敗回傳 401', 'PR opened 時任務轉為 In Review 並套用審核策略', '重複事件具冪等性'],
     assigneeId: null, suggestedAssigneeId: 'm4', reviewer: { mode: 'member', memberId: 'm2' },
@@ -102,6 +111,10 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   // Story 3
   {
     id: 'tk-7', storyId: 'st-3', title: 'Action Required Inbox（接受／協商）', domain: 'FE',
+    dependsOn: [
+      { id: 'S-231', reason: '依上輪的「通知中心 UI 設計稿」實作' },
+      { id: 'tk-5', reason: '接受與協商動作需要通知服務的 API' },
+    ],
     branchPrefix: 'feat', branchSlug: 'inbox-accept-negotiate', storyPoints: 3,
     acceptanceCriteria: ['顯示指派人、點數與任務摘要', '接受後狀態改為 Assigned', '協商需填原因並可建議人選，退回 Leader'],
     assigneeId: null, suggestedAssigneeId: 'm5', reviewer: { mode: 'member', memberId: 'm1' },
@@ -110,6 +123,10 @@ export const SCENARIO_TASKS: Omit<TaskDraft, 'code'>[] = [
   },
   {
     id: 'tk-8', storyId: 'st-3', title: 'E2E 測試：認領與 Review 流程', domain: 'QA',
+    dependsOn: [
+      { id: 'tk-7', reason: 'E2E 需要 Inbox 頁面完成' },
+      { id: 'tk-5', reason: 'E2E 需要 Review 路由流程完成' },
+    ],
     branchPrefix: 'test', branchSlug: 'e2e-claim-review', storyPoints: 3,
     acceptanceCriteria: ['涵蓋接受、協商退回與三種 Review 模式', '測試資料以 seed script 建立', '在 CI 無頭模式全數通過'],
     assigneeId: null, suggestedAssigneeId: 'm4', reviewer: { mode: 'pool', memberId: null },

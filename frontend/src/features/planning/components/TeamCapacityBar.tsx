@@ -1,5 +1,5 @@
 import { ChevronsDownUp, ChevronsUpDown, History, X } from 'lucide-react';
-import { useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { Avatar, Badge, Button, Card, ProgressBar } from '@/components/ui';
 import { useSprintContext } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
@@ -10,6 +10,8 @@ import { usePlanCapacity } from '../hooks/usePlanCapacity';
 import { usePlanningMutations } from '../hooks/usePlanning';
 import { usePlanningStore } from '../store';
 import { CarryTaskDrawer } from './CarryTaskDrawer';
+import { DeferredListModal } from './DeferredListModal';
+import { DependencyChips } from './DependencyChips';
 import { PlanTaskDrawer } from './PlanTaskDrawer';
 
 export const TASK_DRAG_TYPE = 'application/x-taskline-task';
@@ -65,6 +67,7 @@ function MiniTask({ task, draggable, onClick, onRemove }: MiniTaskProps) {
           <span className="text-[11px] font-medium tabular-nums text-gray-700">{task.storyPoints} SP</span>
         </span>
         <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-gray-900">{task.title}</span>
+        <DependencyChips itemId={task.id} size="xs" className="mt-1.5" />
       </button>
       {onRemove && (
         <button
@@ -192,14 +195,24 @@ export function TeamCapacityBar({
   onTaskClick,
   className,
 }: Props) {
-  const { capacityExpanded, toggleCapacity, requestStage } = usePlanningStore();
+  const { capacityExpanded, toggleCapacity } = usePlanningStore();
   const { planning, carryTasks } = useSprintContext();
   const { setCarry } = usePlanningMutations();
   // members 的 capacity 已扣掉上輪帶入任務佔用的點數；這裡把帶入任務放回各成員直欄，
   // 直欄顯示「新任務 + 帶入任務 / 本輪 Capacity」
   const { carry } = usePlanCapacity(members);
   const carried = carryTasks.filter((t) => t.carry === true);
-  const deferredCount = carryTasks.filter((t) => t.carry === false).length;
+  // 延後的任務不出現在 Team Capacity（不計負載、不算未指派），只列在延後清單
+  const planTasks = tasks.filter((t) => !t.deferred);
+  const deferred = carryTasks.filter((t) => t.carry === false);
+  const draftStories = usePlanningStore((s) => s.draft?.stories);
+  const deferredStoryIds = new Set(draftStories?.filter((x) => x.deferred).map((x) => x.id));
+  // 延後的 Story 算一項（含其 Task），個別延後的 Task 各算一項
+  const deferredTotal =
+    deferred.length +
+    deferredStoryIds.size +
+    tasks.filter((x) => x.deferred && !deferredStoryIds.has(x.storyId)).length;
+  const [deferredOpen, setDeferredOpen] = useState(false);
   const carryTotal = sum(carried.map(carrySP));
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -207,13 +220,17 @@ export function TeamCapacityBar({
   const load = loadByMember(members, tasks);
   const total = Object.fromEntries(members.map((m) => [m.id, (load[m.id] ?? 0) + (carry[m.id] ?? 0)]));
   const editingTask = carried.find((t) => t.id === editing) ?? null;
-  const editingDraft = tasks.find((t) => t.id === editingTaskId) ?? null;
+  const editingDraft = planTasks.find((t) => t.id === editingTaskId) ?? null;
+  // 抽屜中的任務被延後或移除後離開 Team Capacity，同時關閉抽屜（之後取消延後也不會自動再打開）
+  useEffect(() => {
+    if (editingTaskId && !editingDraft) setEditingTaskId(null);
+  }, [editingTaskId, editingDraft]);
   const fullMembers = members.map((m) => ({ ...m, capacity: capOf(planning, m) }));
   const reassignCarry = (taskId: string, memberId: string) => {
     const t = carried.find((x) => x.id === taskId);
     if (t && carryOwner(t) !== memberId) setCarry.mutate({ id: taskId, input: { carry: true, assigneeId: memberId } });
   };
-  const unassigned = tasks.filter((t) => !t.assigneeId);
+  const unassigned = planTasks.filter((t) => !t.assigneeId);
   const unassignedSp = sum(unassigned.map((t) => t.storyPoints));
   const teamCapacity = sum(members.map((m) => m.capacity));
   const fullCapacity = sum(members.map((m) => capOf(planning, m)));
@@ -261,10 +278,10 @@ export function TeamCapacityBar({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {carryTasks.length > 0 && (
-            <Button size="xs" onClick={() => requestStage('carry')}>
+          {(deferredTotal > 0 || deferredOpen) && (
+            <Button size="xs" aria-haspopup="dialog" onClick={() => setDeferredOpen(true)}>
               <History className="h-3.5 w-3.5" strokeWidth={1.75} />
-              上輪統整{deferredCount > 0 ? ` · 已延後 ${deferredCount} 項` : ''}
+              延後清單 {deferredTotal} 項
             </Button>
           )}
           {storyPhase ? (
@@ -359,7 +376,7 @@ export function TeamCapacityBar({
                 </>
               }
               footer={list(
-                tasks.filter((t) => t.assigneeId === m.id),
+                planTasks.filter((t) => t.assigneeId === m.id),
                 true,
                 '尚無指派任務',
                 m.id,
@@ -386,6 +403,7 @@ export function TeamCapacityBar({
           onClose={() => setEditingTaskId(null)}
         />
       )}
+      <DeferredListModal open={deferredOpen} carryDeferred={deferred} members={members} onClose={() => setDeferredOpen(false)} />
       {planning && (
         <CarryTaskDrawer task={editingTask} sprint={planning} members={members} load={total} onClose={() => setEditing(null)} />
       )}

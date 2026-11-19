@@ -1,10 +1,13 @@
-import { ChevronDown, GripVertical, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, GripVertical, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { useState } from 'react';
-import { Badge, IconButton, Input, Label, SegmentedControl, Select, Tag } from '@/components/ui';
+import { Badge, Button, IconButton, Input, Label, SegmentedControl, Select, Tag } from '@/components/ui';
 import { DOMAINS, STORY_POINT_OPTIONS } from '@/lib/constants';
 import { cn } from '@/lib/cn';
 import { REVIEWER_LABELS, toSlug } from '@/lib/planning';
 import { BRANCH_PREFIXES, type BranchPrefix, type Member, type ReviewerMode, type TaskDraft } from '@/types';
+import { usePlanningStore } from '../store';
+import { DependencyChips } from './DependencyChips';
+import { DependencyEditor } from './DependencyEditor';
 import { TASK_DRAG_TYPE } from './TeamCapacityBar';
 
 interface Props {
@@ -94,11 +97,43 @@ export function TaskDraftCard({
   onRemove,
 }: Props) {
   const assigneeName = members.find((m) => m.id === task.assigneeId)?.name;
+  const requestRestore = usePlanningStore((s) => s.requestRestore);
 
   const shell = cn(
     'rounded-2xl border bg-white transition-colors duration-150',
     selected ? 'border-neutral-900' : 'border-gray-100 hover:border-gray-300',
   );
+
+  // 已延後：留在原位以虛線與灰字標註，不計負載；可直接取消延後
+  if (task.deferred) {
+    return (
+      <article
+        data-task-id={task.id}
+        onClick={onSelect}
+        className={cn(
+          'flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl border border-dashed bg-gray-50/70 px-4 py-3',
+          selected ? 'border-neutral-900' : 'border-gray-300',
+        )}
+      >
+        <span className="shrink-0 font-mono text-xs text-gray-500">{task.code}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-gray-500">{task.title}</span>
+        <span className="shrink-0 text-xs tabular-nums text-gray-400 line-through">{task.storyPoints} SP</span>
+        <Badge>已延後 · 本輪不處理</Badge>
+        <DependencyChips itemId={task.id} size="xs" className="w-full sm:w-auto" />
+        <Button
+          size="xs"
+          aria-label={`取消延後 ${task.code}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            requestRestore('task', task.id);
+          }}
+        >
+          <Undo2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+          取消延後
+        </Button>
+      </article>
+    );
+  }
 
   // 收合：單行摘要（編號、標題、點數、指派狀態），點擊整列即可展開
   if (collapsed) {
@@ -115,6 +150,7 @@ export function TaskDraftCard({
         <span className="shrink-0 font-mono text-xs text-gray-500">{task.code}</span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{task.title}</span>
         <span className="shrink-0 text-xs font-medium tabular-nums text-gray-700">{task.storyPoints} SP</span>
+        <DependencyChips itemId={task.id} size="xs" className="hidden shrink-0 sm:flex" />
         <AssigneePill name={assigneeName} />
         <ToggleButton code={task.code} collapsed onToggle={onToggle} />
       </article>
@@ -131,6 +167,7 @@ export function TaskDraftCard({
             <span className="font-mono text-xs text-gray-500">{task.code}</span>
             <Tag>{DOMAINS[task.domain].label}</Tag>
             <AssigneePill name={assigneeName} />
+            <DependencyChips itemId={task.id} />
           </div>
           <Input value={task.title} aria-label="任務標題" onChange={(e) => onChange({ title: e.target.value })} className="font-medium" />
         </div>
@@ -298,6 +335,9 @@ export function TaskDraftFields({ task, branch, members, load, onChange, onAssig
           </Select>
         )}
       </Section>
+
+      {/* 7. 相依性 */}
+      <DependencyEditor kind="task" item={task} />
     </div>
   );
 }

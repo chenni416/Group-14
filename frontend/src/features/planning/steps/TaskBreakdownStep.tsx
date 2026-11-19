@@ -1,4 +1,4 @@
-import { ArrowRight, ClipboardCheck, Plus } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, Clock, Plus, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { Button, Card, EmptyState } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -6,6 +6,7 @@ import { sum } from '@/lib/format';
 import { branchName, loadByMember } from '@/lib/planning';
 import type { Member } from '@/types';
 import { StickyWorkspace } from '../components/StickyWorkspace';
+import { DependencyChips } from '../components/DependencyChips';
 import { TaskDraftCard } from '../components/TaskDraftCard';
 import { TaskInsightPanel, type NextStoryHint } from '../components/TaskInsightPanel';
 import { TeamCapacityBar } from '../components/TeamCapacityBar';
@@ -33,6 +34,8 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
     toggleTaskCollapsed,
     jumpToNextUnassigned,
     clearScrollTarget,
+    requestDefer,
+    requestRestore,
   } = usePlanningStore();
   const memberMap = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const assign = useAssignDraftTask(members);
@@ -64,9 +67,11 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
   const storyTasks = tasks.filter((t) => t.storyId === story?.id);
   const selected = tasks.find((t) => t.id === selectedTaskId && t.storyId === story?.id) ?? storyTasks[0];
   const load = loadByMember(members, tasks);
-  const assigned = tasks.filter((t) => t.assigneeId).length;
-  const allAssigned = tasks.length > 0 && assigned === tasks.length;
-  const remainingInStory = storyTasks.filter((t) => !t.assigneeId && t.id !== selected?.id).length;
+  // 延後的任務留在清單中標註，但不算在指派進度
+  const active = tasks.filter((t) => !t.deferred);
+  const assigned = active.filter((t) => t.assigneeId).length;
+  const allAssigned = active.length > 0 && assigned === active.length;
+  const remainingInStory = storyTasks.filter((t) => !t.deferred && !t.assigneeId && t.id !== selected?.id).length;
 
   // 目前 Story 完成後建議前往的下一個 Story：依序往後找第一個還有未指派 Task 的 Story
   const storyIdx = stories.findIndex((s) => s.id === story?.id);
@@ -74,7 +79,7 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
     stories
       .slice(storyIdx + 1)
       .concat(stories.slice(0, storyIdx))
-      .map((s) => ({ story: s, unassigned: tasks.filter((t) => t.storyId === s.id && !t.assigneeId).length }))
+      .map((s) => ({ story: s, unassigned: active.filter((t) => t.storyId === s.id && !t.assigneeId).length }))
       .find((h) => h.unassigned > 0) ?? null;
 
   return (
@@ -94,19 +99,20 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
         {/* 單一 Story 聚焦切換器 */}
         <div className="flex shrink-0 gap-2 overflow-x-auto pb-1" role="tablist" aria-label="切換 Story">
           {stories.map((s) => {
-            const list = tasks.filter((t) => t.storyId === s.id);
+            const list = active.filter((t) => t.storyId === s.id);
             const done = list.filter((t) => t.assigneeId).length;
-            const active = s.id === story?.id;
+            const current = s.id === story?.id;
             return (
               <button
                 key={s.id}
                 type="button"
                 role="tab"
-                aria-selected={active}
+                aria-selected={current}
                 onClick={() => setActiveStory(s.id)}
                 className={cn(
                   'flex shrink-0 items-center gap-2 rounded-full border py-2 pl-3 pr-2 text-sm transition-colors duration-150',
-                  active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                  current ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                  s.deferred && !current && 'border-dashed text-gray-400',
                 )}
               >
                 <span className={cn('font-mono text-xs', active ? 'text-gray-300' : 'text-gray-500')}>{s.code}</span>
@@ -114,10 +120,14 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 text-xs tabular-nums',
-                    active ? 'bg-white/15 text-white' : done === list.length && list.length ? 'bg-gray-100 text-gray-700' : 'bg-orange-50 text-orange-700',
+                    current
+                      ? 'bg-white/15 text-white'
+                      : s.deferred || (done === list.length && list.length)
+                        ? 'bg-gray-100 text-gray-700'
+                        : 'bg-orange-50 text-orange-700',
                   )}
                 >
-                  {done}/{list.length}
+                  {s.deferred ? '已延後' : `${done}/${list.length}`}
                 </span>
               </button>
             );
@@ -125,9 +135,23 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
         </div>
 
         {story && (
-          <p className="shrink-0 truncate text-sm text-gray-500" title={story.userStory}>
-            <span className="font-medium text-gray-900">{story.title}</span> · {story.userStory}
-          </p>
+          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+            <p className="min-w-0 flex-1 truncate text-sm text-gray-500" title={story.userStory}>
+              <span className="font-medium text-gray-900">{story.title}</span> · {story.userStory}
+            </p>
+            <DependencyChips itemId={story.id} />
+            {story.deferred ? (
+              <Button size="xs" onClick={() => requestRestore('story', story.id)}>
+                <Undo2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                取消延後此 Story
+              </Button>
+            ) : (
+              <Button size="xs" variant="ghost" title="Story 與底下所有 Task 延後到之後的 Sprint" onClick={() => requestDefer('story', story.id)}>
+                <Clock className="h-3.5 w-3.5" strokeWidth={1.75} />
+                延後此 Story
+              </Button>
+            )}
+          </div>
         )}
 
         <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
@@ -137,7 +161,7 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
                 <TaskDraftCard
                   key={t.id}
                   task={t}
-                  branch={branchName(draft, t)}
+                  branch={branchName(t)}
                   members={members}
                   load={load}
                   selected={t.id === selected?.id}
@@ -154,7 +178,7 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
                 <EmptyState icon={ClipboardCheck} title="這個 Story 還沒有 Task" description="新增 Task 後再進行指派" />
               </Card>
             )}
-            {story && (
+            {story && !story.deferred && (
               <Button className="w-full border-dashed" onClick={() => addTask(story.id)}>
                 <Plus className="h-4 w-4" strokeWidth={1.75} />
                 新增 Task
@@ -177,8 +201,8 @@ export function TaskBreakdownStep({ members }: { members: Member[] }) {
 
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-3xl border border-gray-100 bg-white p-4 shadow-card">
           <p className="text-sm tabular-nums text-gray-500">
-            已指派 <span className="font-semibold text-gray-900">{assigned}</span> / {tasks.length} 張 Task · 共{' '}
-            {sum(tasks.map((t) => t.storyPoints))} SP
+            已指派 <span className="font-semibold text-gray-900">{assigned}</span> / {active.length} 張 Task · 共{' '}
+            {sum(active.map((t) => t.storyPoints))} SP
             {!allAssigned && <span className="text-orange-700">，全部指派後即可檢視最終派工總覽</span>}
           </p>
           <Button variant="primary" disabled={!allAssigned} onClick={() => setStage('review')}>
