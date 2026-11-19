@@ -2,6 +2,7 @@ import { ArrowRight, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { Button, Card, CardHeader } from '@/components/ui';
 import { sum } from '@/lib/format';
+import { pendingClarify } from '@/lib/planning';
 import type { Member } from '@/types';
 import { StickyWorkspace } from '../components/StickyWorkspace';
 import { StoryCard } from '../components/StoryCard';
@@ -25,6 +26,7 @@ export function StoryReviewStep({ members }: { members: Member[] }) {
   const selected = stories.find((s) => s.id === selectedStoryId);
   const totalSp = sum(stories.filter((s) => !s.deferred).map((s) => s.storyPoints));
   const deferredCount = stories.filter((s) => s.deferred).length;
+  const unresolved = sum(stories.filter((s) => !s.deferred).map(pendingClarify));
 
   // 只替尚未拆解的 Story 產生 Task；全部都已拆解時直接進入階段 B
   const confirmStories = () => {
@@ -69,7 +71,10 @@ export function StoryReviewStep({ members }: { members: Member[] }) {
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-3xl border border-gray-100 bg-white p-4 shadow-card">
-          <p className="text-sm text-gray-500">確認 Story 切分後，AI 會依每個 Story 拆解出可派工的 Task，全部先放入未指派。</p>
+          <p className="text-sm text-gray-500">
+            {unresolved > 0 && <span className="font-medium text-orange-700">還有 {unresolved} 項待釐清（不影響進入 Task 拆解）。</span>}
+            確認 Story 切分後，AI 會依每個 Story 拆解出可派工的 Task，全部先放入未指派。
+          </p>
           <Button variant="primary" loading={generateTasks.isPending} onClick={confirmStories}>
             {generateTasks.isPending ? 'AI 拆解 Task 中' : '確認 Story 並進入 Task 拆解'}
             <ArrowRight className="h-4 w-4" strokeWidth={1.75} />

@@ -10,6 +10,7 @@ import {
   type ReviewPolicy,
   type ReviewerAssignment,
   type Sprint,
+  type StoryDraft,
   type Task,
   type TaskDraft,
 } from '@/types';
@@ -43,6 +44,10 @@ export function normalizeDraft(draft: PlanningDraft): PlanningDraft {
   const tasks = draft.tasks.map((t) => ({ ...t, no: t.no ?? 0, dependsOn: t.dependsOn ?? [] }));
   return { sprintId: draft.sprintId, stories, tasks };
 }
+
+/** Story 尚未處理的待釐清項目（提問未回答、建議未決定） */
+export const pendingClarify = (story: Pick<StoryDraft, 'clarify'>) =>
+  (story.clarify ?? []).filter((i) => (i.kind === 'question' ? !i.answer : !i.decision)).length;
 
 /** 本輪要處理的項目（排除延後） */
 export const isActive = (x: { deferred?: boolean }) => !x.deferred;

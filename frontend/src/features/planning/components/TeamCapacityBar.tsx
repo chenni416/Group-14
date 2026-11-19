@@ -263,8 +263,9 @@ export function TeamCapacityBar({
 
   return (
     <Card className={cn('p-5', className)}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
+      {/* 標題與說明在左、按鈕與標籤固定在右上角；說明文字變長時只在左欄換行 */}
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold tracking-tight">Team Capacity</h2>
           <p className="text-xs text-gray-500">
             {storyPhase
@@ -274,10 +275,14 @@ export function TeamCapacityBar({
                   ? '拖曳任務卡到其他成員直欄即可重新指派'
                   : '拖曳任務卡到成員直欄即可指派；拖回「未指派」或按小卡上的移除按鈕可取消指派'
                 : '各成員目前分配到的任務與點數負載'}
-            {carried.length > 0 && `。虛線卡為上輪帶入的任務（${carried.length} 項 · ${carryTotal} SP），可拖曳改派或點擊調整點數、改為延後`}
           </p>
+          {carried.length > 0 && (
+            <p className="text-xs text-gray-500">
+              虛線卡為上輪帶入的任務（{carried.length} 項 · {carryTotal} SP），可拖曳改派或點擊調整點數、改為延後
+            </p>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:max-w-[55%] sm:justify-end">
           {(deferredTotal > 0 || deferredOpen) && (
             <Button size="xs" aria-haspopup="dialog" onClick={() => setDeferredOpen(true)}>
               <History className="h-3.5 w-3.5" strokeWidth={1.75} />

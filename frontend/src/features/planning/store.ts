@@ -197,13 +197,7 @@ export const usePlanningStore = create<PlanningState>()((set, get) => ({
       selectedStoryId: draft.stories[0]?.id ?? null,
       activeStoryId: draft.stories[0]?.id ?? null,
       selectedTaskId: draft.tasks[0]?.id ?? null,
-      storyChat: [
-        {
-          id: nextId('msg'),
-          role: 'assistant',
-          text: `我依據會議紀錄切分出 ${draft.stories.length} 個 Story。點選左側 Story 可以查看切分依據與原文溯源；如果想調整範疇或點數，直接在下方告訴我。確認後再逐一拆解成 Task。`,
-        },
-      ],
+      storyChat: [],
     });
   },
 

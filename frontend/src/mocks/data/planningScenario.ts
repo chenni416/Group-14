@@ -8,6 +8,28 @@ import type { StoryDraft, TaskDraft } from '@/types';
 export const SCENARIO_STORIES: Omit<StoryDraft, 'code' | 'no'>[] = [
   {
     id: 'st-1',
+    clarify: [
+      {
+        id: 'cq-1-1',
+        kind: 'question',
+        text: '會議只提到「對話可以問專案問題」，對話紀錄要保留多久？成員離開專案後是否還能查看？',
+        options: ['整個 Sprint 期間保留', '永久保留', 'Sprint 結束後封存'],
+        effect: '對話紀錄保存規則：{answer}',
+      },
+      {
+        id: 'cq-1-2',
+        kind: 'question',
+        text: '手機寬度下 Split View 要怎麼呈現？',
+        options: ['改為上下排列', '只保留對話區', '以分頁切換規格與對話'],
+        effect: '手機版版面：{answer}',
+      },
+      {
+        id: 'cq-1-3',
+        kind: 'suggestion',
+        text: 'Prompt 版本紀錄與對話 API 共用資料模型，建議先完成資料表與 API，再開始前端畫面。',
+        effect: 'Task 拆解時，將版本紀錄 API 標為前端畫面的前置任務',
+      },
+    ],
     dependsOn: [],
     title: '任務內 AI 對話釐清規格',
     userStory: '身為開發成員，我想要在任務詳情中直接詢問專案脈絡，以便不用重打背景就能釐清規格並取得可用的 Prompt。',
@@ -22,6 +44,28 @@ export const SCENARIO_STORIES: Omit<StoryDraft, 'code' | 'no'>[] = [
   },
   {
     id: 'st-2',
+    clarify: [
+      {
+        id: 'cq-2-1',
+        kind: 'question',
+        text: '「指定成員、全員同意」模式中有人退回時，是否需要所有人重新審查？',
+        options: ['全部重新審查', '只需退回者重新審查'],
+        effect: '全員同意模式退回後：{answer}',
+      },
+      {
+        id: 'cq-2-2',
+        kind: 'suggestion',
+        text: 'Webhook 簽章驗證涉及部署環境的 secret，建議拆成獨立 Task，並指定熟悉部署的成員審查。',
+        effect: 'Task 拆解時，將「GitHub PR Webhook 自動送審」拆成獨立 Task，審查人建議熟悉 CI 的成員',
+      },
+      {
+        id: 'cq-2-3',
+        kind: 'question',
+        text: 'In Review 卡片要顯示審查等待時間嗎？',
+        options: ['要，超過 24 小時標示提醒', '要，只顯示時間', '不需要'],
+        effect: '審查等待時間：{answer}',
+      },
+    ],
     dependsOn: [],
     title: '彈性 PR Review 路由',
     userStory: '身為 Leader，我想要依任務的關鍵程度設定審核方式，以便重要變更由合適的人把關、一般任務能快速被認領審查。',
@@ -37,6 +81,21 @@ export const SCENARIO_STORIES: Omit<StoryDraft, 'code' | 'no'>[] = [
   },
   {
     id: 'st-3',
+    clarify: [
+      {
+        id: 'cq-3-1',
+        kind: 'question',
+        text: '成員協商退回任務時，是否必須建議替代人選？',
+        options: ['必填', '選填', '不提供此欄位'],
+        effect: '協商退回的替代人選：{answer}',
+      },
+      {
+        id: 'cq-3-2',
+        kind: 'suggestion',
+        text: 'E2E 測試同時涵蓋認領與 Review 流程，建議排在 S3-2 的 Review 路由完成之後；若要提早開始，可先以模擬事件撰寫。',
+        effect: 'Task 拆解時，將 E2E 測試標為依賴 Review 路由服務',
+      },
+    ],
     dependsOn: [{ id: 'st-2', reason: '收件匣的 Review 通知與 E2E 測試需要 Review 路由與通知服務先完成' }],
     title: '任務認領收件匣與流程測試',
     userStory: '身為開發成員，我想要在開工前接受或協商被指派的任務，以便工作量在 Sprint 啟動前取得共識。',

@@ -27,6 +27,23 @@ export interface DraftDependency {
   reason: string;
 }
 
+/**
+ * AI 對 Story 的待釐清項目：
+ * question 提問（會議紀錄不夠明確，Leader 選擇或輸入回答）；suggestion 建議（Leader 採用或不採用）。
+ * 目前只在前端展示，回答與決定存在規劃草稿，尚未實際改動 Story 或驗收條件。
+ */
+export interface StoryClarifyItem {
+  id: string;
+  kind: 'question' | 'suggestion';
+  text: string;
+  /** 提問的建議選項 */
+  options?: string[];
+  /** 預計的改動：提問為驗收條件範本（{answer} 代入回答），建議為採用後的改動說明 */
+  effect: string;
+  answer?: string | null;
+  decision?: 'accept' | 'reject' | null;
+}
+
 export interface StoryDraft {
   id: string;
   /** Story 序號（建立時決定，之後不重排），對應編號 S3-1 的 1 */
@@ -47,6 +64,8 @@ export interface StoryDraft {
   dependsOn: DraftDependency[];
   /** 延後到之後的 Sprint：留在原位並標註，不計容量、不派工，送出前可以取消延後 */
   deferred?: boolean;
+  /** AI 待釐清的提問與建議 */
+  clarify?: StoryClarifyItem[];
 }
 
 export interface TaskDraft {

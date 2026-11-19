@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Badge, Button, IconButton, Input, Label, Select, Tag, Textarea } from '@/components/ui';
 import { STORY_POINT_OPTIONS } from '@/lib/constants';
 import { cn } from '@/lib/cn';
+import { pendingClarify } from '@/lib/planning';
 import type { StoryDraft } from '@/types';
 import { usePlanningStore } from '../store';
 import { DependencyChips } from './DependencyChips';
@@ -22,6 +23,7 @@ export function StoryCard({ story, selected, defaultEditing = false, onSelect, o
   const [editing, setEditing] = useState(defaultEditing);
   const [scopeText, setScopeText] = useState(story.scope.join('\n'));
   const { requestDefer, requestRestore } = usePlanningStore();
+  const unresolved = pendingClarify(story);
 
   return (
     <article
@@ -40,7 +42,16 @@ export function StoryCard({ story, selected, defaultEditing = false, onSelect, o
         {story.deferred ? (
           <Badge>已延後 · 本輪不處理</Badge>
         ) : (
-          <span className="text-xs text-gray-500">預估範疇 {story.scope.length} 項</span>
+          <>
+            <span className="text-xs text-gray-500">預估範疇 {story.scope.length} 項</span>
+            {unresolved > 0 ? (
+              <Badge tone="orange" dot>
+                待釐清 {unresolved}
+              </Badge>
+            ) : (
+              (story.clarify?.length ?? 0) > 0 && <Badge>已釐清</Badge>
+            )}
+          </>
         )}
         {!editing && story.deferred && (
           <Button
