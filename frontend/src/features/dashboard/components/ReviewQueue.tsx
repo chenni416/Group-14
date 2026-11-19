@@ -4,10 +4,12 @@ import { Card, CardHeader, IconButton, ProgressBar, type BarTone } from '@/compo
 import { sum } from '@/lib/format';
 import type { Task } from '@/types';
 
-export function ReviewQueue({ tasks }: { tasks: Task[] }) {
+type ReviewTask = Pick<Task, 'state' | 'policy' | 'reviewerId' | 'storyPoints'>;
+
+export function ReviewQueue({ tasks }: { tasks: ReviewTask[] }) {
   const navigate = useNavigate();
   const inReview = tasks.filter((t) => t.state === 'IN_REVIEW');
-  const rows: Array<[string, Task[], BarTone]> = [
+  const rows: Array<[string, ReviewTask[], BarTone]> = [
     ['等待 Leader 專審', inReview.filter((t) => t.policy.mode === 'leader'), 'orange'],
     ['開放認領中', inReview.filter((t) => t.policy.mode === 'pool' && !t.reviewerId), 'sky'],
     ['審查進行中', inReview.filter((t) => (t.policy.mode === 'pool' && t.reviewerId) || t.policy.mode === 'target'), 'violet'],

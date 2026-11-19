@@ -1,9 +1,8 @@
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { PageHeader, PageSkeleton, SegmentedControl } from '@/components/ui';
 import { useCurrentUser, useMembers, useSprintContext } from '@/hooks/queries';
-import { CHART_COLORS } from '@/lib/constants';
-import { sum } from '@/lib/format';
-import { isLead, needsMyReview } from '@/lib/permissions';
+import { isLead } from '@/lib/permissions';
+import { BOARD_STATES, type ReviewPolicy } from '@/types';
 import { DEMO_PROJECTS, useProjectStore } from '@/stores/project.store';
 import { ActivityFeed } from './components/ActivityFeed';
 import { BurndownChart } from './components/BurndownChart';
@@ -12,38 +11,40 @@ import { MyTasksCard } from './components/MyTasksCard';
 import { PlanningProgress } from './components/PlanningProgress';
 import { ProjectOverviewCard } from './components/ProjectOverviewCard';
 import { ReviewQueue } from './components/ReviewQueue';
-import { StatTiles } from './components/StatTiles';
 import { StatusDonut } from './components/StatusDonut';
 import { TeamLoad } from './components/TeamLoad';
 
+const DEFAULT_POLICY: ReviewPolicy = { mode: 'pool', targets: [], rule: 'any' };
+
+type Tab = 'overview' | 'team' | 'charts';
+
+/**
+ * Project Dashboard，分三個分頁切換，不需往下捲動：
+ * Sprint 概況（專案資訊、最新動態、我的任務）、團隊規劃（下個 Sprint 規劃進度、Review 佇列、團隊負載）、進度圖表（任務狀態與 Burndown）。
+ * Taskline 使用真實資料，其他示意專案使用 project.store 的假資料，呈現相同的內容。
+ */
 export function DashboardPage() {
-  const navigate = useNavigate();
   const ctx = useSprintContext();
   const { data: me } = useCurrentUser();
-  const { data: members } = useMembers();
+  const { data: members = [] } = useMembers();
   const currentId = useProjectStore((s) => s.currentId);
+  const [tab, setTab] = useState<Tab>('overview');
 
   if (ctx.isLoading || !me) return <PageSkeleton />;
 
   const { project, boardTasks, active, planning, planningTasks, allTasks } = ctx;
-  const total = sum(boardTasks.map((t) => t.storyPoints));
-  const done = sum(boardTasks.filter((t) => t.state === 'DONE').map((t) => t.storyPoints));
-  const actionCount = allTasks.filter(
-    (t) => (t.assigneeId === me.id && t.state === 'PENDING_MEMBER') || needsMyReview(t, me.id),
-  ).length;
-
-  // 切換到其他 demo 專案時，統計卡改用寫死的數字
+  // 切換到其他 demo 專案時，改用寫死的示意資料
   const demo = DEMO_PROJECTS.find((p) => p.id === currentId);
   const isMain = !demo || demo.id === 'taskline';
-  const stat = isMain
-    ? {
-        done,
-        total,
-        inProgress: boardTasks.filter((t) => t.state === 'IN_PROGRESS').length,
-        inReview: boardTasks.filter((t) => t.state === 'IN_REVIEW').length,
-        action: actionCount,
-      }
-    : { done: demo.done, total: demo.total, inProgress: demo.inProgress, inReview: demo.inReview, action: demo.action };
+  const lead = isLead(me);
+
+  // 各卡片使用的資料：Taskline 用真實資料，示意專案用假資料
+  const demoBoard = demo ? demo.tasks.filter((t) => (BOARD_STATES as readonly string[]).includes(t.state)) : [];
+  const board = isMain ? boardTasks : demoBoard.map((t) => ({ ...t, policy: t.policy ?? DEFAULT_POLICY, reviewerId: t.reviewerId ?? null }));
+  const shownMembers = isMain ? members : members.slice(0, demo.memberCount);
+  const nextSprint = isMain
+    ? { sprint: planning?.status === 'planning' ? planning : undefined, tasks: planning?.status === 'planning' ? planningTasks : [] }
+    : { sprint: demo.planning ? { name: demo.planning.name } : undefined, tasks: (demo.planning?.states ?? []).map((state) => ({ state })) };
 
   return (
     <>
@@ -51,64 +52,48 @@ export function DashboardPage() {
         eyebrow="管理並追蹤你的專案"
         title="Project Dashboard"
         actions={
-          <SegmentedControl
+          <SegmentedControl<Tab>
             aria-label="檢視"
-            value="overview"
-            onChange={(v) => v === 'board' && navigate('/board')}
+            value={tab}
+            onChange={setTab}
             options={[
-              { value: 'overview', label: active?.name ?? 'Sprint' },
-              { value: 'board', label: '看板' },
+              { value: 'overview', label: 'Sprint 概況' },
+              { value: 'team', label: '團隊規劃' },
+              { value: 'charts', label: '進度圖表' },
             ]}
           />
         }
       />
-      <div className="space-y-6">
-        <StatTiles
-          stats={[
-            { label: 'Sprint 完成度', value: `${stat.total ? Math.round((stat.done / stat.total) * 100) : 0}%`, hint: `${stat.done} / ${stat.total} SP`, accent: CHART_COLORS.sky },
-            { label: '進行中', value: stat.inProgress, hint: '項任務', accent: CHART_COLORS.orange },
-            { label: '審查中', value: stat.inReview, hint: '項任務', accent: CHART_COLORS.violet },
-            { label: '待我處理', value: stat.action, hint: '指派確認與審查' },
-          ]}
-        />
-        {/* 上半部：左 2/3 專案資訊、右 1/3 我的任務 */}
+
+      {tab === 'overview' && (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            {project && (
-              <ProjectOverviewCard project={project} sprint={active} tasks={boardTasks} members={members ?? []} />
-            )}
-            {isMain && <ActivityFeed />}
+            {project && <ProjectOverviewCard project={project} sprint={active} tasks={boardTasks} members={members} />}
+            {isMain ? <ActivityFeed /> : <ActivityFeed items={demo.activity} />}
           </div>
           <div className="[&>*]:h-full">
-            {isMain ? (
-              <MyTasksCard tasks={allTasks} userId={me.id} canPlan={isLead(me)} />
-            ) : (
-              <DemoMyTasksCard tasks={demo.tasks} userId={me.id} />
-            )}
+            {isMain ? <MyTasksCard tasks={allTasks} userId={me.id} canPlan={lead} /> : <DemoMyTasksCard tasks={demo.tasks} userId={me.id} />}
           </div>
         </div>
+      )}
 
-        {/* 下半部：Sprint 統計圖表（只有 Taskline 有真實資料） */}
-        {isMain && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <StatusDonut tasks={boardTasks} />
-            <BurndownChart sprintId={active?.id} />
-            <div className="lg:col-span-2">
-              <ReviewQueue tasks={boardTasks} />
-            </div>
-            <div className="lg:col-span-2">
-              <PlanningProgress
-                sprint={planning?.status === 'planning' ? planning : undefined}
-                tasks={planning?.status === 'planning' ? planningTasks : []}
-                canPlan={isLead(me)}
-              />
-            </div>
-            <div className="lg:col-span-2">
-              <TeamLoad members={members ?? []} tasks={boardTasks} sprint={active} />
-            </div>
+      {tab === 'charts' && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <StatusDonut tasks={board} />
+          {isMain ? <BurndownChart sprintId={active?.id} /> : <BurndownChart sprintId={undefined} points={demo.burndown} />}
+        </div>
+      )}
+
+      {tab === 'team' && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="lg:col-span-2">
+            {/* 示意專案沒有實際的規劃流程，不提供前往 Planning Studio 的按鈕 */}
+            <PlanningProgress sprint={nextSprint.sprint} tasks={nextSprint.tasks} canPlan={isMain && lead} />
           </div>
-        )}
-      </div>
+          <ReviewQueue tasks={board} />
+          <TeamLoad members={shownMembers} tasks={board} sprint={isMain ? active : { name: demo.sprintName }} />
+        </div>
+      )}
     </>
   );
 }

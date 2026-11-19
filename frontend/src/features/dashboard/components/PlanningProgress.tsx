@@ -11,7 +11,13 @@ const STAGES: Array<{ label: string; tone: Tone; states: TaskState[] }> = [
   { label: 'Member Accepted', tone: 'sky', states: ['ASSIGNED', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'] },
 ];
 
-export function PlanningProgress({ sprint, tasks, canPlan }: { sprint: Sprint | undefined; tasks: Task[]; canPlan: boolean }) {
+interface Props {
+  sprint: Pick<Sprint, 'name'> | undefined;
+  tasks: Pick<Task, 'state'>[];
+  canPlan: boolean;
+}
+
+export function PlanningProgress({ sprint, tasks, canPlan }: Props) {
   const navigate = useNavigate();
   const name = sprint?.name ?? '下個 Sprint';
   return (

@@ -2,7 +2,13 @@ import { Avatar, Card, CardHeader, ProgressBar } from '@/components/ui';
 import { sum } from '@/lib/format';
 import type { Member, Sprint, Task } from '@/types';
 
-export function TeamLoad({ members, tasks, sprint }: { members: Member[]; tasks: Task[]; sprint: Sprint | undefined }) {
+interface Props {
+  members: Member[];
+  tasks: Pick<Task, 'assigneeId' | 'state' | 'storyPoints'>[];
+  sprint: Pick<Sprint, 'name'> | undefined;
+}
+
+export function TeamLoad({ members, tasks, sprint }: Props) {
   return (
     <Card>
       <CardHeader title="團隊負載" description={`${sprint?.name ?? ''} 剩餘 SP / Capacity`} />

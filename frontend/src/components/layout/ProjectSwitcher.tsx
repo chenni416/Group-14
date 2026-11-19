@@ -1,5 +1,6 @@
 import { ChevronsUpDown, Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { DEMO_PROJECTS, useProjectStore } from '@/stores/project.store';
 import { toast } from '@/stores/toast.store';
@@ -22,7 +23,7 @@ const projectButton = (active: boolean) =>
 const addProject = () => toast('新增專案功能開發中');
 
 /**
- * 側邊欄的專案切換（像 Discord 切換伺服器）。
+ * 側邊欄的專案切換（像 Discord 切換伺服器），點選後回到該專案的 Project Dashboard。
  * 桌機：垂直列出所有專案與「新增專案」；手機（側邊欄變成畫面底部的一排）：只顯示目前專案，點開選單切換。
  */
 export function ProjectSwitcher() {
@@ -30,11 +31,15 @@ export function ProjectSwitcher() {
   const current = DEMO_PROJECTS.find((p) => p.id === currentId) ?? DEMO_PROJECTS[0]!;
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
+  // 點任何專案（包含目前的專案）都回到該專案的 Project Dashboard
   const select = (id: string) => {
     const p = DEMO_PROJECTS.find((x) => x.id === id);
     setOpen(false);
-    if (!p || id === currentId) return;
+    if (!p) return;
+    navigate('/');
+    if (id === currentId) return;
     setCurrentId(id);
     toast(`已切換到「${p.name}」`);
   };

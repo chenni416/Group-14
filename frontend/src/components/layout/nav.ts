@@ -6,6 +6,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** 僅 Leader 可見（Member 端完全隱藏） */
   leaderOnly?: boolean;
+  /** Leader 看到的名稱（與成員不同時才設定） */
+  leaderLabel?: string;
 }
 
 export const SIDE_NAV: NavItem[][] = [
@@ -24,11 +26,11 @@ export const SIDE_NAV: NavItem[][] = [
 export const HELP_ICON = CircleHelp;
 
 /**
- * 頂部流程切換器：Sprint 規劃 → 確認與認領 → Active Board，圖示與側邊欄相同。
+ * 頂部流程切換器：Sprint 規劃（成員顯示為 Sprint 列表）→ 確認與認領 → Active Board，圖示與側邊欄相同。
  * 團隊設定與專案初始化屬於一次性的設定，只放在側邊欄。
  */
 export const FLOW_NAV: NavItem[] = [
-  { to: '/sprints', label: 'Sprint 規劃', icon: Sparkles, leaderOnly: true },
+  { to: '/sprints', label: 'Sprint 列表', leaderLabel: 'Sprint 規劃', icon: Sparkles },
   { to: '/inbox', label: '確認與認領', icon: Inbox },
   { to: '/board', label: 'Active Board', icon: Kanban },
 ];

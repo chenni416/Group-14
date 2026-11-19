@@ -1,5 +1,5 @@
-import { LogOut, Settings } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Settings } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { useCurrentUser } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
 import { isLead } from '@/lib/permissions';
@@ -24,13 +24,12 @@ function Logo() {
 
 export function TopBar() {
   const { data: me } = useCurrentUser();
-  const navigate = useNavigate();
-
+  const lead = isLead(me);
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-3 lg:flex-nowrap">
       <Logo />
       <nav aria-label="流程" className="order-3 hidden w-full gap-2 overflow-x-auto lg:order-none lg:ml-4 lg:flex lg:w-auto">
-        {visibleFor(FLOW_NAV, isLead(me)).map(({ to, label, icon: Icon }) => (
+        {visibleFor(FLOW_NAV, lead).map(({ to, label, leaderLabel, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -53,7 +52,7 @@ export function TopBar() {
                 >
                   <Icon className="h-4 w-4" strokeWidth={1.75} />
                 </span>
-                {label}
+                {(lead && leaderLabel) || label}
               </>
             )}
           </NavLink>
@@ -78,14 +77,6 @@ export function TopBar() {
         </NavLink>
 
         <UserSwitcher />
-        <button
-          type="button"
-          aria-label="登出"
-          onClick={() => navigate('/login')}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors duration-150 hover:bg-gray-50"
-        >
-          <LogOut className="h-4 w-4" strokeWidth={1.75} />
-        </button>
       </div>
       <div className="order-4 w-full sm:hidden">
         <TaskSearch />

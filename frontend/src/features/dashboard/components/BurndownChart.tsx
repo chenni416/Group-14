@@ -5,8 +5,11 @@ import type { BurndownPoint } from '@/types';
 import { useBurndown } from '../hooks/useBurndown';
 import { ChartTooltipCard, LegendItem } from './ChartTooltip';
 
-export function BurndownChart({ sprintId }: { sprintId: number | undefined }) {
-  const { data, isLoading } = useBurndown(sprintId);
+/** points 提供時直接使用（示意專案的假資料），否則依 sprintId 取得 */
+export function BurndownChart({ sprintId, points }: { sprintId: number | undefined; points?: BurndownPoint[] }) {
+  const query = useBurndown(points ? undefined : sprintId);
+  const data = points ?? query.data;
+  const isLoading = !points && query.isLoading;
 
   return (
     <Card>

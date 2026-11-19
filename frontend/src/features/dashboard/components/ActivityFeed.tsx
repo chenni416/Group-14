@@ -2,6 +2,8 @@ import { CircleCheck, Eye, GitPullRequest, Hand, type LucideIcon } from 'lucide-
 import { Avatar, Card, CardHeader } from '@/components/ui';
 import { useMemberMap } from '@/hooks/queries';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
+import type { DemoActivity } from '@/stores/project.store';
+import { toast } from '@/stores/toast.store';
 
 /** 動態的種類：完成任務、發 PR、完成 Review、認領任務 */
 type ActivityType = 'done' | 'pr' | 'review' | 'claim';
@@ -34,22 +36,26 @@ const TYPE_STYLE: Record<ActivityType, { icon: LucideIcon; className: string }> 
   claim: { icon: Hand, className: 'bg-gray-100 text-gray-600' },
 };
 
-export function ActivityFeed() {
+/** items 提供時為示意專案的假資料：任務不存在於 Taskline，點擊只提示不開啟 */
+export function ActivityFeed({ items }: { items?: DemoActivity[] }) {
   const memberMap = useMemberMap();
   const drawer = useTaskDrawer();
+  // 只顯示最新 5 則，讓概況分頁不需往下捲動
+  const list = (items ?? ACTIVITIES).slice(0, 5);
+  const open = (taskId: string) => (items ? toast('示意專案的任務僅供展示') : drawer.open(taskId));
 
   return (
     <Card>
       <CardHeader title="最新動態" description="團隊成員最近的進度" />
       <ul className="divide-y divide-gray-100">
-        {ACTIVITIES.map((a) => {
+        {list.map((a) => {
           const member = memberMap.get(a.memberId);
           const { icon: Icon, className } = TYPE_STYLE[a.type];
           return (
             <li key={a.id}>
               <button
                 type="button"
-                onClick={() => drawer.open(a.taskId)}
+                onClick={() => open(a.taskId)}
                 className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition-colors duration-150 hover:bg-gray-50"
               >
                 <Avatar member={member} size="sm" />

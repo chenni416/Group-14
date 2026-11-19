@@ -13,7 +13,7 @@ const SEGMENTS: Array<{ state: BoardState; label: string; color: string }> = [
   { state: 'TODO', label: 'To Do', color: CHART_COLORS.track },
 ];
 
-export function StatusDonut({ tasks }: { tasks: Task[] }) {
+export function StatusDonut({ tasks }: { tasks: Pick<Task, 'state'>[] }) {
   const navigate = useNavigate();
   const data = SEGMENTS.map((s) => ({ ...s, value: tasks.filter((t) => t.state === s.state).length }));
   const total = tasks.length;
@@ -21,8 +21,8 @@ export function StatusDonut({ tasks }: { tasks: Task[] }) {
   return (
     <Card>
       <CardHeader
-        title="Sprint 概況"
-        description="依任務狀態"
+        title="任務狀態"
+        description="本 Sprint 各狀態的任務數"
         action={
           <IconButton aria-label="開啟看板" onClick={() => navigate('/board')}>
             <ArrowUpRight className="h-4 w-4" strokeWidth={1.75} />
