@@ -4,6 +4,7 @@ import { useCurrentUser, useNotifications } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
 import { isLead } from '@/lib/permissions';
 import { HELP_ICON, SIDE_NAV, visibleFor, type NavItem } from './nav';
+import { ProjectSwitcher } from './ProjectSwitcher';
 
 const itemClass = (active: boolean) =>
   cn(
@@ -47,6 +48,8 @@ export function SideNav({ onHelp }: { onHelp: () => void }) {
         'md:flex-col md:justify-start md:self-start',
       )}
     >
+      <ProjectSwitcher />
+      <span className="hidden h-px w-6 bg-gray-200 md:my-1 md:block" aria-hidden />
       {SIDE_NAV.map((group, gi) => (
         <Fragment key={gi}>
           {gi > 0 && <span className="hidden h-px w-6 bg-gray-200 md:my-1 md:block" aria-hidden />}

@@ -1,8 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { LogOut, Settings } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useCurrentUser } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
 import { isLead } from '@/lib/permissions';
 import { FLOW_NAV, visibleFor } from './nav';
+import { NotificationBell } from './NotificationBell';
 import { TaskSearch } from './TaskSearch';
 import { UserSwitcher } from './UserSwitcher';
 
@@ -22,14 +24,16 @@ function Logo() {
 
 export function TopBar() {
   const { data: me } = useCurrentUser();
+  const navigate = useNavigate();
+
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-3 lg:flex-nowrap">
       <Logo />
       <nav aria-label="流程" className="order-3 hidden w-full gap-2 overflow-x-auto lg:order-none lg:ml-4 lg:flex lg:w-auto">
-        {visibleFor(FLOW_NAV, isLead(me)).map((item) => (
+        {visibleFor(FLOW_NAV, isLead(me)).map(({ to, label, icon: Icon }) => (
           <NavLink
-            key={item.to}
-            to={item.to}
+            key={to}
+            to={to}
             className={({ isActive }) =>
               cn(
                 'inline-flex h-10 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 text-sm font-medium transition-colors duration-150',
@@ -43,13 +47,13 @@ export function TopBar() {
               <>
                 <span
                   className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-full text-xs tabular-nums',
+                    'flex h-7 w-7 items-center justify-center rounded-full',
                     isActive ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-600',
                   )}
                 >
-                  {item.step}
+                  <Icon className="h-4 w-4" strokeWidth={1.75} />
                 </span>
-                {item.label}
+                {label}
               </>
             )}
           </NavLink>
@@ -59,7 +63,29 @@ export function TopBar() {
         <div className="hidden sm:block">
           <TaskSearch />
         </div>
+        <NotificationBell />
+        <NavLink
+          to="/settings"
+          aria-label="個人設定"
+          className={({ isActive }) =>
+            cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+              isActive ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
+            )
+          }
+        >
+          <Settings className="h-4 w-4" strokeWidth={1.75} />
+        </NavLink>
+
         <UserSwitcher />
+        <button
+          type="button"
+          aria-label="登出"
+          onClick={() => navigate('/login')}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors duration-150 hover:bg-gray-50"
+        >
+          <LogOut className="h-4 w-4" strokeWidth={1.75} />
+        </button>
       </div>
       <div className="order-4 w-full sm:hidden">
         <TaskSearch />
