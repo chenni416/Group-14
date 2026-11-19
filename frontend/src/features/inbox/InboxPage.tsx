@@ -35,7 +35,7 @@ export function InboxPage() {
       inboxFilter === 'all' ||
       n.type === inboxFilter ||
       (inboxFilter === 'review' && n.type === 'pool') ||
-      (inboxFilter === 'collab' && ['issue', 'proposal', 'plan'].includes(n.type)),
+      (inboxFilter === 'collab' && ['issue', 'proposal', 'plan', 'mention'].includes(n.type)),
   );
   const mine = ctx.planningTasks.filter((t) => t.assigneeId === me.id);
   // 上輪帶入給我的任務（以本輪預估點數計）：確認後算已接受，其餘算待確認

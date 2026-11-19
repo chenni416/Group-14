@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, Check, Eye, Flag, Lightbulb, Undo2, Zap, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, AtSign, CalendarClock, Check, Eye, Flag, Lightbulb, Undo2, Zap, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Input } from '@/components/ui';
@@ -19,6 +19,7 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; className: string }> =
   issue: { icon: AlertTriangle, className: 'bg-red-50 text-red-600' },
   proposal: { icon: Lightbulb, className: 'bg-violet-50 text-violet-600' },
   plan: { icon: CalendarClock, className: 'bg-orange-50 text-orange-600' },
+  mention: { icon: AtSign, className: 'bg-sky-50 text-sky-600' },
 };
 
 interface Props {
@@ -152,6 +153,15 @@ export function NotificationItem({ notification: n, task, members, onNegotiate }
             }}
           >
             查看並決策
+          </Button>
+        );
+      break;
+    case 'mention':
+      head = <>{from} 在 {ref} 的留言提到你</>;
+      if (pending && task)
+        actions = (
+          <Button variant="primary" size="sm" onClick={() => drawer.open(task.id, 'issues')}>
+            查看留言
           </Button>
         );
       break;

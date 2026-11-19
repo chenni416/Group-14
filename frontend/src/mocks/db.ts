@@ -14,10 +14,11 @@ import type {
   Retro,
   Sprint,
   Task,
+  TaskComment,
 } from '@/types';
 import { ApiError } from '@/types';
 import { isUnfinished } from '@/lib/planning';
-import { seedIssues, seedProposals, seedRetros } from './data/collab';
+import { seedComments, seedIssues, seedProposals, seedRetros } from './data/collab';
 import { enrichPr, makeDelivery } from './data/delivery';
 import { DOMAIN_TAGS, GENERIC_AC } from './data/knowledge';
 import { seedMembers } from './data/members';
@@ -50,6 +51,8 @@ export interface MockDb {
   /** G4：問題與提案 */
   issues: Issue[];
   proposals: Proposal[];
+  /** 任務留言區 */
+  comments: TaskComment[];
   /** G5：驗收紀錄（每次驗收決策一筆） */
   records: AcceptanceRecord[];
   /** G7：每個 Sprint 一份回顧 */
@@ -216,6 +219,7 @@ function seed(): MockDb {
   notifications.push(
     extra({ toId: 'm3', fromId: 'm2', type: 'issue', taskId: 'S-222', refId: 'IS-1', text: '請你協助處理：指派推薦需要成員負載資料', hoursAgo: 30 }),
     extra({ toId: 'm1', fromId: 'm3', type: 'issue', taskId: 'S-213', refId: 'IS-3', text: '問題待指派：索引大型文件耗時過長', hoursAgo: 5 }),
+    extra({ toId: 'm1', fromId: 'm2', type: 'mention', taskId: 'S-222', text: '想確認負載資料要不要包含已延後的任務？', hoursAgo: 3 }),
     extra({ toId: 'm1', fromId: 'm4', type: 'proposal', taskId: '', refId: 'PP-1', text: '新提案待決策：Review 通知同步寄送 Email', hoursAgo: 26 }),
   );
   return {
@@ -231,6 +235,7 @@ function seed(): MockDb {
     plans,
     issues,
     proposals,
+    comments: seedComments(),
     records: [],
     retros: seedRetros(),
     seq: 301,

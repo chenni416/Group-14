@@ -1,4 +1,4 @@
-import type { Issue, Proposal, Retro } from '@/types';
+import type { Issue, Proposal, Retro, TaskComment } from '@/types';
 
 const ago = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
 
@@ -93,5 +93,32 @@ export const seedRetros = (): Retro[] => [
       { id: 'a1', text: '每次規劃會議前先整理待釐清問題', ownerId: 'm1', done: true, fromSprintId: 1, usedInSprintId: 2 },
       { id: 'a2', text: '前後端欄位命名在開工前對齊並記錄', ownerId: 'm2', done: false, fromSprintId: 1, usedInSprintId: null },
     ],
+  },
+];
+
+export const seedComments = (): TaskComment[] => [
+  {
+    id: 'cm-1',
+    taskId: 'S-222',
+    byId: 'm2',
+    text: '@王思妤 索引欄位格式預計什麼時候會定案？推薦服務需要先對齊 schema。',
+    mentions: ['m3'],
+    at: ago(6),
+  },
+  {
+    id: 'cm-2',
+    taskId: 'S-222',
+    byId: 'm3',
+    text: '明天中午前會更新到知識庫，先參考 openapi.yaml 裡的 MemberLoad 草稿。',
+    mentions: [],
+    at: ago(4),
+  },
+  {
+    id: 'cm-3',
+    taskId: 'S-222',
+    byId: 'm2',
+    text: '@陳怡君 想確認負載資料要不要包含已延後的任務？',
+    mentions: ['m1'],
+    at: ago(3),
   },
 ];

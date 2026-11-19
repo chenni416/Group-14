@@ -9,7 +9,9 @@ export type NotificationType =
   /** G4：新提案，通知 Leader 決策 */
   | 'proposal'
   /** G2：Leader 延後或調整，請成員同意或提出異議 */
-  | 'plan';
+  | 'plan'
+  /** 任務留言中被 @ 標注 */
+  | 'mention';
 
 export interface Notification {
   id: string;

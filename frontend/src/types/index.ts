@@ -1,6 +1,7 @@
 export * from './acceptance';
 export * from './api';
 export * from './chat';
+export * from './comment';
 export * from './execution';
 export * from './issue';
 export * from './member';

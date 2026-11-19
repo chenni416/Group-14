@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
 import type {
+  AddCommentInput,
   AddRetroActionInput,
   CreateProposalInput,
   DecideProposalInput,
@@ -102,6 +103,25 @@ export function useProposalActions() {
     onSuccess: () => toast('已記錄決策'),
   });
   return { create, comment, decide };
+}
+
+/* ---------- 任務留言區 ---------- */
+
+export const useComments = (taskId: string) => useQuery({ queryKey: queryKeys.comments(taskId), queryFn: () => api.comments.list(taskId) });
+
+export function useCommentActions(taskId: string) {
+  const qc = useQueryClient();
+  const add = useApiMutation({
+    mutationFn: (input: AddCommentInput) => api.comments.add(taskId, input),
+    invalidate: [queryKeys.comments(taskId), ['notifications']],
+    onSuccess: (c) => toast(c.mentions.length ? `已留言，並通知 ${c.mentions.length} 位被標注的成員` : '已留言'),
+  });
+  // 開啟留言區時把自己的 @ 通知標為已讀，不跳提示
+  const markRead = useMutation({
+    mutationFn: () => api.comments.markRead(taskId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
+  });
+  return { add, markRead };
 }
 
 /* ---------- G7：結束 Sprint 與回顧 ---------- */

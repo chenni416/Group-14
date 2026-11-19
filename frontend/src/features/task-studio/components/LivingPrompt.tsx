@@ -32,7 +32,7 @@ export function LivingPrompt({ taskId }: { taskId: string }) {
   const prev = current > 0 ? versions[current - 1] ?? [] : lines;
 
   return (
-    <Card className="p-5">
+    <Card className="flex flex-col p-5">
       <CardHeader
         title="Living Prompt"
         description="任務規格、Sprint 目標與知識庫自動組合，會隨對話更新"
@@ -67,7 +67,7 @@ export function LivingPrompt({ taskId }: { taskId: string }) {
           </Button>
         </div>
       </div>
-      <div className="max-h-80 overflow-y-auto rounded-2xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-700">
+      <div className="max-h-80 overflow-y-auto rounded-2xl lg:max-h-none lg:min-h-0 lg:flex-1 bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-700">
         {lines.map((line, i) => (
           <PromptLine key={i} line={line} added={current > 0 && !prev.includes(line)} />
         ))}

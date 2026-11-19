@@ -18,6 +18,7 @@ export const queryKeys = {
   acceptanceCheck: (taskId: string) => ['tasks', taskId, 'acceptance'] as const,
   acceptanceRecords: (taskId: string) => ['tasks', taskId, 'records'] as const,
   notifications: ['notifications'] as const,
+  comments: (taskId: string) => ['tasks', taskId, 'comments'] as const,
   chat: (taskId: string) => ['tasks', taskId, 'chat'] as const,
   prompt: (taskId: string) => ['tasks', taskId, 'prompt'] as const,
 };

@@ -95,6 +95,11 @@ export const httpServices: Services = {
     toggleItem: (taskId, itemId) => data(http.post(`/tasks/${taskId}/execution-plan/items/${itemId}/toggle`)),
     toggleCheckpoint: (taskId, checkpointId) => data(http.post(`/tasks/${taskId}/execution-plan/checkpoints/${checkpointId}/toggle`)),
   },
+  comments: {
+    list: (taskId) => data(http.get(`/tasks/${taskId}/comments`)),
+    add: (taskId, input) => data(http.post(`/tasks/${taskId}/comments`, input)),
+    markRead: (taskId) => data(http.post(`/tasks/${taskId}/comments/read`)),
+  },
   issues: {
     list: () => data(http.get('/issues')),
     report: (input) => data(http.post('/issues', input)),

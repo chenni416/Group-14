@@ -1,6 +1,6 @@
 import type { Services } from '../contracts';
 import { notifications, planning, sprints, studio, tasks } from './tasks';
-import { acceptance, execution, issues, proposals, retros } from './collab';
+import { acceptance, comments, execution, issues, proposals, retros } from './collab';
 import { auth, docs, members, workspace } from './workspace';
 
 export const mockServices: Services = {
@@ -16,6 +16,7 @@ export const mockServices: Services = {
   execution,
   issues,
   proposals,
+  comments,
   acceptance,
   retros,
 };

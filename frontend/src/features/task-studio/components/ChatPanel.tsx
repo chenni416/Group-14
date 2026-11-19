@@ -26,7 +26,7 @@ export function ChatPanel({ taskId, sprint }: { taskId: string; sprint: Sprint |
   };
 
   return (
-    <section className="flex h-full min-h-[560px] flex-col rounded-3xl border border-gray-100 bg-white p-5 shadow-card" aria-label="專案脈絡助理">
+    <section className="flex h-full flex-col rounded-3xl border border-gray-100 bg-white p-5 shadow-card" aria-label="專案脈絡助理">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold tracking-tight">專案脈絡助理</h3>

@@ -1,12 +1,12 @@
-import { AlertTriangle, Lightbulb } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Button, Card, CardHeader, EmptyState } from '@/components/ui';
-import { ProposalDialog, ReportIssueDialog } from '@/components/domain/CollabDialogs';
+import { ReportIssueDialog } from '@/components/domain/CollabDialogs';
 import { IssueCard } from '@/components/domain/IssueCard';
-import { ProposalCard } from '@/components/domain/ProposalCard';
-import { useIssues, useProposals } from '@/hooks/useCollab';
+import { useIssues } from '@/hooks/useCollab';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { isOpenIssue } from '@/lib/collab';
 import type { Member, Task } from '@/types';
+import { TaskComments } from './TaskComments';
 
 interface Props {
   task: Task;
@@ -15,14 +15,11 @@ interface Props {
   memberMap: Map<string, Member>;
 }
 
-/** G4：這項任務的問題回報與提案討論 */
+/** G4：這項任務的問題回報與留言區 */
 export function IssuesTab({ task, me, members, memberMap }: Props) {
   const { data: issues = [] } = useIssues();
-  const { data: proposals = [] } = useProposals();
   const report = useDisclosure();
-  const propose = useDisclosure();
   const mine = issues.filter((i) => i.taskId === task.id);
-  const mineProposals = proposals.filter((p) => p.taskId === task.id);
   const open = mine.filter(isOpenIssue).length;
 
   return (
@@ -48,29 +45,9 @@ export function IssuesTab({ task, me, members, memberMap }: Props) {
         </div>
       </Card>
 
-      <Card className="p-5">
-        <CardHeader
-          title="提案與討論"
-          description="任何人都可以提案；Leader 決策，結果與理由會保留"
-          className="mb-3"
-          action={
-            <Button size="sm" onClick={propose.open}>
-              <Lightbulb className="h-3.5 w-3.5" strokeWidth={1.75} />
-              從此任務提案
-            </Button>
-          }
-        />
-        <div className="space-y-3">
-          {mineProposals.length ? (
-            mineProposals.map((p) => <ProposalCard key={p.id} proposal={p} task={task} memberMap={memberMap} me={me} />)
-          ) : (
-            <EmptyState icon={Lightbulb} title="這項任務沒有相關提案" />
-          )}
-        </div>
-      </Card>
+      <TaskComments task={task} me={me} members={members} memberMap={memberMap} />
 
       <ReportIssueDialog open={report.isOpen} onClose={report.close} taskId={task.id} />
-      <ProposalDialog open={propose.isOpen} onClose={propose.close} taskId={task.id} />
     </div>
   );
 }

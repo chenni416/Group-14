@@ -5,6 +5,7 @@ import { Badge, IconButton, SegmentedControl, StatusBadge } from '@/components/u
 import { useCurrentUser, useMemberMap, useMembers, useSprints, useTasks } from '@/hooks/queries';
 import { useExecutionPlans, useIssues } from '@/hooks/useCollab';
 import { defaultTab, useTaskDrawer, type DrawerTab } from '@/hooks/useTaskDrawer';
+import { cn } from '@/lib/cn';
 import { isOpenIssue } from '@/lib/collab';
 import type { Task } from '@/types';
 import { AcceptanceCriteria } from './components/AcceptanceCriteria';
@@ -49,13 +50,15 @@ export function TaskStudioDrawer() {
   const sprint = sprints?.find((s) => s.id === task.sprintId);
   const plan = plans.find((p) => p.taskId === task.id);
   const openIssues = issues.filter((i) => i.taskId === task.id && isOpenIssue(i)).length;
-  const current: DrawerTab = tab ?? defaultTab(task.state);
+  // Prompt 與對話只給任務負責人，其他人看不到這個分頁
+  const isAssignee = task.assigneeId === me.id;
+  const current: DrawerTab = tab && (tab !== 'prompt' || isAssignee) ? tab : defaultTab(task.state);
   const tabs: { value: DrawerTab; label: string }[] = [
     { value: 'spec', label: '規格' },
     { value: 'plan', label: '執行計畫' },
     { value: 'issues', label: openIssues ? `問題與討論（${openIssues}）` : '問題與討論' },
     { value: 'delivery', label: '交付與驗收' },
-    { value: 'prompt', label: 'Prompt 與對話' },
+    ...(isAssignee ? [{ value: 'prompt' as const, label: 'Prompt 與對話' }] : []),
   ];
 
   return createPortal(
@@ -101,7 +104,8 @@ export function TaskStudioDrawer() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {/* Prompt 與對話在桌機版撐滿到底部操作列 */}
+        <div className={cn('flex-1 overflow-y-auto p-4 sm:p-6', current === 'prompt' && 'lg:flex lg:flex-col')}>
           {current === 'spec' && (
             <div className="space-y-6">
               <TaskMeta task={task} assignee={members.get(task.assigneeId)} />
@@ -114,10 +118,13 @@ export function TaskStudioDrawer() {
           {current === 'issues' && <IssuesTab task={task} me={me} members={memberList} memberMap={members} />}
           {current === 'delivery' && <DeliveryTab task={task} me={me} memberMap={members} />}
           {current === 'prompt' && (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+            <div className="grid gap-6 lg:min-h-[480px] lg:flex-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
               <LivingPrompt taskId={task.id} />
-              <div className="lg:sticky lg:top-0 lg:h-[calc(100vh-16rem)]">
-                <ChatPanel taskId={task.id} sprint={sprint} />
+              {/* 桌機版助理高度跟隨 Living Prompt，對話內容在面板內捲動 */}
+              <div className="relative h-[560px] lg:h-auto">
+                <div className="absolute inset-0">
+                  <ChatPanel taskId={task.id} sprint={sprint} />
+                </div>
               </div>
             </div>
           )}

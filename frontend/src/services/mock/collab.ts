@@ -15,8 +15,8 @@ import {
 import { aiCheck } from '@/mocks/handlers/acceptance';
 import { buildPlan } from '@/mocks/handlers/execution';
 import { recommendOwner } from '@/mocks/handlers/issues';
-import { ApiError, type ExecutionPlan, type Issue, type Proposal, type Retro, type Task } from '@/types';
-import type { AcceptanceService, ExecutionService, IssueService, ProposalService, RetroService } from '../contracts';
+import { ApiError, type ExecutionPlan, type Issue, type Proposal, type Retro, type Task, type TaskComment } from '@/types';
+import type { AcceptanceService, CommentService, ExecutionService, IssueService, ProposalService, RetroService } from '../contracts';
 import { respond } from './utils';
 
 const me = () => sessionUser();
@@ -283,6 +283,37 @@ export const proposals: ProposalService = {
         notify(proposal.authorId, 'info', proposal.taskId ?? '', me().id, `你的提案「${proposal.title}」已決策：${input.reason.trim()}`, proposal.id);
       }
       return proposal;
+    }),
+};
+
+/* ---------- 任務留言區 ---------- */
+
+export const comments: CommentService = {
+  list: (taskId) =>
+    respond(() => {
+      findTask(taskId);
+      return db.comments.filter((c) => c.taskId === taskId).sort((a, b) => a.at.localeCompare(b.at));
+    }),
+
+  add: (taskId, input) =>
+    respond(() => {
+      const task = findTask(taskId);
+      const text = input.text.trim();
+      if (!text) throw new ApiError('請輸入留言');
+      const user = me();
+      // 只保留確實出現在內容裡、且不是自己的標注
+      const mentions = [...new Set(input.mentions)].filter((id) => id !== user.id && text.includes(`@${findMember(id).name}`));
+      const comment: TaskComment = { id: `cm-${uid()}`, taskId, byId: user.id, text, mentions, at: nowIso() };
+      db.comments.push(comment);
+      mentions.forEach((id) => notify(id, 'mention', task.id, user.id, text.length > 60 ? `${text.slice(0, 60)}…` : text, comment.id));
+      return comment;
+    }),
+
+  markRead: (taskId) =>
+    respond(() => {
+      db.notifications.forEach((n) => {
+        if (n.type === 'mention' && n.taskId === taskId && n.toId === db.sessionUserId && n.status === 'pending') n.status = 'done';
+      });
     }),
 };
 

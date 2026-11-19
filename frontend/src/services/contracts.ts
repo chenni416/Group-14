@@ -7,6 +7,7 @@ import type {
   BacklogItem,
   BurndownPoint,
   ChatMessage,
+  AddCommentInput,
   CreateProposalInput,
   CreateSprintInput,
   CreateTaskInput,
@@ -27,6 +28,7 @@ import type {
   Project,
   PromptState,
   Proposal,
+  TaskComment,
   ReportIssueInput,
   Retro,
   ReviewPolicy,
@@ -205,6 +207,14 @@ export interface ProposalService {
   decide(id: string, input: DecideProposalInput): Promise<Proposal>;
 }
 
+/** 任務留言區（單層留言串，@ 標注會通知對方） */
+export interface CommentService {
+  list(taskId: string): Promise<TaskComment[]>;
+  add(taskId: string, input: AddCommentInput): Promise<TaskComment>;
+  /** 把目前登入者在這項任務的 @ 通知標為已處理 */
+  markRead(taskId: string): Promise<void>;
+}
+
 /** G5：AI 驗收檢查與驗收紀錄 */
 export interface AcceptanceService {
   check(taskId: string): Promise<AcceptanceCheck>;
@@ -234,6 +244,7 @@ export interface Services {
   execution: ExecutionService;
   issues: IssueService;
   proposals: ProposalService;
+  comments: CommentService;
   acceptance: AcceptanceService;
   retros: RetroService;
 }

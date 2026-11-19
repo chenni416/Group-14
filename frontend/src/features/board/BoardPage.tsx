@@ -1,8 +1,7 @@
 import { AlertTriangle, ClipboardList, Flag, Lightbulb } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Callout, Card, PageHeader, PageSkeleton, ProgressBar, SegmentedControl } from '@/components/ui';
-import { ReportIssueDialog } from '@/components/domain/CollabDialogs';
 import { useCurrentUser, useMemberMap, useMembers, useSprintContext } from '@/hooks/queries';
 import { useExecutionPlans, useIssues, useProposals } from '@/hooks/useCollab';
 import { useDisclosure } from '@/hooks/useDisclosure';
@@ -12,11 +11,10 @@ import { blockedBy, demoToday, isBehind } from '@/lib/execution';
 import { sum } from '@/lib/format';
 import { isLead, needsMyReview } from '@/lib/permissions';
 import { useUiStore, type BoardFilter } from '@/stores/ui.store';
-import { BOARD_STATES, type Task } from '@/types';
+import type { Task } from '@/types';
+import { BoardSwimlanes } from './components/BoardSwimlanes';
 import { EndSprintDialog } from './components/EndSprintDialog';
-import { KanbanColumn } from './components/KanbanColumn';
 import { SprintBanner } from './components/SprintBanner';
-import { TaskCard } from './components/TaskCard';
 
 const FILTERS = [
   { value: 'all' as const, label: '全部' },
@@ -36,9 +34,7 @@ export function BoardPage() {
   const members = useMemberMap();
   const drawer = useTaskDrawer();
   const { boardFilter, setBoardFilter, setCollabPanel } = useUiStore();
-  const report = useDisclosure();
   const endDialog = useDisclosure();
-  const [reportTask, setReportTask] = useState<string | undefined>();
 
   const planMap = useMemo(() => new Map(plans.map((p) => [p.taskId, p])), [plans]);
   const taskMap = useMemo(() => new Map<string, Task>(ctx.allTasks.map((t) => [t.id, t])), [ctx.allTasks]);
@@ -51,7 +47,8 @@ export function BoardPage() {
   if (ctx.isLoading || !me || !ctx.active) return <PageSkeleton />;
 
   const { active, boardTasks, planning, planningTasks, planningReady } = ctx;
-  const leaderId = memberList?.find((m) => m.role === 'Leader')?.id;
+  // 自己在第一列，其他人依團隊名單順序
+  const orderedMembers = [...(memberList ?? [])].sort((a, b) => Number(b.id === me.id) - Number(a.id === me.id));
   const today = demoToday(active);
   const visible = boardTasks.filter((t) =>
     boardFilter === 'mine'
@@ -128,37 +125,21 @@ export function BoardPage() {
         </div>
       </Card>
 
-      <div className="-mx-5 overflow-x-auto px-5 pb-2 sm:mx-0 sm:px-0">
-        <div className="grid min-w-[1080px] grid-cols-4 gap-4 xl:min-w-0">
-          {BOARD_STATES.map((state) => {
-            const col = visible.filter((t) => t.state === state);
-            return (
-              <KanbanColumn key={state} state={state} count={col.length}>
-                {col.map((t) => (
-                  <TaskCard
-                    key={t.id}
-                    task={t}
-                    members={members}
-                    leaderId={leaderId}
-                    userId={me.id}
-                    onOpen={drawer.open}
-                    plan={planMap.get(t.id)}
-                    openIssues={issueCount.get(t.id) ?? 0}
-                    waitingOn={blockedBy(t, taskMap)}
-                    behind={isBehind(planMap.get(t.id), today)}
-                    onReport={(id) => {
-                      setReportTask(id);
-                      report.open();
-                    }}
-                  />
-                ))}
-              </KanbanColumn>
-            );
-          })}
-        </div>
-      </div>
+      <BoardSwimlanes
+        tasks={visible}
+        allTasks={boardTasks}
+        members={orderedMembers}
+        meId={me.id}
+        isLeader={isLead(me)}
+        showEmptyRows={boardFilter === 'all'}
+        memberMap={members}
+        planMap={planMap}
+        issueCount={issueCount}
+        waitingOf={(t) => blockedBy(t, taskMap)}
+        behindOf={(t) => isBehind(planMap.get(t.id), today)}
+        onOpen={drawer.open}
+      />
 
-      <ReportIssueDialog open={report.isOpen} onClose={report.close} taskId={reportTask} />
       <EndSprintDialog open={endDialog.isOpen} onClose={endDialog.close} sprint={active} tasks={ctx.allTasks} />
     </>
   );
