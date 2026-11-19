@@ -1,7 +1,7 @@
 import { stripCarryNote } from '@/lib/planning';
 import type { Domain } from '@/types';
 import { CLARIFY_RULES, DECOMPOSE_TEMPLATES, DOMAIN_TAGS, GENERIC_AC } from '../data/knowledge';
-import { createTaskRecord, db, findSprint, findTask, sprintTasks, type TaskRecord } from '../db';
+import { createTaskRecord, db, findSprint, findTask, looseTaskId, sprintTasks, type TaskRecord } from '../db';
 import { suggestAll } from './assign';
 
 const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
@@ -111,7 +111,7 @@ export function decompose(sprintId: number): number {
     .filter((s) => !existing.has(s.title))
     .map((s) =>
       createTaskRecord(db.project, {
-        id: `${db.project.prefix}-${db.seq++}`,
+        id: looseTaskId(sprintId),
         sprintId,
         title: s.title,
         domain: s.domain,

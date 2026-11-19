@@ -57,7 +57,7 @@ export function SubmittedPlanBoard({ sprint, tasks, members, ready }: Props) {
 
       <AssignmentSwimlanes sprint={sprint} tasks={tasks} carryTasks={carryTasks} members={members} onOpen={setOpenId} />
 
-      <PlannedTaskDrawer task={openTask} sprintTasks={tasks} members={members} onClose={() => setOpenId(null)} />
+      <PlannedTaskDrawer task={openTask} sprintTasks={tasks} carryTasks={carryTasks} sprint={sprint} members={members} onClose={() => setOpenId(null)} />
       <CarryTaskDrawer
         task={openCarry}
         sprint={sprint}

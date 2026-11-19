@@ -4,7 +4,9 @@ import { Callout, Card, CardHeader, EmptyState, PageHeader, PageSkeleton, Progre
 import { NegotiateDialog } from '@/components/domain/NegotiateDialog';
 import { StateFlow } from '@/components/domain/StateFlow';
 import { useCurrentUser, useMemberMap, useNotifications, useSprintContext } from '@/hooks/queries';
+import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
+import { capOf, carryOwner, carrySP } from '@/lib/planning';
 import { useUiStore, type InboxFilter } from '@/stores/ui.store';
 import type { Task } from '@/types';
 import { NotificationItem } from './components/NotificationItem';
@@ -31,8 +33,13 @@ export function InboxPage() {
     (n) => inboxFilter === 'all' || n.type === inboxFilter || (inboxFilter === 'review' && n.type === 'pool'),
   );
   const mine = ctx.planningTasks.filter((t) => t.assigneeId === me.id);
-  const accepted = sum(mine.filter((t) => t.state === 'ASSIGNED').map((t) => t.storyPoints));
-  const pending = sum(mine.filter((t) => t.state === 'PENDING_MEMBER').map((t) => t.storyPoints));
+  // 上輪帶入給我的任務（以本輪預估點數計）：確認後算已接受，其餘算待確認
+  const myCarry = ctx.carryTasks.filter((t) => t.carry === true && carryOwner(t) === me.id);
+  const carryAccepted = sum(myCarry.filter((t) => t.carryStatus === 'accepted').map(carrySP));
+  const carryPending = sum(myCarry.filter((t) => t.carryStatus !== 'accepted').map(carrySP));
+  const accepted = sum(mine.filter((t) => t.state === 'ASSIGNED').map((t) => t.storyPoints)) + carryAccepted;
+  const pending = sum(mine.filter((t) => t.state === 'PENDING_MEMBER').map((t) => t.storyPoints)) + carryPending;
+  const cap = capOf(ctx.planning, me);
 
   return (
     <>
@@ -63,12 +70,12 @@ export function InboxPage() {
               <span className="text-gray-500 tabular-nums">
                 已接受 {accepted} SP · 待確認 {pending} SP
               </span>
-              <span className="font-semibold tabular-nums">
-                {accepted + pending} / {me.capacity}
+              <span className={cn('font-semibold tabular-nums', accepted + pending > cap && 'text-red-600')}>
+                {accepted + pending} / {cap}
               </span>
             </div>
             <ProgressBar
-              max={me.capacity}
+              max={cap}
               size="lg"
               segments={[
                 { value: accepted, tone: 'sky', label: '已接受' },
@@ -76,6 +83,11 @@ export function InboxPage() {
               ]}
               label="承接量"
             />
+            {myCarry.length > 0 && (
+              <p className="mt-2 text-xs tabular-nums text-gray-500">
+                含上輪帶入 {myCarry.length} 項 · {carryAccepted + carryPending} SP
+              </p>
+            )}
             <Callout className="mt-4">
               雙向確認：Leader 核准後任務只是「邀請」，必須由你接受才會鎖定；時間不足可以協商，任務會退回 Leader 重新指派。
             </Callout>

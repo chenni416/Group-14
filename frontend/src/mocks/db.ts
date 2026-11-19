@@ -40,6 +40,17 @@ export interface MockDb {
   seq: number;
 }
 
+/**
+ * 不屬於任何 Story 的任務編號（手動新增、舊版自動拆解）：Story 序號用 0，例如 S-301、S-302。
+ * 與規劃流程的 S-{Sprint}{Story}{Task} 同一套規則，分支數字也相同。
+ */
+export function looseTaskId(sprintId: number): string {
+  const used = new Set(db.tasks.map((t) => t.id));
+  let n = 1;
+  while (used.has(`S-${sprintId}0${n}`)) n++;
+  return `S-${sprintId}0${n}`;
+}
+
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const nowIso = () => new Date().toISOString();
 export const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
@@ -54,7 +65,6 @@ type TaskInit = Pick<TaskRecord, 'id' | 'title' | 'domain' | 'storyPoints' | 'as
 
 export function createTaskRecord(project: Project, init: TaskInit): TaskRecord {
   const { slug = 'task', ...rest } = init;
-  const num = init.id.split('-')[1] ?? '0';
   const task: TaskRecord = {
     sprintId: project.activeSprintId,
     description: '',
@@ -74,10 +84,8 @@ export function createTaskRecord(project: Project, init: TaskInit): TaskRecord {
     claimedAt: null,
     reviewStartedAt: null,
     pr: null,
-    branch: project.branchPattern
-      .replace('{prefix}', project.prefix.toLowerCase())
-      .replace('{id}', num)
-      .replace('{slug}', slug),
+    // 分支與任務編號同一組數字：S-212 ↔ feat/S212-…
+    branch: `${init.domain === 'QA' ? 'test' : 'feat'}/S${init.id.replace(/^S-/, '')}-${slug}`,
     negotiation: null,
     source: '',
     carryTag: null,
@@ -122,8 +130,6 @@ function seed(): MockDb {
       claimedAt: s.claimedHoursAgo != null ? hoursAgo(s.claimedHoursAgo) : null,
       reviewStartedAt: s.reviewHoursAgo != null ? hoursAgo(s.reviewHoursAgo) : null,
       pr: s.pr ?? null,
-      // 分支與任務編號同一組數字：S-212 ↔ feat/S212-…
-      branch: `${s.domain === 'QA' ? 'test' : 'feat'}/S${s.id.replace(/^S-/, '')}-${s.slug}`,
     }),
   );
   const notifications: Notification[] = NOTIFICATION_SEEDS.map((n) => ({

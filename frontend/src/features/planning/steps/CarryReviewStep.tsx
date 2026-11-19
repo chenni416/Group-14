@@ -1,11 +1,11 @@
 import { ArrowRight, History } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar, Badge, Button, Card, CardHeader, EmptyState, Input, ProgressBar, SegmentedControl, Select, StatusBadge, Tag } from '@/components/ui';
-import { useBacklog, useSprintContext } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
 import { sum } from '@/lib/format';
 import { BOARD_STATES, type BacklogDecision, type BacklogItem, type Member, type Task } from '@/types';
 import { CARRY_POINTS_MAX, capOf, carryLoad, carryOwner, carrySP } from '@/lib/planning';
+import { useCarryReview } from '../hooks/useCarryReview';
 import { usePlanningMutations } from '../hooks/usePlanning';
 import { usePlanningStore } from '../store';
 
@@ -24,18 +24,6 @@ const BACKLOG_OPTIONS: Array<{ value: BacklogDecision | ''; label: string }> = [
 
 const choiceOf = (t: Task): CarryChoice => (t.carry === true ? 'carry' : t.carry === false ? 'defer' : '');
 
-/** 上輪統整是否已全部決定（未完成任務與延續事項） */
-export function useCarryReview() {
-  const ctx = useSprintContext();
-  const { data: backlog = [] } = useBacklog();
-  const planningId = ctx.planning?.id ?? null;
-  const items = useMemo(
-    () => backlog.filter((b) => b.usedInSprintId == null || b.usedInSprintId === planningId),
-    [backlog, planningId],
-  );
-  const undecided = ctx.carryTasks.filter((t) => t.carry == null).length + items.filter((b) => b.decision == null).length;
-  return { ...ctx, backlogItems: items, undecided, ready: !ctx.isLoading && undecided === 0 };
-}
 
 /**
  * 階段 1「上輪 Sprint 統整」：檢視上一輪的完成狀況，決定未完成任務帶入或延後（帶入可改派），

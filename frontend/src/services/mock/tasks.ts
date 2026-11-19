@@ -6,6 +6,7 @@ import {
   findSprint,
   findTask,
   leader,
+  looseTaskId,
   notify,
   nowIso,
   planningSprint,
@@ -117,7 +118,7 @@ export const tasks: TaskService = {
       if (input.assigneeId) findMember(input.assigneeId);
       if (!input.title.trim()) throw new ApiError('請輸入標題');
       const record = createTaskRecord(db.project, {
-        id: `${db.project.prefix}-${db.seq++}`,
+        id: looseTaskId(sprint.id),
         sprintId: sprint.id,
         title: input.title.trim(),
         domain: input.domain,

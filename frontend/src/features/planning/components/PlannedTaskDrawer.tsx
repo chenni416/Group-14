@@ -1,10 +1,10 @@
-import { Plus, Send, X } from 'lucide-react';
+import { Hourglass, Plus, Send, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Avatar, Badge, Button, Callout, Drawer, Input, Label, SegmentedControl, Select } from '@/components/ui';
 import { STORY_POINT_OPTIONS } from '@/lib/constants';
 import { sum } from '@/lib/format';
-import { REVIEWER_LABELS, policyToReviewer, reviewerSummary, reviewerToPolicy } from '@/lib/planning';
-import type { Member, ReviewerAssignment, ReviewerMode, Task } from '@/types';
+import { REVIEWER_LABELS, capOf, carryLoad, policyToReviewer, reviewerSummary, reviewerToPolicy } from '@/lib/planning';
+import type { Member, ReviewerAssignment, ReviewerMode, Sprint, Task } from '@/types';
 import { usePlanningMutations } from '../hooks/usePlanning';
 import { LANES, laneOf } from '../lanes';
 
@@ -12,6 +12,9 @@ interface Props {
   task: Task | null;
   /** 本 Sprint 所有已送出的任務，用來計算各成員負載 */
   sprintTasks: Task[];
+  /** 上輪帶入的任務：負載要算入，相依也可能指向它們 */
+  carryTasks: Task[];
+  sprint: Sprint;
   members: Member[];
   onClose: () => void;
 }
@@ -43,7 +46,7 @@ const toForm = (t: Task): FormState => ({
  * 已送出任務的完整內容。
  * 待確認／已接受為唯讀；協商退回時開放編輯並「儲存並重新發送通知」，任務回到待確認。
  */
-export function PlannedTaskDrawer({ task, sprintTasks, members, onClose }: Props) {
+export function PlannedTaskDrawer({ task, sprintTasks, carryTasks, sprint, members, onClose }: Props) {
   const { revise } = usePlanningMutations();
   const [form, setForm] = useState<FormState | null>(task ? toForm(task) : null);
   const [newAc, setNewAc] = useState('');
@@ -59,8 +62,13 @@ export function PlannedTaskDrawer({ task, sprintTasks, members, onClose }: Props
   const editable = task.state === 'RETURNED';
   const lane = LANES.find((l) => l.key === laneOf(task.state));
   const leaderId = members.find((m) => m.role === 'Leader')?.id;
-  // 負載不含這張任務本身，選單中加上這張的點數
-  const loadOf = (id: string) => sum(sprintTasks.filter((t) => t.assigneeId === id && t.id !== task.id).map((t) => t.storyPoints));
+  // 負載不含這張任務本身（含上輪帶入任務），選單中加上這張的點數；上限為本輪 Capacity
+  const carried = carryLoad(members, carryTasks);
+  const loadOf = (id: string) =>
+    sum(sprintTasks.filter((t) => t.assigneeId === id && t.id !== task.id).map((t) => t.storyPoints)) + (carried[id] ?? 0);
+  const titleOf = new Map([...sprintTasks, ...carryTasks].map((t) => [t.id, t.title]));
+  const waitFor = task.dependsOn.filter((d) => titleOf.has(d.id));
+  const unlocks = sprintTasks.filter((t) => t.dependsOn.some((d) => d.id === task.id));
   const set = (patch: Partial<FormState>) => setForm((f) => (f ? { ...f, ...patch } : f));
   const addAc = () => {
     if (!newAc.trim()) return;
@@ -151,7 +159,7 @@ export function PlannedTaskDrawer({ task, sprintTasks, members, onClose }: Props
               <Select aria-label="指派負責人" value={form.assigneeId} onChange={(e) => set({ assigneeId: e.target.value })}>
                 {members.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} · {loadOf(m.id) + form.storyPoints}/{m.capacity} SP
+                    {m.name} · {loadOf(m.id) + form.storyPoints}/{capOf(sprint, m)} SP
                   </option>
                 ))}
               </Select>
@@ -211,6 +219,27 @@ export function PlannedTaskDrawer({ task, sprintTasks, members, onClose }: Props
             </div>
           )}
         </Field>
+
+        {(waitFor.length > 0 || unlocks.length > 0) && (
+          <Field label="相依與排序">
+            <div className="space-y-2 text-sm">
+              {waitFor.map((d) => (
+                <p key={d.id} className="flex gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                  <Hourglass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={1.75} />
+                  <span>
+                    等 <span className="font-mono text-xs text-gray-500">{d.id}</span> {titleOf.get(d.id)} 完成後接續
+                    <span className="block text-xs text-gray-500">{d.reason}</span>
+                  </span>
+                </p>
+              ))}
+              {unlocks.length > 0 && (
+                <p className="text-xs text-gray-500">
+                  完成後才能接續：{unlocks.map((t) => `${t.id} ${t.title}`).join('、')}
+                </p>
+              )}
+            </div>
+          </Field>
+        )}
 
         <Field label="審查人員">
           {editable ? (
