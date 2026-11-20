@@ -61,9 +61,9 @@ export function LivingPrompt({ taskId }: { taskId: string }) {
             <Undo2 className="h-3.5 w-3.5" strokeWidth={1.75} />
             還原上一版
           </Button>
-          <Button size="xs" variant="primary" onClick={() => copy(lines.join('\n'), `已複製 ${taskId} 的 Prompt，可直接貼到 Claude Code`)}>
+          <Button size="xs" variant="primary" onClick={() => copy(lines.join('\n'), `已複製 ${taskId} 的 Prompt`)}>
             <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Copy to Claude Code
+            Copy prompt
           </Button>
         </div>
       </div>
