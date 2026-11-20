@@ -23,7 +23,12 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     storage_bucket: str = "documents"
 
-    # LLM：Anthropic API
+    # LLM：OpenAI API（AI 功能目前使用這個；app/ai/llm.py）
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4.1"
+    openai_timeout_seconds: float = 60.0
+
+    # LLM：Anthropic API（舊的客戶端 app/ai/client.py，保留備用）
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-5-5"
 

@@ -8,17 +8,31 @@ from typing import Annotated
 
 from fastapi import Depends, Header
 
+from app.core.config import get_settings
 from app.core.errors import ApiError
+from app.repo import Store
 from app.schemas.member import Member
 
 
-async def get_current_member(authorization: Annotated[str | None, Header()] = None) -> Member:
+async def get_current_member(
+    store: Store,
+    authorization: Annotated[str | None, Header()] = None,
+    x_demo_user: Annotated[str | None, Header()] = None,
+) -> Member:
     """驗證 Bearer token 並回傳目前登入的成員。
 
     TODO：
     1. 以 settings.supabase_jwt_secret 驗證 JWT（簽章、過期時間）
     2. 用 JWT 的 sub（Supabase user id）查出對應的成員
     """
+    if not authorization and get_settings().app_env == "development":
+        # 開發用假登入（僅 APP_ENV=development）：X-Demo-User 指定成員 id，沒帶就是 Leader
+        if x_demo_user:
+            return store.find_member(x_demo_user)
+        leader = next((m for m in store.members if m.role == "Leader"), None)
+        if leader is None:
+            raise ApiError("找不到 Leader，無法使用開發用假登入", status=401, code="UNAUTHORIZED")
+        return leader
     if not authorization:
         raise ApiError("請先登入", status=401, code="UNAUTHORIZED")
     raise ApiError("登入驗證尚未實作", status=501, code="NOT_IMPLEMENTED")

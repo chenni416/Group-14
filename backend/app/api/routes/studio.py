@@ -10,8 +10,11 @@
 
 from fastapi import APIRouter
 
-from app.core.errors import not_implemented
+from app.ai.llm import Llm
+from app.core.auth import CurrentMember
+from app.repo import Store
 from app.schemas.collab import AskBody, ChatMessage, PromptState, PromptVersionBody
+from app.services import task_flow
 
 router = APIRouter(tags=["Prompt 與對話"])
 
@@ -22,8 +25,8 @@ router = APIRouter(tags=["Prompt 與對話"])
     summary="Living Prompt（僅任務負責人）",
     response_model=PromptState,
 )
-async def get_prompt(task_id: str) -> PromptState:
-    raise not_implemented("studio.getPrompt")
+async def get_prompt(task_id: str, store: Store, me: CurrentMember) -> PromptState:
+    return task_flow.get_prompt(store, task_id, me)
 
 
 @router.put(
@@ -32,8 +35,8 @@ async def get_prompt(task_id: str) -> PromptState:
     summary="切換 Prompt 版本（僅任務負責人）",
     response_model=PromptState,
 )
-async def set_prompt_version(task_id: str, body: PromptVersionBody) -> PromptState:
-    raise not_implemented("studio.setPromptVersion")
+async def set_prompt_version(task_id: str, body: PromptVersionBody, store: Store, me: CurrentMember) -> PromptState:
+    return task_flow.set_prompt_version(store, task_id, body.version, me)
 
 
 @router.get(
@@ -42,8 +45,8 @@ async def set_prompt_version(task_id: str, body: PromptVersionBody) -> PromptSta
     summary="專案脈絡助理對話紀錄（僅任務負責人）",
     response_model=list[ChatMessage],
 )
-async def get_chat(task_id: str) -> list[ChatMessage]:
-    raise not_implemented("studio.getChat")
+async def get_chat(task_id: str, store: Store, me: CurrentMember) -> list[ChatMessage]:
+    return task_flow.get_chat(store, task_id, me)
 
 
 @router.post(
@@ -52,5 +55,5 @@ async def get_chat(task_id: str) -> list[ChatMessage]:
     summary="詢問專案脈絡助理（僅任務負責人）",
     response_model=ChatMessage,
 )
-async def ask(task_id: str, body: AskBody) -> ChatMessage:
-    raise not_implemented("studio.ask")
+def ask(task_id: str, body: AskBody, store: Store, me: CurrentMember, llm: Llm) -> ChatMessage:
+    return task_flow.ask(store, task_id, body.question, me, llm)
