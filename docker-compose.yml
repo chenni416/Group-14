@@ -1,0 +1,26 @@
+# 本機開發用的資料庫與 Redis：`docker compose up -d`
+# 後端與前端直接在本機執行（見 README），改程式不需要重新 build 容器
+services:
+  db:
+    # 內建 pgvector，之後要加入向量檢索不需要換映像檔
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: taskline
+      POSTGRES_PASSWORD: taskline
+      POSTGRES_DB: taskline
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskline"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  db-data:

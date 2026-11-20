@@ -1,0 +1,82 @@
+"""執行計畫 API，對應前端 contracts.ts 的 execution。
+
+前端 mock 實作（規則可直接當規格移植）：
+- frontend/src/services/mock/collab.ts
+- frontend/src/mocks/handlers/execution.ts
+
+目前只定義路徑與輸入輸出格式，呼叫時回傳 501。實作時把 raise 換成 app/services 裡的商業邏輯。
+"""
+
+from fastapi import APIRouter
+
+from app.core.errors import not_implemented
+from app.schemas.collab import ExecutionPlan, SaveExecutionPlanInput
+
+router = APIRouter(tags=["執行計畫"])
+
+
+@router.get(
+    "/execution-plans", operation_id="execution.list", summary="所有執行計畫", response_model=list[ExecutionPlan]
+)
+async def list_execution() -> list[ExecutionPlan]:
+    raise not_implemented("execution.list")
+
+
+@router.get(
+    "/tasks/{task_id}/execution-plan",
+    operation_id="execution.get",
+    summary="單一任務的執行計畫；沒有時回傳 null",
+    response_model=ExecutionPlan | None,
+)
+async def get_execution(task_id: str) -> ExecutionPlan | None:
+    raise not_implemented("execution.get")
+
+
+@router.post(
+    "/tasks/{task_id}/execution-plan/suggest",
+    operation_id="execution.suggest",
+    summary="AI 依任務規格、依賴與專案文件產生計畫建議",
+    response_model=ExecutionPlan,
+)
+async def suggest(task_id: str) -> ExecutionPlan:
+    raise not_implemented("execution.suggest")
+
+
+@router.put(
+    "/tasks/{task_id}/execution-plan",
+    operation_id="execution.save",
+    summary="儲存執行計畫",
+    response_model=ExecutionPlan,
+)
+async def save(task_id: str, body: SaveExecutionPlanInput) -> ExecutionPlan:
+    raise not_implemented("execution.save")
+
+
+@router.post(
+    "/tasks/{task_id}/execution-plan/confirm",
+    operation_id="execution.confirm",
+    summary="確認執行計畫",
+    response_model=ExecutionPlan,
+)
+async def confirm(task_id: str) -> ExecutionPlan:
+    raise not_implemented("execution.confirm")
+
+
+@router.post(
+    "/tasks/{task_id}/execution-plan/items/{item_id}/toggle",
+    operation_id="execution.toggleItem",
+    summary="切換 Checklist 項目完成狀態",
+    response_model=ExecutionPlan,
+)
+async def toggle_item(task_id: str, item_id: str) -> ExecutionPlan:
+    raise not_implemented("execution.toggleItem")
+
+
+@router.post(
+    "/tasks/{task_id}/execution-plan/checkpoints/{checkpoint_id}/toggle",
+    operation_id="execution.toggleCheckpoint",
+    summary="切換 Checkpoint 達成狀態",
+    response_model=ExecutionPlan,
+)
+async def toggle_checkpoint(task_id: str, checkpoint_id: str) -> ExecutionPlan:
+    raise not_implemented("execution.toggleCheckpoint")

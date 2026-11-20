@@ -1,0 +1,75 @@
+# Taskline 後端
+
+Python 3.12 + FastAPI + SQLAlchemy 2 + Alembic，套件以 [uv](https://docs.astral.sh/uv/) 管理。
+
+目前只有架構：前端 `frontend/src/services/contracts.ts` 的 90 個端點都已定義路徑與輸入輸出格式，呼叫時回傳 `501 NOT_IMPLEMENTED`。實作時把各路由的 `raise not_implemented(...)` 換成實際邏輯即可。
+
+## 本機開發
+
+需要先安裝 uv 與 Docker Desktop，完整的環境建置步驟與常見問題見[根目錄 README](../README.md#環境建置)。
+
+```bash
+# 第一次
+curl -LsSf https://astral.sh/uv/install.sh | sh   # 安裝 uv（官方安裝程式，也可用 brew install uv 或 pipx install uv）
+cp .env.example .env            # 依需要填入金鑰
+uv sync                         # 自動安裝 Python 3.12 與所有套件
+
+# 啟動資料庫與 Redis（在 repo 根目錄）
+docker compose up -d
+
+# 啟動 API
+uv run uvicorn app.main:app --reload    # http://localhost:8000
+```
+
+- API 文件：http://localhost:8000/docs
+- 健康檢查：http://localhost:8000/api/health
+- 前端要接上後端時，在 `frontend/.env.local` 設定 `VITE_USE_MOCK=false`
+
+## 常用指令
+
+```bash
+uv run pytest                    # 測試
+uv run ruff check .              # lint
+uv run ruff format .             # 格式化
+uv add <套件>                    # 新增套件（會更新 uv.lock，記得一起 commit）
+
+# 資料表遷移
+uv run alembic revision --autogenerate -m "說明"   # 依 app/models 產生遷移檔
+uv run alembic upgrade head                        # 套用到資料庫
+```
+
+## 資料夾結構
+
+```
+backend/
+├── app/
+│   ├── main.py              FastAPI 進入點：CORS、錯誤格式、掛載路由、/api/health
+│   ├── core/
+│   │   ├── config.py        設定（讀取 .env）
+│   │   ├── errors.py        ApiError 與統一錯誤格式 {code, message}
+│   │   └── auth.py          登入驗證與權限檢查（空殼）
+│   ├── db/session.py        資料庫連線與 session
+│   ├── models/              資料表定義（目前只有 Base）
+│   ├── schemas/             API 輸入輸出格式，對應 frontend/src/types
+│   ├── api/routes/          路由，每個檔案對應 contracts.ts 的一組服務
+│   ├── services/            商業邏輯（之後從前端 mock 移植）
+│   ├── ai/                  Anthropic 客戶端、脈絡組裝、prompts/
+│   ├── storage/             檔案儲存介面
+│   ├── integrations/github/ GitHub App 與 webhook
+│   └── workers/             背景工作
+├── alembic/                 資料表遷移
+├── tests/                   pytest
+├── pyproject.toml           套件與 ruff、pytest 設定
+├── uv.lock                  鎖定的套件版本
+├── Dockerfile               部署用映像檔
+└── .env.example             環境變數範本
+```
+
+## 實作慣例
+
+- **欄位命名**：Python 使用 snake_case，API 輸出一律 camelCase（`schemas/base.py` 的 `ApiModel` 自動轉換），與前端型別一致
+- **錯誤**：一律 `raise ApiError(訊息, status, code)`，前端會直接顯示訊息
+- **權限**：在後端檢查，不能只靠前端隱藏。例如 Leader 限定的操作、Prompt 與對話僅限任務負責人
+- **API 變更**：前端 `contracts.ts`、`services/http/index.ts` 與後端路由要一起修改，`tests/test_app.py` 會檢查兩邊端點一致
+- **AI 結果**：一律先存成草稿，由使用者確認後才生效
+- **商業邏輯**：放在 `services/`，路由只負責解析請求與回應；前端 mock 的規則可直接當規格，對照表見 `docs/api.md`
