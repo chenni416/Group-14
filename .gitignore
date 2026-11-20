@@ -1,0 +1,7 @@
+# 共用設定；各子專案另有自己的 .gitignore
+.DS_Store
+.env
+.env.local
+.idea/
+.vscode/*
+!.vscode/extensions.json
