@@ -7,10 +7,16 @@
 目前只定義路徑與輸入輸出格式，呼叫時回傳 501。實作時把 raise 換成 app/services 裡的商業邏輯。
 """
 
+from datetime import date
+
 from fastapi import APIRouter
 
+from app.ai.llm import Llm
+from app.core.auth import CurrentMember
 from app.core.errors import not_implemented
+from app.repo import Store
 from app.schemas.collab import ExecutionPlan, SaveExecutionPlanInput
+from app.services import task_flow
 
 router = APIRouter(tags=["執行計畫"])
 
@@ -38,8 +44,8 @@ async def get_execution(task_id: str) -> ExecutionPlan | None:
     summary="AI 依任務規格、依賴與專案文件產生計畫建議",
     response_model=ExecutionPlan,
 )
-async def suggest(task_id: str) -> ExecutionPlan:
-    raise not_implemented("execution.suggest")
+def suggest(task_id: str, store: Store, me: CurrentMember, llm: Llm) -> ExecutionPlan:
+    return task_flow.suggest_execution_plan(store, task_id, me, llm, date.today())
 
 
 @router.put(

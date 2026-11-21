@@ -9,7 +9,10 @@
 
 from fastapi import APIRouter
 
+from app.ai.llm import Llm
+from app.core.auth import CurrentMember, require_leader
 from app.core.errors import not_implemented
+from app.repo import Store
 from app.schemas.sprint import (
     AddSprintDocsBody,
     AnalyzeBody,
@@ -26,6 +29,7 @@ from app.schemas.sprint import (
     StartSprintResult,
     UpdateSprintInput,
 )
+from app.services import planning_flow
 
 router = APIRouter(tags=["Sprint"])
 
@@ -70,8 +74,9 @@ async def add_docs(sprint_id: int, body: AddSprintDocsBody) -> Sprint:
     summary="AI 分析會議紀錄，產生待釐清問題，回傳未回答數",
     response_model=AnalyzeResult,
 )
-async def analyze(sprint_id: int, body: AnalyzeBody) -> AnalyzeResult:
-    raise not_implemented("sprints.analyze")
+def analyze(sprint_id: int, body: AnalyzeBody, store: Store, me: CurrentMember, llm: Llm) -> AnalyzeResult:
+    require_leader(me)
+    return planning_flow.analyze(store, sprint_id, body.minutes, llm)
 
 
 @router.put(
@@ -80,8 +85,9 @@ async def analyze(sprint_id: int, body: AnalyzeBody) -> AnalyzeResult:
     summary="回答待釐清問題",
     response_model=Sprint,
 )
-async def answer(sprint_id: int, question_id: str, body: AnswerBody) -> Sprint:
-    raise not_implemented("sprints.answer")
+async def answer(sprint_id: int, question_id: str, body: AnswerBody, store: Store, me: CurrentMember) -> Sprint:
+    require_leader(me)
+    return planning_flow.answer_question(store, sprint_id, question_id, body.answer)
 
 
 @router.post(
@@ -140,5 +146,5 @@ async def remove_backlog(id: str) -> None:
     summary="相依性分析：本次任務與上一個 Sprint 的相依",
     response_model=list[Dependency],
 )
-async def dependencies(sprint_id: int) -> list[Dependency]:
-    raise not_implemented("sprints.dependencies")
+async def dependencies(sprint_id: int, store: Store) -> list[Dependency]:
+    return planning_flow.dependencies(store, sprint_id)

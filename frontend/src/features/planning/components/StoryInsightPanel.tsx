@@ -15,7 +15,7 @@ type Tab = 'clarify' | 'rationale';
 
 /** 階段 3 右側：AI 分析（待釐清的提問與建議、拆解依據與會議紀錄溯源）與微調對話 */
 export function StoryInsightPanel({ story, className }: { story: StoryDraft | undefined; className?: string }) {
-  const { storyChat, pushChat, updateStory } = usePlanningStore();
+  const { storyChat, pushChat, updateStory, draft } = usePlanningStore();
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
   const [tab, setTab] = useState<Tab>('clarify');
@@ -43,7 +43,9 @@ export function StoryInsightPanel({ story, className }: { story: StoryDraft | un
     pushChat({ role: 'user', text: question });
     setPending(true);
     try {
-      pushChat({ role: 'assistant', text: await api.planning.askStoryAssistant(question, story?.title ?? null) });
+      // [v0.2 修改] 帶上目前的 Story 草稿，AI 才看得到要討論的 Story
+      const reply = await api.planning.askStoryAssistant(question, story?.title ?? null, draft?.stories);
+      pushChat({ role: 'assistant', text: reply });
     } catch (e) {
       toast(e instanceof Error ? e.message : '傳送失敗');
     } finally {

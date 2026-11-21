@@ -11,10 +11,15 @@
 
 from fastapi import APIRouter
 
+from app.ai.llm import Llm
+from app.core.auth import CurrentMember, require_leader
 from app.core.errors import not_implemented
+from app.ports import Members
+from app.repo import Store
 from app.schemas.planning import GenerateDraftInput, GenerateTasksInput, PlanningDraft, StoryAssistantBody, TaskDraft
 from app.schemas.sprint import CreatedResult, DeferredResult, UpdatedResult
 from app.schemas.task import CountResult
+from app.services import planning_flow, task_planning
 
 router = APIRouter(tags=["Sprint 規劃"])
 
@@ -32,8 +37,10 @@ async def get_sample_minutes() -> str:
     summary="AI 分析會議紀錄，產生 Story 切分草稿",
     response_model=PlanningDraft,
 )
-async def generate_draft(body: GenerateDraftInput) -> PlanningDraft:
-    raise not_implemented("planning.generateDraft")
+def generate_draft(body: GenerateDraftInput, store: Store, me: CurrentMember, llm: Llm) -> PlanningDraft:
+    # 同步函式：FastAPI 會放到 thread pool 執行，不會因為等待 LLM 而卡住事件迴圈
+    require_leader(me)
+    return planning_flow.generate_draft(store, body, llm)
 
 
 @router.post(
@@ -42,8 +49,11 @@ async def generate_draft(body: GenerateDraftInput) -> PlanningDraft:
     summary="依確認後的 Story 拆解 Task",
     response_model=list[TaskDraft],
 )
-async def generate_tasks(body: GenerateTasksInput) -> list[TaskDraft]:
-    raise not_implemented("planning.generateTasks")
+def generate_tasks(body: GenerateTasksInput, members: Members, store: Store, llm: Llm) -> list[TaskDraft]:
+    # [v0.2 修改] 規劃工作室的草稿由前端持有，這裡帶入資料層中已確定的負載（上一輪帶入＋本輪已確定的任務），
+    # 讓指派建議不會把帶入任務的負責人當成沒事做
+    loads = store.committed_load(body.sprint_id) if body.sprint_id in store.sprints else {}
+    return task_planning.generate_tasks(body, members, llm, loads=loads)
 
 
 @router.post(
@@ -62,8 +72,13 @@ async def submit_plan(body: PlanningDraft) -> CountResult:
     summary="與 AI 對話微調 Story 切分",
     response_model=str,
 )
-async def ask_story_assistant(body: StoryAssistantBody) -> str:
-    raise not_implemented("planning.askStoryAssistant")
+def ask_story_assistant(body: StoryAssistantBody, store: Store, me: CurrentMember, llm: Llm) -> str:
+    # [v0.2 修改] Story 草稿由前端持有、不存在資料層，所以改由前端在請求中帶上目前的 Story（body.stories）。
+    # 修改前這裡固定傳入空陣列，模型看不到任何 Story；舊版前端沒帶 stories 時仍維持空陣列。
+    require_leader(me)
+    return task_planning.story_assistant_reply(
+        body, goal=store.planning_sprint().goal, stories=body.stories or [], llm=llm
+    )
 
 
 @router.post(
@@ -72,8 +87,9 @@ async def ask_story_assistant(body: StoryAssistantBody) -> str:
     summary="AI 拆解規劃中 Sprint 的會議紀錄，回傳新增數",
     response_model=CreatedResult,
 )
-async def decompose(sprint_id: int) -> CreatedResult:
-    raise not_implemented("planning.decompose")
+def decompose(sprint_id: int, store: Store, me: CurrentMember, llm: Llm) -> CreatedResult:
+    require_leader(me)
+    return CreatedResult(created=planning_flow.decompose(store, sprint_id, llm))
 
 
 @router.post(
@@ -82,8 +98,9 @@ async def decompose(sprint_id: int) -> CreatedResult:
     summary="依 AI 容量建議延後任務",
     response_model=DeferredResult,
 )
-async def defer_suggested(sprint_id: int) -> DeferredResult:
-    raise not_implemented("planning.deferSuggested")
+def defer_suggested(sprint_id: int, store: Store, me: CurrentMember, llm: Llm) -> DeferredResult:
+    require_leader(me)
+    return DeferredResult(deferred=planning_flow.defer_suggested(store, sprint_id, llm))
 
 
 @router.post(
@@ -92,5 +109,6 @@ async def defer_suggested(sprint_id: int) -> DeferredResult:
     summary="AI 重新平衡指派（只調整 Leader 沒動過的草稿）",
     response_model=UpdatedResult,
 )
-async def rebalance(sprint_id: int) -> UpdatedResult:
-    raise not_implemented("planning.rebalance")
+def rebalance(sprint_id: int, store: Store, me: CurrentMember, llm: Llm) -> UpdatedResult:
+    require_leader(me)
+    return UpdatedResult(updated=planning_flow.rebalance(store, sprint_id, llm))

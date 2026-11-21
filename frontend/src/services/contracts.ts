@@ -37,6 +37,7 @@ import type {
   SearchHit,
   SetCarryInput,
   Sprint,
+  StoryDraft,
   SubmitDeliveryInput,
   SubmitRetroEntryInput,
   Task,
@@ -156,7 +157,8 @@ export interface PlanningService {
   /** 核准規劃：建立任務並發送指派邀請，回傳任務數 */
   submitPlan(draft: PlanningDraft): Promise<{ count: number }>;
   /** 與 AI 對話微調 Story 切分，回傳回覆文字 */
-  askStoryAssistant(question: string, storyTitle: string | null): Promise<string>;
+  /** [v0.2 修改] 帶上目前的 Story 草稿，後端才看得到 Story（草稿只存在前端） */
+  askStoryAssistant(question: string, storyTitle: string | null, stories?: StoryDraft[]): Promise<string>;
   /** ② AI 拆解規劃中 Sprint 的會議紀錄（待釐清問題需全部回答），回傳新增數 */
   decompose(sprintId: number): Promise<{ created: number }>;
   /** 依 AI 容量建議延後任務 */
