@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,16 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4.1"
     openai_timeout_seconds: float = 60.0
+    # [v0.2 修改] 取樣溫度：越低輸出越穩定。結構化輸出（切 Story、拆 Task、指派等）用低溫，純文字對話稍高。
+    # 換成不支援 temperature 的模型（例如推理模型）時，在 .env 設為空字串即不傳送此參數。
+    openai_temperature: float | None = 0.2
+    openai_text_temperature: float | None = 0.5
+
+    @field_validator("openai_temperature", "openai_text_temperature", mode="before")
+    @classmethod
+    def _blank_is_none(cls, v: object) -> object:
+        """[v0.2 修改] .env 中留空代表「不傳 temperature」"""
+        return None if isinstance(v, str) and not v.strip() else v
 
     # LLM：Anthropic API（舊的客戶端 app/ai/client.py，保留備用）
     anthropic_api_key: str = ""

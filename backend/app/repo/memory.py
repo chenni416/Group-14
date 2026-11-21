@@ -16,6 +16,11 @@ from app.schemas.member import Member
 from app.schemas.sprint import BacklogItem, Sprint
 from app.schemas.task import Task
 
+_BOARD_STATES = ("TODO", "IN_PROGRESS", "IN_REVIEW", "DONE")
+"""看板上的狀態（與前端 types/task.ts 的 BOARD_STATES 相同）"""
+_DRAFT_STATES = ("AI_DRAFT", "DRAFT")
+"""規劃草稿狀態（與 services/planning_flow.DRAFT_STATES 相同）"""
+
 
 @dataclass
 class PromptThread:
@@ -78,15 +83,47 @@ class MemoryStore:
             return list(self.members)
         return [m.model_copy(update={"capacity": sprint.capacity.get(m.id, 0)}) for m in self.members]
 
-    def planned_load(self, sprint_id: int, exclude: set[str] | None = None) -> dict[str, int]:
-        """每位成員在該 Sprint 已分配的點數（不含延後的任務）"""
-        exclude = exclude or set()
+    def carry_load(self, sprint_id: int) -> dict[str, int]:
+        """[v0.2 修改] 上一個 Sprint 帶入本輪的任務點數（每位成員）。
+
+        與前端 lib/planning.ts 的 carryLoad 相同：上一輪「未完成（看板狀態且不是 DONE）」且 carry=True 的任務，
+        負責人為 carry_assignee_id（沒有則用原負責人），點數為 Leader 重新評估的 carry_points（沒有則用原點數）。
+        修改前後端完全沒有計入這部分，AI 指派時會以為帶入任務的負責人還有空，造成超量。
+        """
+        prev_id = self.prev_sprint_id(sprint_id)
+        if prev_id is None:
+            return {}
         loads: dict[str, int] = {}
+        for t in self.sprint_tasks(prev_id):
+            if t.carry is not True or t.state not in _BOARD_STATES or t.state == "DONE":
+                continue
+            owner = t.carry_assignee_id or t.assignee_id
+            if not owner:
+                continue
+            points = t.carry_points if t.carry_points is not None else t.story_points
+            loads[owner] = loads.get(owner, 0) + points
+        return loads
+
+    def planned_load(self, sprint_id: int, exclude: set[str] | None = None) -> dict[str, int]:
+        """每位成員在該 Sprint 已分配的點數（不含延後的任務）
+
+        [v0.2 修改] 加上上一輪帶入的任務點數（carry_load），與前端 planLoad 一致。
+        """
+        exclude = exclude or set()
+        loads = self.carry_load(sprint_id)
         for t in self.sprint_tasks(sprint_id):
             if t.id in exclude or t.state == "DEFERRED" or not t.assignee_id:
                 continue
             loads[t.assignee_id] = loads.get(t.assignee_id, 0) + t.story_points
         return loads
+
+    def committed_load(self, sprint_id: int) -> dict[str, int]:
+        """[v0.2 修改] AI 指派前每位成員「已經確定」的負載：上一輪帶入的任務＋本輪已不是草稿的任務。
+
+        規劃草稿（AI_DRAFT / DRAFT）不算在內，由呼叫端依情況決定要不要加上。
+        """
+        drafts = {t.id for t in self.sprint_tasks(sprint_id) if t.state in _DRAFT_STATES}
+        return self.planned_load(sprint_id, exclude=drafts)
 
     def thread(self, task_id: str) -> PromptThread:
         return self.threads.setdefault(task_id, PromptThread())

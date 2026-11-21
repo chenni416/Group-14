@@ -49,8 +49,11 @@ def generate_draft(body: GenerateDraftInput, store: Store, me: CurrentMember, ll
     summary="依確認後的 Story 拆解 Task",
     response_model=list[TaskDraft],
 )
-def generate_tasks(body: GenerateTasksInput, members: Members, llm: Llm) -> list[TaskDraft]:
-    return task_planning.generate_tasks(body, members, llm)
+def generate_tasks(body: GenerateTasksInput, members: Members, store: Store, llm: Llm) -> list[TaskDraft]:
+    # [v0.2 修改] 規劃工作室的草稿由前端持有，這裡帶入資料層中已確定的負載（上一輪帶入＋本輪已確定的任務），
+    # 讓指派建議不會把帶入任務的負責人當成沒事做
+    loads = store.committed_load(body.sprint_id) if body.sprint_id in store.sprints else {}
+    return task_planning.generate_tasks(body, members, llm, loads=loads)
 
 
 @router.post(
@@ -70,9 +73,12 @@ async def submit_plan(body: PlanningDraft) -> CountResult:
     response_model=str,
 )
 def ask_story_assistant(body: StoryAssistantBody, store: Store, me: CurrentMember, llm: Llm) -> str:
-    # 請求只帶問題與 Story 標題（Story 草稿由前端持有），所以只能附上 Sprint 目標當脈絡
+    # [v0.2 修改] Story 草稿由前端持有、不存在資料層，所以改由前端在請求中帶上目前的 Story（body.stories）。
+    # 修改前這裡固定傳入空陣列，模型看不到任何 Story；舊版前端沒帶 stories 時仍維持空陣列。
     require_leader(me)
-    return task_planning.story_assistant_reply(body, goal=store.planning_sprint().goal, stories=[], llm=llm)
+    return task_planning.story_assistant_reply(
+        body, goal=store.planning_sprint().goal, stories=body.stories or [], llm=llm
+    )
 
 
 @router.post(

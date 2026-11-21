@@ -159,8 +159,16 @@ def decompose(store: MemoryStore, sprint_id: int, llm: LlmClient) -> int:
     draft = planning.generate_draft(
         GenerateDraftInput(goal=sprint.goal, minutes=_clarified_minutes(sprint)), llm, sprint_id
     )
+    # [v0.2 修改] 指派前的既有負載＝上一輪帶入＋本輪保留的任務（要被重做的 AI 草稿不算）
+    loads = store.planned_load(sprint_id, exclude={t.id for t in store.sprint_tasks(sprint_id) if t.id not in kept})
+    # [v0.2 修改] Leader 對 Sprint 層級待釐清問題的回答，另外傳給拆 Task 的模型（寫進驗收條件）
+    answers = [f"{q.question} → {q.answer}" for q in sprint.questions or [] if q.answer]
     drafts = task_planning.generate_tasks(
-        GenerateTasksInput(sprint_id=sprint_id, stories=draft.stories, existing_task_count=len(kept)), members, llm
+        GenerateTasksInput(sprint_id=sprint_id, stories=draft.stories, existing_task_count=len(kept)),
+        members,
+        llm,
+        loads=loads,
+        sprint_answers=answers,
     )
     new = [d for d in drafts if d.code not in kept]
     code_of = {d.id: d.code for d in drafts}
@@ -193,7 +201,10 @@ def _draftable(store: MemoryStore, sprint_id: int) -> list[Task]:
 def defer_suggested(store: MemoryStore, sprint_id: int, llm: LlmClient) -> int:
     sprint = store.find_sprint(sprint_id)
     tasks = _draftable(store, sprint_id)
-    ids = task_planning.defer_suggested([task_to_draft(t) for t in tasks], sprint.goal, store.members_for(sprint), llm)
+    committed = sum(store.committed_load(sprint_id).values())  # [v0.2 修改] 帶入與已確定任務也占容量
+    ids = task_planning.defer_suggested(
+        [task_to_draft(t) for t in tasks], sprint.goal, store.members_for(sprint), llm, committed=committed
+    )
     for task_id in ids:
         task = store.tasks[task_id]
         task.prev_state, task.state = task.state, "DEFERRED"
@@ -216,7 +227,10 @@ def rebalance(store: MemoryStore, sprint_id: int, llm: LlmClient) -> int:
     tasks = _draftable(store, sprint_id)
     drafts = [task_to_draft(t) for t in tasks]
     locked = frozenset(t.id for t in tasks if t.edited or t.origin == "human")
-    updated = task_planning.rebalance(drafts, store.members_for(sprint), llm, locked)
+    # [v0.2 修改] 草稿以外的既有負載（上一輪帶入＋已確定的任務）
+    updated = task_planning.rebalance(
+        drafts, store.members_for(sprint), llm, locked, base_loads=store.committed_load(sprint_id)
+    )
     for t, d in zip(tasks, drafts, strict=True):
         if t.id in locked:
             continue

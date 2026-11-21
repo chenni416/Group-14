@@ -158,7 +158,7 @@ def test_generate_tasks_builds_codes_sanitizes_and_drops_bad_data() -> None:
 
     assert [d.code for d in drafts] == ["S-311", "S-312", "S-313"]
     assert [d.id for d in drafts] == ["st-1-tk-1", "st-1-tk-2", "st-1-tk-3"]
-    assert drafts[0].story_points == 13  # 夾在合理範圍
+    assert drafts[0].story_points == 8  # [v0.2 修改] 調整到允許值，最大 8（原為夾在 1–13）
     assert drafts[0].branch_slug == "chat-api"
     assert drafts[0].acceptance_criteria == ["a1"]  # 空白條件被丟掉
     assert [d.id for d in drafts[1].depends_on] == ["st-1-tk-1"]

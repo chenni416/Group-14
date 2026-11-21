@@ -31,9 +31,24 @@ class LlmClient(Protocol):
 
 
 class OpenAILlm:
-    def __init__(self, client: openai.OpenAI, model: str) -> None:
+    def __init__(
+        self,
+        client: openai.OpenAI,
+        model: str,
+        *,
+        temperature: float | None = None,
+        text_temperature: float | None = None,
+    ) -> None:
         self._client = client
         self._model = model
+        # [v0.2 修改] 修改前沒有設定 temperature，使用 API 預設值 1，同樣的輸入每次結果差異較大
+        self._temperature = temperature
+        self._text_temperature = text_temperature
+
+    @staticmethod
+    def _sampling(temperature: float | None) -> dict[str, float]:
+        """temperature 為 None 時不傳，讓不支援此參數的模型也能使用"""
+        return {} if temperature is None else {"temperature": temperature}
 
     def generate_json(self, *, system: str, user: str, schema: type[T]) -> T:
         try:
@@ -41,6 +56,7 @@ class OpenAILlm:
                 model=self._model,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 response_format=schema,
+                **self._sampling(self._temperature),  # [v0.2 修改]
             )
         except openai.OpenAIError as exc:
             raise _to_api_error(exc) from exc
@@ -57,6 +73,7 @@ class OpenAILlm:
             res = self._client.chat.completions.create(
                 model=self._model,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                **self._sampling(self._text_temperature),  # [v0.2 修改]
             )
         except openai.OpenAIError as exc:
             raise _to_api_error(exc) from exc
@@ -84,7 +101,12 @@ def get_llm() -> LlmClient:
     if not settings.openai_api_key:
         raise ApiError("尚未設定 OPENAI_API_KEY", status=503, code="AI_NOT_CONFIGURED")
     client = openai.OpenAI(api_key=settings.openai_api_key, timeout=settings.openai_timeout_seconds, max_retries=2)
-    return OpenAILlm(client, settings.openai_model)
+    return OpenAILlm(
+        client,
+        settings.openai_model,
+        temperature=settings.openai_temperature,  # [v0.2 修改]
+        text_temperature=settings.openai_text_temperature,
+    )
 
 
 Llm = Annotated[LlmClient, Depends(get_llm)]
