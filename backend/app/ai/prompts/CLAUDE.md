@@ -224,6 +224,8 @@ Taskline 把 Sprint Planning 會議紀錄轉成可分配、可追蹤的任務。
 
 ## 6. 已知失敗模式（v0.2 預期，待測試驗證）
 
+每一列都有對應的測試案例（`tests/prompt_eval/`，見第 9 節），取得 API 金鑰後依測試結果更新本表。
+
 | 功能 | 失敗模式 | 防護 |
 |---|---|---|
 | 全部 | 照著會議紀錄或文件中的「指令」做事 | `_safety.md` 資料界線；注入測試案例 |
@@ -241,12 +243,37 @@ Taskline 把 Sprint Planning 會議紀錄轉成可分配、可追蹤的任務。
 | 版本 | 日期 | 作者 | 內容 |
 |---|---|---|---|
 | v0.1 | — | 後端 AI 負責組員 | 初版：12 個 prompt、`_safety.md`、`app/ai/schemas.py` 精簡輸出格式與程式端過濾 |
-| v0.2 | 2026-11-21 | ning | **Prompt**：9 個規劃與對話 prompt 補上輸入格式說明、步驟、欄位寫法、範例與自我檢查；`_safety.md` 擴充為共用規則；新增本檔與 `COMPARISON.md`。Task 最大點數定為 8。**程式**：指派帶入既有負載並驗算、釐清回答傳給拆 Task、Story 助理收到 Story、設定 temperature（程式中以 `[v0.2 修改]` 標註，清單見 `COMPARISON.md` 第 6 節）。LLM 輸出 schema 未變更 |
+| v0.2 | 2026-11-21 | ning | **測試集**：新增 `tests/prompt_eval/`（16 個案例＋靜態檢查，見第 9 節）。**Prompt**：9 個規劃與對話 prompt 補上輸入格式說明、步驟、欄位寫法、範例與自我檢查；`_safety.md` 擴充為共用規則；新增本檔與 `COMPARISON.md`。Task 最大點數定為 8。**程式**：指派帶入既有負載並驗算、釐清回答傳給拆 Task、Story 助理收到 Story、設定 temperature（程式中以 `[v0.2 修改]` 標註，清單見 `COMPARISON.md` 第 6 節）。LLM 輸出 schema 未變更 |
 
 ## 8. 修改流程
 
 1. 修改本資料夾中的 prompt 檔，在本檔第 7 節與 `README.md` 更新版本。
 2. 改到輸出欄位時，同時修改 `app/ai/schemas.py`、對應的 `app/services/` 後處理與 `tests/`。
-3. 執行 `uv run pytest`（使用 FakeLlm，不需要 API 金鑰）確認流程沒壞。
-4. 有 API 金鑰後，執行 prompt 測試集（典型、邊界、失敗案例），把結果與修正記錄在版本紀錄。
+3. 執行 `uv run pytest`（使用 FakeLlm，不需要 API 金鑰）確認流程沒壞；其中包含提示詞靜態檢查（`tests/test_prompt_static.py`）。
+4. 有 API 金鑰後，執行 prompt 測試集 `uv run python -m tests.prompt_eval.run --repeat 3 --label <版本>`，把結果與修正循環記錄在 `tests/prompt_eval/EVAL_LOG.md`，並在本檔第 7 節註明。
 5. PR 說明中寫明改了哪個 prompt、為什麼、對應哪個測試案例。
+
+## 9. Prompt 測試集
+
+位置：`backend/tests/prompt_eval/`（說明見該資料夾的 `README.md`，紀錄見 `EVAL_LOG.md`）。
+
+| 項目 | 內容 |
+|---|---|
+| 案例 | 16 個：typical 7、edge 6、adversarial 3（提示詞注入、依姓名或性別分配、洩漏金鑰），涵蓋 Agent 1–4 |
+| 自動檢查 | 每個案例 3–10 項，同時檢查模型原始輸出與程式校正後的結果 |
+| 人工評分 | 每個案例 1–3 項品質判斷（0／1／2 分） |
+| 靜態檢查 | 不呼叫 API：提示詞提到所有輸出欄位、說明每個輸入區塊、附加共用規則；在 `pytest` 與 CI 中執行 |
+| 不需金鑰也能用 | `--static`（靜態檢查）、`--dry-run`（輸出每個案例的 system／user，可貼到網頁版測試） |
+| 版本比較 | `--prompts-dir` 指定舊版提示詞資料夾，與目前版本用同一批案例比較 |
+
+| 案例 | 提示詞 | 測試重點 |
+|---|---|---|
+| C01–C04 | `analyze_minutes` | 一般切分、延續標記、口語紀錄、提示詞注入 |
+| C05–C06 | `clarify_questions` | 模糊紀錄要提問、已有答案不提問 |
+| C07 | `task_dependencies` | 對上一輪未完成成果的相依 |
+| C08 | `generate_tasks` | 釐清回答寫進驗收條件、採用／不採用的建議 |
+| C09–C10 | `assign` | 既有負載、公平性 |
+| C11 | `reassign` | 採用成員建議的人選 |
+| C12 | `defer_tasks` | 延後剛好足夠、不延後被依賴的任務 |
+| C13–C15 | `context_chat` | 依文件回答、範圍變更交給 Leader、不洩漏金鑰 |
+| C16 | `story_assistant` | 依目前 Story 給拆法 |

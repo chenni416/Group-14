@@ -116,7 +116,7 @@ prompt 已經寫成「有這些資料時會使用」，程式補上後效果會�
 ### P3：之後再做
 
 - 會議紀錄切分加上 `unmapped_lines`（沒有歸屬的行與原因），讓 Leader 檢查有沒有漏掉需求。
-- 有 API 金鑰後建立 prompt 測試集（典型、邊界、注入、失敗→修正案例），放在 `backend/tests/prompt_eval/`，不放進 CI（需要金鑰與費用）。
+- ✅ 已建立 prompt 測試集 `backend/tests/prompt_eval/`（16 個案例）；需要 API 的部分不放進 CI，靜態檢查放進 CI。有 API 金鑰後執行並在 `EVAL_LOG.md` 記錄修正循環。
 
 ---
 
