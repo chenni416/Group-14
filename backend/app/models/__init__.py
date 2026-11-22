@@ -1,6 +1,7 @@
 """所有資料表都要在這裡匯入，Alembic autogenerate 才找得到"""
 
 from app.models.base import Base
+from app.models.document import Document
 from app.models.github_commit import GithubCommit
 from app.models.github_installation import GithubInstallation
 from app.models.github_pull_request import GithubPullRequest
@@ -22,4 +23,5 @@ __all__ = [
     "ProjectInvitation",
     "ProjectMember",
     "Sprint",
+    "Document",
 ]
