@@ -1,5 +1,6 @@
 """Sprint 層級的 AI 分析：待釐清問題、跨 Sprint 相依性"""
 
+from app.ai import audit
 from app.ai.llm import LlmClient
 from app.ai.prompts import load_prompt
 from app.ai.schemas import LlmQuestions, LlmTaskDependencies
@@ -24,6 +25,14 @@ def analyze_questions(minutes: str, goal: str, llm: LlmClient) -> list[ClarifyQu
         schema=LlmQuestions,
     )
     questions = [q for q in result.questions if q.question.strip() and len(q.options) >= 2]
+    dropped = [q.question for q in result.questions if not (q.question.strip() and len(q.options) >= 2)]
+    if dropped:
+        audit.note("drop_invalid_questions", f"捨棄空白或選項少於 2 個的待釐清問題：{dropped}", dropped=dropped)
+    if len(questions) > MAX_QUESTIONS:
+        cut = [q.question for q in questions[MAX_QUESTIONS:]]
+        audit.note(
+            "truncate_questions", f"問題超過 {MAX_QUESTIONS} 個，只保留前 {MAX_QUESTIONS} 個，捨棄：{cut}", dropped=cut
+        )
     return [
         ClarifyQuestion(id=f"q-{i}", question=q.question.strip(), options=q.options, answer="")
         for i, q in enumerate(questions[:MAX_QUESTIONS], start=1)
@@ -53,6 +62,20 @@ def analyze_dependencies(current: list[Task], previous: list[Task], llm: LlmClie
             or d.task_id == d.depends_on_id
             or (d.task_id, d.depends_on_id) in seen
         ):
+            if d.task_id not in now:
+                why = "task_id 不在本 Sprint"
+            elif not target_ok:
+                why = "被依賴的任務不存在於指定範圍"
+            elif d.task_id == d.depends_on_id:
+                why = "依賴自己"
+            else:
+                why = "重複的相依"
+            audit.note(
+                "drop_dependency",
+                f"捨棄相依 {d.task_id} → {d.depends_on_id}：{why}",
+                task=d.task_id,
+                depends_on=d.depends_on_id,
+            )
             continue
         seen.add((d.task_id, d.depends_on_id))
         # 風險由程式校正：上一輪已完成的不會是 high，沒完成的不可能是 ok
@@ -62,6 +85,15 @@ def analyze_dependencies(current: list[Task], previous: list[Task], llm: LlmClie
                 risk = "ok"
             elif d.depends_on_id not in prev_done and risk == "ok":
                 risk = "mid"
+        if risk != d.risk:
+            audit.note(
+                "adjust_risk",
+                f"{d.task_id} → {d.depends_on_id}：風險 {d.risk} 校正為 {risk}（依前置任務是否已完成）",
+                task=d.task_id,
+                depends_on=d.depends_on_id,
+                raw=d.risk,
+                adjusted=risk,
+            )
         out.append(
             Dependency(scope=d.scope, task_id=d.task_id, depends_on_id=d.depends_on_id, reason=d.reason, risk=risk)
         )

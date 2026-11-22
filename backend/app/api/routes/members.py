@@ -8,22 +8,26 @@
 
 from fastapi import APIRouter
 
-from app.core.errors import not_implemented
+from app.core.auth import CurrentMember, require_leader
+from app.repo import Store
 from app.schemas.member import InviteMemberInput, Member, UpdateMemberInput
+from app.services import workspace_flow
 
 router = APIRouter(tags=["成員"])
 
 
 @router.get("/members", operation_id="members.list", summary="專案成員列表", response_model=list[Member])
-async def list_members() -> list[Member]:
-    raise not_implemented("members.list")
+async def list_members(store: Store) -> list[Member]:
+    return store.members
 
 
 @router.post("/members", operation_id="members.invite", summary="邀請成員", response_model=Member)
-async def invite(body: InviteMemberInput) -> Member:
-    raise not_implemented("members.invite")
+async def invite(body: InviteMemberInput, store: Store, me: CurrentMember) -> Member:
+    require_leader(me)
+    return workspace_flow.invite_member(store, body)
 
 
 @router.patch("/members/{id}", operation_id="members.update", summary="修改成員資料", response_model=Member)
-async def update(id: str, body: UpdateMemberInput) -> Member:
-    raise not_implemented("members.update")
+async def update(id: str, body: UpdateMemberInput, store: Store, me: CurrentMember) -> Member:
+    require_leader(me)
+    return workspace_flow.update_member(store, id, body)

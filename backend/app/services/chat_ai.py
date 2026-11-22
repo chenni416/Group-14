@@ -2,6 +2,7 @@
 
 from uuid import uuid4
 
+from app.ai import audit
 from app.ai.context import DocSnippet
 from app.ai.llm import LlmClient
 from app.ai.prompts import load_prompt
@@ -33,6 +34,9 @@ def ask(task: Task, question: str, docs: list[DocSnippet], history: list[ChatMes
     )
     known = {d.name for d in docs}
     sources = [s for s in dict.fromkeys(result.sources) if s in known]  # 只保留真的提供過的文件
+    fake_sources = [s for s in dict.fromkeys(result.sources) if s not in known]
+    if fake_sources:
+        audit.note("drop_unknown_sources", f"捨棄沒有提供過的文件名稱：{fake_sources}", dropped=fake_sources)
     addition = (result.prompt_addition or "").strip() or None
     return ChatMessage(
         id=f"m-{uuid4().hex[:8]}",

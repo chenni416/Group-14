@@ -1,5 +1,6 @@
 """AI 指派建議：分配 Task 給成員（依技能與 capacity），或在協商退回時重新建議"""
 
+from app.ai import audit
 from app.ai.llm import LlmClient
 from app.ai.prompts import load_prompt
 from app.ai.schemas import LlmAssignments, LlmReassign
@@ -33,6 +34,14 @@ def _flag_overload(
         total[member_id] = total.get(member_id, 0) + d.story_points
         if total[member_id] > cap.get(member_id, 0):
             note = f"（指派後共 {total[member_id]}/{cap.get(member_id, 0)} 點，超出 capacity，建議改派或延後）"
+            audit.note(
+                "flag_overload",
+                f"{d.code} 指派給 {member_id} 後共 {total[member_id]}/{cap.get(member_id, 0)} 點，理由已註明超出",
+                task=d.code,
+                member=member_id,
+                total=total[member_id],
+                capacity=cap.get(member_id, 0),
+            )
             out[d.code] = (member_id, f"{reason.rstrip('。')}{note}")
 
 
@@ -60,6 +69,22 @@ def suggest_assignments(
     for a in result.assignments:
         if a.task_code in codes and a.member_id in member_ids and a.task_code not in out:
             out[a.task_code] = (a.member_id, a.reason)
+        else:
+            if a.task_code not in codes:
+                why = "任務編號不存在"
+            elif a.member_id not in member_ids:
+                why = "成員 id 不存在"
+            else:
+                why = "同一個任務重複指派"
+            audit.note(
+                "drop_assignment",
+                f"捨棄指派 {a.task_code} → {a.member_id}：{why}",
+                task=a.task_code,
+                member=a.member_id,
+            )
+    missing = sorted(codes - out.keys())
+    if missing:
+        audit.note("unassigned_tasks", f"模型沒有給出有效指派的任務：{missing}", tasks=missing)
     _flag_overload(drafts, members, loads or {}, out)  # [v0.2 修改] 程式驗算 capacity
     return out
 
@@ -81,8 +106,16 @@ def suggest_reassignment(
         schema=LlmReassign,
     )
     if result.member_id not in {m.id for m in candidates}:
+        audit.note("drop_reassignment", f"捨棄改派建議：成員 {result.member_id} 不在候選名單", member=result.member_id)
         return None
     member = next(m for m in candidates if m.id == result.member_id)
     # 是否塞得下由程式依 capacity 計算，不採信模型的 fits
     fits = loads.get(member.id, 0) + task.story_points <= member.capacity
+    if fits != result.fits:
+        audit.note(
+            "recompute_fits",
+            f"模型回報 fits={result.fits}，程式依 capacity 重算為 {fits}",
+            model=result.fits,
+            computed=fits,
+        )
     return result.member_id, result.reason, fits

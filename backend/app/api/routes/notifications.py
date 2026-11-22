@@ -8,8 +8,10 @@
 
 from fastapi import APIRouter
 
-from app.core.errors import not_implemented
+from app.core.auth import CurrentMember
+from app.repo import Store
 from app.schemas.collab import Notification
+from app.services import workspace_flow
 
 router = APIRouter(tags=["通知"])
 
@@ -17,5 +19,5 @@ router = APIRouter(tags=["通知"])
 @router.get(
     "/notifications", operation_id="notifications.list", summary="目前登入者的通知", response_model=list[Notification]
 )
-async def list_notifications() -> list[Notification]:
-    raise not_implemented("notifications.list")
+async def list_notifications(store: Store, me: CurrentMember) -> list[Notification]:
+    return workspace_flow.list_notifications(store, me)
