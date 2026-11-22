@@ -3,5 +3,6 @@
 from app.models.base import Base
 from app.models.github_installation import GithubInstallation
 from app.models.member import Member
+from app.models.project import Project
 
-__all__ = ["Base", "GithubInstallation", "Member"]
+__all__ = ["Base", "GithubInstallation", "Member", "Project"]
