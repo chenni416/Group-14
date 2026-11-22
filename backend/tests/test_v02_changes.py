@@ -13,6 +13,8 @@ from app.schemas.member import Member
 from app.schemas.planning import GenerateTasksInput, ReviewerAssignment, StoryClarifyItem, StoryDraft, TaskDraft
 from app.services import task_planning
 
+LEADER = {"X-Demo-User": "m1"}  # 開發用假登入：Leader（main 的登入驗證不再預設身分）
+
 
 class FakeLlm:
     def __init__(self, *results, text: str = "ok") -> None:
@@ -201,7 +203,7 @@ def test_story_assistant_route_sends_stories() -> None:
             "storyTitle": "Story 1",
             "stories": [story(1).model_dump(by_alias=True), story(2, deferred=True).model_dump(by_alias=True)],
         }
-        res = TestClient(app).post("/api/planning/drafts/chat", json=body)
+        res = TestClient(app, headers=LEADER).post("/api/planning/drafts/chat", json=body)
     finally:
         app.dependency_overrides.pop(get_llm, None)
     assert res.status_code == 200 and res.json() == "建議拆成兩個"

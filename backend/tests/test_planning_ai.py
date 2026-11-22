@@ -7,6 +7,8 @@ from app.ai.llm import get_llm
 from app.ai.schemas import LlmClarify, LlmDependency, LlmStory, LlmStoryDraft
 from app.main import app
 
+LEADER = {"X-Demo-User": "m1"}  # 開發用假登入：Leader（main 的登入驗證不再預設身分）
+
 MINUTES = "討論對話功能\n需要保留對話紀錄\n\n手機版也要能用"
 
 
@@ -39,7 +41,7 @@ def _story(**over) -> LlmStory:
 
 @pytest.fixture
 def client():
-    yield TestClient(app)
+    yield TestClient(app, headers=LEADER)
     app.dependency_overrides.clear()
 
 
