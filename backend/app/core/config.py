@@ -32,8 +32,11 @@ class Settings(BaseSettings):
 
     # GitHub App（同步 PR 狀態）
     github_app_id: str = ""
-    github_webhook_secret: str = ""
+    github_app_slug: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
     github_private_key_path: str = ""
+    github_webhook_secret: str = ""
 
 
 @lru_cache

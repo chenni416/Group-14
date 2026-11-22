@@ -4,8 +4,8 @@
 #   ./setup.sh             完整設定：前端 + 後端 + 登入設定
 #   ./setup.sh --frontend  只設定前端（只用模擬資料開發時）
 #
-# 會做的事：檢查必要工具、安裝 uv（詢問後）、安裝前後端套件、建立設定檔、
-# 互動輸入 Supabase 設定、檢查資料庫連線、執行測試確認環境正常。
+# 會做的事：檢查必要工具、安裝 uv（詢問後）、安裝前後端套件、建立設定檔並帶入團隊的公開設定、
+# 詢問機密值（資料庫密碼；選用的 GitHub 整合金鑰）、檢查資料庫連線、執行測試確認環境正常。
 # 完成後用 ./dev.sh 啟動。Windows 請在 Git Bash 或 WSL 執行。
 
 set -euo pipefail
@@ -57,6 +57,42 @@ set_env() {
 }
 
 is_placeholder() { [ -z "$1" ] || [[ "$1" == *"<"*">"* ]]; }
+
+# 團隊共用的公開值（寫在 .env.example）：個人設定檔的欄位還沒填時自動帶入
+fill_public() {
+  local file="$1" example="$2" key="$3" value
+  value="$(env_value "$example" "$key")"
+  if ! is_placeholder "$(env_value "$file" "$key")"; then
+    ok "$key 已設定"
+  elif ! is_placeholder "$value"; then
+    set_env "$file" "$key" "$value"
+    ok "$key 已帶入團隊設定"
+  else
+    ask_env "$file" "$key" "$key"
+  fi
+}
+
+# 檔案權限只有自己可讀（mode & 077 為 0）
+file_private() { node -e 'process.exit(require("fs").statSync(process.argv[1]).mode & 0o077 ? 1 : 0)' "$1"; }
+
+# 確認 private key 檔案存在、格式正確，權限太寬時改為只有自己可讀
+check_pem() {
+  local path="$1"
+  if [ ! -f "$path" ]; then
+    warn "找不到 private key：${path}"
+    return 1
+  fi
+  if ! grep -q "BEGIN .*PRIVATE KEY" "$path"; then
+    warn "${path} 不是 private key 檔案（應該是 GitHub App 頁面下載的 .pem）"
+    return 1
+  fi
+  if ! file_private "$path"; then
+    chmod 600 "$path"
+    ok "已將 private key 權限改為只有自己可讀"
+  fi
+  case "$path" in "$ROOT"/*) warn "private key 放在 repo 資料夾內，建議移到 repo 以外（例如 ~/.taskline/）";; esac
+  ok "private key 檔案正確"
+}
 
 # 欄位已有值就略過；沒有值時互動詢問（secret=true 時輸入不顯示）
 ask_env() {
@@ -154,24 +190,40 @@ fi
 
 # ---------- 4. Supabase 設定 ----------
 
-step "4. Supabase 設定（從 Supabase 後台複製，說明見 docs/auth.md）"
-echo "  直接按 Enter 可以先略過；已經填過的欄位不會再詢問。"
-echo "  Project URL 與 publishable key：Project Settings → API Keys"
+step "4. Supabase 設定"
+echo "  團隊共用的公開值會自動帶入；只需要輸入資料庫密碼。按 Enter 可以先略過。"
+fill_public "$FRONTEND_ENV" "$FRONTEND/.env.example" VITE_SUPABASE_URL
+fill_public "$FRONTEND_ENV" "$FRONTEND/.env.example" VITE_SUPABASE_PUBLISHABLE_KEY
+fill_public "$BACKEND_ENV" "$BACKEND/.env.example" SUPABASE_URL
 
-ask_env "$FRONTEND_ENV" VITE_SUPABASE_URL "Project URL（https://xxxx.supabase.co）"
-SUPABASE_URL_VALUE="$(env_value "$FRONTEND_ENV" VITE_SUPABASE_URL)"
-# 前後端使用同一個 Supabase 專案，後端直接沿用
-if ! is_placeholder "$SUPABASE_URL_VALUE" && is_placeholder "$(env_value "$BACKEND_ENV" SUPABASE_URL)"; then
-  set_env "$BACKEND_ENV" SUPABASE_URL "$SUPABASE_URL_VALUE"
-  ok "SUPABASE_URL 已同步到 backend/.env"
-else
-  ask_env "$BACKEND_ENV" SUPABASE_URL "Project URL（後端）"
+# 資料庫：沿用 .env.example 的連線字串範本，只詢問密碼
+DB_URL="$(env_value "$BACKEND_ENV" DATABASE_URL)"
+DB_TEMPLATE="$(env_value "$BACKEND/.env.example" DATABASE_URL)"
+if is_placeholder "$DB_URL" && [[ "$DB_TEMPLATE" == *"<資料庫密碼>"* ]] && [[ "$DB_URL" != "$DB_TEMPLATE" ]]; then
+  set_env "$BACKEND_ENV" DATABASE_URL "$DB_TEMPLATE"
+  DB_URL="$DB_TEMPLATE"
 fi
-ask_env "$FRONTEND_ENV" VITE_SUPABASE_PUBLISHABLE_KEY "publishable key（sb_publishable_ 開頭，舊版叫 anon key）"
-
-echo "  資料庫連線字串：專案頁面上方 Connect → Session pooler"
-echo "  格式：postgresql+psycopg://postgres.<專案代號>:<密碼>@<主機>:5432/postgres?sslmode=require"
-ask_env "$BACKEND_ENV" DATABASE_URL "資料庫連線字串（輸入時不會顯示）" true
+if ! is_placeholder "$DB_URL"; then
+  ok "DATABASE_URL 已設定"
+elif $INTERACTIVE && [[ "$DB_URL" == *"<資料庫密碼>"* ]]; then
+  echo "  資料庫密碼請向建立 Supabase 專案的人取得（也可以貼上完整的連線字串）"
+  read -r -s -p "  資料庫密碼（輸入時不會顯示）：" DB_PASSWORD
+  echo
+  if [ -z "$DB_PASSWORD" ]; then
+    warn "DATABASE_URL 先略過，之後可重新執行 ./setup.sh"
+  elif [[ "$DB_PASSWORD" == postgres://* || "$DB_PASSWORD" == postgresql* ]]; then
+    set_env "$BACKEND_ENV" DATABASE_URL "$DB_PASSWORD"
+    ok "DATABASE_URL 已寫入"
+  else
+    # 密碼裡的 @ : / # 等符號要編碼，連線字串才不會被拆錯
+    ENCODED="$(PW="$DB_PASSWORD" node -p 'encodeURIComponent(process.env.PW)')"
+    set_env "$BACKEND_ENV" DATABASE_URL "${DB_URL/<資料庫密碼>/$ENCODED}"
+    ok "DATABASE_URL 已寫入"
+  fi
+  unset DB_PASSWORD ENCODED
+else
+  ask_env "$BACKEND_ENV" DATABASE_URL "資料庫連線字串（Supabase → Connect → Session pooler，輸入時不會顯示）" true
+fi
 
 # Supabase 複製的連線字串開頭是 postgresql://，自動改成 SQLAlchemy 需要的格式
 DB_URL="$(env_value "$BACKEND_ENV" DATABASE_URL)"
@@ -182,9 +234,45 @@ if [[ "$DB_URL" == postgresql://* || "$DB_URL" == postgres://* ]]; then
   ok "DATABASE_URL 已轉換為 postgresql+psycopg:// 格式"
 fi
 
-# ---------- 5. 檢查 ----------
+# ---------- 5. GitHub 整合（選用） ----------
 
-step "5. 檢查環境"
+step "5. GitHub 整合（選用：只有在本機開發或測試 GitHub 功能的人需要）"
+fill_public "$BACKEND_ENV" "$BACKEND/.env.example" GITHUB_APP_ID
+fill_public "$BACKEND_ENV" "$BACKEND/.env.example" GITHUB_APP_SLUG
+fill_public "$BACKEND_ENV" "$BACKEND/.env.example" GITHUB_CLIENT_ID
+
+GITHUB_READY=false
+GH_SECRET="$(env_value "$BACKEND_ENV" GITHUB_CLIENT_SECRET)"
+GH_PEM="$(env_value "$BACKEND_ENV" GITHUB_PRIVATE_KEY_PATH)"
+if ! is_placeholder "$GH_SECRET" && ! is_placeholder "$GH_PEM"; then
+  ok "GITHUB_CLIENT_SECRET 已設定"
+  check_pem "$GH_PEM" && GITHUB_READY=true
+elif $INTERACTIVE; then
+  echo "  需要 GitHub App 擁有者提供的 Client secret 與 private key（.pem）檔案。"
+  read -r -p "  要現在設定嗎？[y/N] " setup_github
+  if [[ "${setup_github:-n}" =~ ^[Yy]$ ]]; then
+    ask_env "$BACKEND_ENV" GITHUB_CLIENT_SECRET "Client secret（輸入時不會顯示）" true
+    if is_placeholder "$(env_value "$BACKEND_ENV" GITHUB_PRIVATE_KEY_PATH)"; then
+      read -r -p "  private key 檔案路徑（建議放在 ~/.taskline/github-app.pem）：" pem_path
+      pem_path="${pem_path/#\~/$HOME}"
+      if [ -n "$pem_path" ] && check_pem "$pem_path"; then
+        set_env "$BACKEND_ENV" GITHUB_PRIVATE_KEY_PATH "$(cd "$(dirname "$pem_path")" && pwd)/$(basename "$pem_path")"
+        ok "GITHUB_PRIVATE_KEY_PATH 已寫入"
+      fi
+    else
+      check_pem "$(env_value "$BACKEND_ENV" GITHUB_PRIVATE_KEY_PATH)" || true
+    fi
+    ! is_placeholder "$(env_value "$BACKEND_ENV" GITHUB_CLIENT_SECRET)" && check_pem "$(env_value "$BACKEND_ENV" GITHUB_PRIVATE_KEY_PATH)" >/dev/null 2>&1 && GITHUB_READY=true
+  else
+    info "略過 GitHub 整合；之後需要時重新執行 ./setup.sh"
+  fi
+else
+  info "未設定 GitHub 金鑰，略過"
+fi
+
+# ---------- 6. 檢查 ----------
+
+step "6. 檢查環境"
 info "執行後端測試…"
 if (cd "$BACKEND" && uv run pytest -q >/dev/null 2>&1); then
   ok "後端測試通過"
@@ -227,6 +315,7 @@ step "完成"
 if [ ${#MISSING[@]} -eq 0 ]; then
   echo "  ./dev.sh mock   只啟動前端（模擬資料）"
   echo "  ./dev.sh full   啟動前後端（GitHub 登入）"
+  $GITHUB_READY && echo "  GitHub 整合：已設定" || echo "  GitHub 整合：未設定（不影響登入與其他功能）"
 else
   warn "還缺少：${MISSING[*]}，目前只能使用 ./dev.sh mock；補齊後重新執行 ./setup.sh 即可使用 ./dev.sh full"
 fi

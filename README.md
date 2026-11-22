@@ -45,15 +45,22 @@ Windows 請在 Git Bash 或 WSL 執行這兩個腳本。
 1. 檢查 Git、Node.js 版本；沒有 uv 時詢問是否自動安裝；檢查 Docker（選用）
 2. 安裝前端套件，建立 `frontend/.env.local`
 3. 安裝 Python 3.12 與後端套件，建立 `backend/.env`
-4. 互動輸入 Supabase 設定（已填過的欄位會略過，按 Enter 可以先跳過）：
-   - Project URL：Supabase → Project Settings → API Keys（前後端共用，只需輸入一次）
-   - publishable key：同一頁（舊版介面叫 anon key）
-   - 資料庫連線字串：專案頁面上方 Connect → Session pooler（輸入時不會顯示；開頭的 `postgresql://` 會自動轉成需要的格式）
-5. 執行後端測試、檢查資料庫連線，並套用資料表遷移
+4. Supabase 設定：團隊共用的公開值（Project URL、publishable key）會自動帶入，**只需要輸入資料庫密碼**（輸入時不會顯示，密碼中的特殊符號會自動處理）
+5. GitHub 整合（選用）：GitHub App 的公開值自動帶入；只有在本機開發或測試 GitHub 功能的人，需要再輸入 Client secret 與 private key 檔案路徑（會檢查檔案格式，並把權限改成只有自己可讀）
+6. 執行後端測試、檢查資料庫連線，並套用資料表遷移
 
 可以重複執行：已完成的步驟會略過，不會覆蓋已填好的設定。設定有缺漏或資料庫連不上時，會直接說明原因與解決方式。
 
-Supabase 與 GitHub 登入的團隊設定（每個專案只需做一次）見 [docs/auth.md](docs/auth.md)；金鑰請向負責人取得或自己登入 Supabase 後台複製，不要 commit。
+**每個人需要自己準備的機密值**
+
+| 值 | 誰需要 | 向誰取得 |
+|---|---|---|
+| 資料庫密碼 | 要啟動後端的人 | 建立 Supabase 專案的人 |
+| GitHub Client secret 與 private key（`.pem`） | 只有在本機開發 GitHub 整合的人 | GitHub App 擁有者（可以為每個人各產生一把 private key） |
+
+機密值請用密碼管理工具或當面傳送，不要貼在群組或 commit。公開值已寫在 `.env.example`，不需要另外索取。
+
+Supabase 與 GitHub 登入的團隊設定（整個團隊只需做一次，已完成）見 [docs/auth.md](docs/auth.md)。
 
 ### `dev.sh`：啟動開發環境
 
