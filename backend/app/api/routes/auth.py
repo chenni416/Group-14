@@ -8,6 +8,7 @@
 
 from fastapi import APIRouter
 
+from app.core.auth import CurrentMember
 from app.core.errors import not_implemented
 from app.schemas.member import Member, SwitchUserInput
 
@@ -15,8 +16,8 @@ router = APIRouter(tags=["登入"])
 
 
 @router.get("/me", operation_id="auth.me", summary="目前登入的成員", response_model=Member)
-async def me() -> Member:
-    raise not_implemented("auth.me")
+async def me(member: CurrentMember) -> Member:
+    return member
 
 
 @router.post(

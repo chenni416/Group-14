@@ -1,9 +1,18 @@
 import axios, { AxiosError } from 'axios';
 import { ApiError } from '@/types';
 
+/** 一般請求的逾時 */
+const DEFAULT_TIMEOUT = 15_000;
+
+/**
+ * 會呼叫 AI 的請求要等模型回應：切 Story 約 3–9 秒、Task 拆解（拆 Task + 指派）約 15–25 秒、Sprint 拆解約 25 秒以上。
+ * 用一般逾時（15 秒）會在後端還沒做完時就在前端報逾時，所以 AI 請求另外放寬。
+ */
+export const AI_REQUEST = { timeout: 120_000 } as const;
+
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? '/api',
-  timeout: 15_000,
+  timeout: DEFAULT_TIMEOUT,
   headers: { 'Content-Type': 'application/json' },
 });
 

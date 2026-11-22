@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+from app.ai import audit
 from app.ai.context import DocSnippet
 from app.ai.llm import LlmClient
 from app.ai.prompts import load_prompt
@@ -32,17 +33,40 @@ def suggest_plan(
         schema=LlmExecutionPlan,
     )
 
-    def due(offset: int) -> str:
-        return (start + timedelta(days=min(max(offset, 0), max_offset))).isoformat()
+    def due(offset: int, label: str) -> str:
+        clamped = min(max(offset, 0), max_offset)
+        if clamped != offset:
+            audit.note(
+                "clamp_day_offset",
+                f"「{label}」的天數 {offset} 超出 Sprint 範圍（0～{max_offset}），調整為 {clamped}",
+                raw=offset,
+                adjusted=clamped,
+            )
+        return (start + timedelta(days=clamped)).isoformat()
 
     n_ac = len(task.acceptance_criteria)
+    for i in result.checklist:
+        if i.ac_index is not None and not 0 <= i.ac_index < n_ac:
+            audit.note(
+                "clear_ac_index",
+                f"檢查項目「{i.text.strip()}」的驗收條件編號 {i.ac_index} 不存在（共 {n_ac} 條），改為不對應",
+                raw=i.ac_index,
+            )
+    for label, items in (
+        ("checklist", result.checklist),
+        ("checkpoints", result.checkpoints),
+        ("dep_checks", result.dep_checks),
+    ):
+        empty = sum(1 for x in items if not (getattr(x, "text", None) or getattr(x, "title", "")).strip())
+        if empty:
+            audit.note("drop_empty_items", f"{label}：捨棄 {empty} 個內容空白的項目", list=label, count=empty)
     checklist = [
         ChecklistItem(
             id=f"ck-{n}",
             text=i.text.strip(),
             done=False,
             ac_index=i.ac_index if i.ac_index is not None and 0 <= i.ac_index < n_ac else None,
-            due_at=due(i.day_offset),
+            due_at=due(i.day_offset, i.text.strip()),
         )
         for n, i in enumerate((i for i in result.checklist if i.text.strip()), start=1)
     ]
@@ -50,10 +74,16 @@ def suggest_plan(
     latest = ""
     for item in checklist:
         if item.due_at and item.due_at < latest:
+            audit.note(
+                "reorder_due_date",
+                f"檢查項目「{item.text}」的日期 {item.due_at} 早於前一步，調整為 {latest}",
+                raw=item.due_at,
+                adjusted=latest,
+            )
             item.due_at = latest
         latest = item.due_at or latest
     checkpoints = [
-        Checkpoint(id=f"cp-{n}", title=c.title.strip(), due_at=due(c.day_offset), reached_at=None)
+        Checkpoint(id=f"cp-{n}", title=c.title.strip(), due_at=due(c.day_offset, c.title.strip()), reached_at=None)
         for n, c in enumerate((c for c in result.checkpoints if c.title.strip()), start=1)
     ]
     checkpoints.sort(key=lambda c: c.due_at)

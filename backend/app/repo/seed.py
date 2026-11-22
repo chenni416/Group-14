@@ -1,11 +1,14 @@
 """假資料：取自前端 frontend/src/mocks/data（5 位成員、Sprint 2 的 10 張任務、規劃中的 Sprint 3）"""
 
+from datetime import UTC, datetime, timedelta
+
 from app.ai.context import DocSnippet
 from app.repo.memory import MemoryStore
 from app.schemas.acceptance import DeliverableItem, Delivery
+from app.schemas.collab import Notification
 from app.schemas.member import Member
-from app.schemas.project import ReviewPolicy
-from app.schemas.sprint import Sprint
+from app.schemas.project import KnowledgeDoc, Organization, Project, ReviewPolicy, Team
+from app.schemas.sprint import BacklogItem, Sprint
 from app.schemas.task import PullRequest, Task
 
 POOL = ReviewPolicy(mode="pool", targets=[], rule="any")
@@ -165,7 +168,70 @@ def _docs() -> list[DocSnippet]:
     ]
 
 
-def build_seed() -> MemoryStore:
+def _knowledge_docs() -> list[KnowledgeDoc]:
+    def d(id, name, kind, size, chunks, is_link=False):
+        return KnowledgeDoc(id=id, name=name, kind=kind, size=size, progress=100, chunks=chunks, is_link=is_link)
+
+    return [
+        d("d1", "PRD_v2.md", "PRD", "38 KB", 42),
+        d("d2", "系統架構圖.png", "架構圖", "1.2 MB", 6),
+        d("d3", "openapi.yaml", "API 規格", "64 KB", 58),
+        d("d4", "CODING_STANDARDS.md", "Coding Standards", "12 KB", 15),
+        d("d5", "README.md", "README", "8 KB", 9),
+        d("d6", "Figma · Taskline UI Kit v2", "Figma", "連結", 24, True),
+    ]
+
+
+def _backlog() -> list[BacklogItem]:
+    return [
+        BacklogItem(
+            id="b1",
+            text="Email 推播提醒：指派與審查事件寄信通知",
+            from_sprint="Sprint 2",
+            kind="deferred",
+            task_id=None,
+            used_in_sprint_id=None,
+            decision=None,
+        ),
+        BacklogItem(
+            id="b2",
+            text="AI 拆解準確率評估：建立標註資料集並每個 Sprint 追蹤",
+            from_sprint="Sprint 1",
+            kind="multi",
+            task_id=None,
+            used_in_sprint_id=None,
+            decision=None,
+        ),
+    ]
+
+
+def _notifications() -> list[Notification]:
+    now = datetime.now(UTC)
+
+    def n(i, to_id, type, task_id, from_id, text, hours, status="pending"):
+        created = (now - timedelta(hours=hours)).isoformat(timespec="seconds")
+        return Notification(
+            id=f"n{i}",
+            to_id=to_id,
+            from_id=from_id,
+            type=type,
+            task_id=task_id,
+            text=text,
+            created_at=created,
+            status=status,
+        )
+
+    pool = "PR #34 已開啟，任何有空的成員都可以領取審查"
+    return [
+        n(1, "m1", "review", "S-212", "m3", "請你以 Leader 身分審查此任務的 PR #31", 3),
+        *[n(2 + i, to, "pool", "S-231", "m5", pool, 1) for i, to in enumerate(["m1", "m2", "m3", "m4"])],
+        n(6, "m4", "review", "S-232", "m1", "請你審查 PR #32（指定成員，需全員同意）", 6),
+        n(7, "m4", "info", "S-221", "m1", "你已領取此任務的審查", 2),
+    ]
+
+
+def build_seed(planning_sprint: bool = True) -> MemoryStore:
+    """planning_sprint=False：不預建規劃中的 Sprint 3，從畫面的「建立 Sprint」開始（同前端 mock 的起點）"""
     members = _members()
     capacity = {m.id: m.capacity for m in members}
     sprint2 = Sprint(
@@ -203,10 +269,35 @@ def build_seed() -> MemoryStore:
     store = MemoryStore(
         project_goal="讓團隊在每次 Sprint Planning 後，都清楚誰負責什麼、做到哪裡，並能根據實際成果持續調整計畫。",
         members=members,
-        sprints={2: sprint2, 3: sprint3},
+        sprints={2: sprint2, 3: sprint3} if planning_sprint else {2: sprint2},
         tasks={t.id: t for t in _sprint2_tasks()},
         docs=_docs(),
         active_sprint_id=2,
-        planning_sprint_id=3,
+        planning_sprint_id=3 if planning_sprint else None,
+        org=Organization(
+            name="NYCU ATLAB",
+            slug="atlab",
+            plan="Team",
+            teams=[
+                Team(name="第 3 組 · Taskline", member_count=5, current=True),
+                Team(name="第 1 組 · 校園二手平台", member_count=4, current=False),
+                Team(name="第 5 組 · 課程評價爬蟲", member_count=4, current=False),
+            ],
+        ),
+        project=Project(
+            name="Taskline — 會議到交付平台",
+            goal="讓團隊在每次 Sprint Planning 後，都清楚誰負責什麼、做到哪裡，並能根據實際成果持續調整計畫。",
+            prefix="TL",
+            provider="GitHub",
+            repo="github.com/atlab/taskline",
+            branch_pattern="feature/{prefix}-{id}-{slug}",
+            sprint_length="2 週",
+            default_policy=POOL,
+            active_sprint_id=2,
+            planning_sprint_id=3 if planning_sprint else None,
+        ),
+        knowledge_docs=_knowledge_docs(),
+        notifications=_notifications(),
+        backlog=_backlog(),
     )
     return store

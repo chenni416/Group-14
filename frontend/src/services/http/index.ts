@@ -1,5 +1,5 @@
 import type { Services } from '../contracts';
-import { data, http } from './client';
+import { AI_REQUEST, data, http } from './client';
 
 /**
  * 真實後端實作。端點為預留的 REST 設計，串接時依後端 OpenAPI 調整即可，
@@ -33,7 +33,7 @@ export const httpServices: Services = {
     create: (input) => data(http.post('/sprints', input)),
     update: (id, patch) => data(http.patch(`/sprints/${id}`, patch)),
     addDocs: (id, files) => data(http.post(`/sprints/${id}/docs`, { files })),
-    analyze: (id, minutes) => data(http.post(`/sprints/${id}/analyze`, { minutes })),
+    analyze: (id, minutes) => data(http.post(`/sprints/${id}/analyze`, { minutes }, AI_REQUEST)),
     answer: (id, questionId, answer) => data(http.put(`/sprints/${id}/questions/${questionId}`, { answer })),
     end: (id) => data(http.post(`/sprints/${id}/end`)),
     start: (id) => data(http.post(`/sprints/${id}/start`)),
@@ -54,7 +54,7 @@ export const httpServices: Services = {
     setCarry: (id, input) => data(http.put(`/tasks/${id}/carry`, input)),
     resendCarry: (id, input) => data(http.post(`/tasks/${id}/carry/resend`, input)),
     resend: (id) => data(http.post(`/tasks/${id}/resend`)),
-    suggestAssignee: (id) => data(http.post(`/tasks/${id}/suggest-assignee`)),
+    suggestAssignee: (id) => data(http.post(`/tasks/${id}/suggest-assignee`, undefined, AI_REQUEST)),
     resetReturn: (id) => data(http.post(`/tasks/${id}/reset-return`)),
     revise: (id, input) => data(http.put(`/tasks/${id}/revise`, input)),
     accept: (id) => data(http.post(`/tasks/${id}/accept`)),
@@ -69,15 +69,15 @@ export const httpServices: Services = {
   },
   planning: {
     getSampleMinutes: () => data(http.get('/planning/minutes/sample')),
-    generateDraft: (input) => data(http.post('/planning/drafts', input)),
-    generateTasks: (input) => data(http.post('/planning/drafts/tasks', input)),
+    generateDraft: (input) => data(http.post('/planning/drafts', input, AI_REQUEST)),
+    generateTasks: (input) => data(http.post('/planning/drafts/tasks', input, AI_REQUEST)),
     submitPlan: (draft) => data(http.post('/planning/drafts/submit', draft)),
     // [v0.2 修改] 一併送出 Story 草稿
     askStoryAssistant: (question, storyTitle, stories) =>
-      data(http.post('/planning/drafts/chat', { question, storyTitle, stories })),
-    decompose: (sprintId) => data(http.post(`/sprints/${sprintId}/decompose`)),
-    deferSuggested: (sprintId) => data(http.post(`/sprints/${sprintId}/defer-suggested`)),
-    rebalance: (sprintId) => data(http.post(`/sprints/${sprintId}/rebalance`)),
+      data(http.post('/planning/drafts/chat', { question, storyTitle, stories }, AI_REQUEST)),
+    decompose: (sprintId) => data(http.post(`/sprints/${sprintId}/decompose`, undefined, AI_REQUEST)),
+    deferSuggested: (sprintId) => data(http.post(`/sprints/${sprintId}/defer-suggested`, undefined, AI_REQUEST)),
+    rebalance: (sprintId) => data(http.post(`/sprints/${sprintId}/rebalance`, undefined, AI_REQUEST)),
   },
   notifications: {
     list: () => data(http.get('/notifications')),
@@ -86,12 +86,12 @@ export const httpServices: Services = {
     getPrompt: (taskId) => data(http.get(`/tasks/${taskId}/prompt`)),
     setPromptVersion: (taskId, version) => data(http.put(`/tasks/${taskId}/prompt/current`, { version })),
     getChat: (taskId) => data(http.get(`/tasks/${taskId}/chat`)),
-    ask: (taskId, question) => data(http.post(`/tasks/${taskId}/chat`, { question })),
+    ask: (taskId, question) => data(http.post(`/tasks/${taskId}/chat`, { question }, AI_REQUEST)),
   },
   execution: {
     list: () => data(http.get('/execution-plans')),
     get: (taskId) => data(http.get(`/tasks/${taskId}/execution-plan`)),
-    suggest: (taskId) => data(http.post(`/tasks/${taskId}/execution-plan/suggest`)),
+    suggest: (taskId) => data(http.post(`/tasks/${taskId}/execution-plan/suggest`, undefined, AI_REQUEST)),
     save: (taskId, input) => data(http.put(`/tasks/${taskId}/execution-plan`, input)),
     confirm: (taskId) => data(http.post(`/tasks/${taskId}/execution-plan/confirm`)),
     toggleItem: (taskId, itemId) => data(http.post(`/tasks/${taskId}/execution-plan/items/${itemId}/toggle`)),
@@ -117,7 +117,7 @@ export const httpServices: Services = {
     decide: (id, input) => data(http.post(`/proposals/${id}/decide`, input)),
   },
   acceptance: {
-    check: (taskId) => data(http.post(`/tasks/${taskId}/acceptance/check`)),
+    check: (taskId) => data(http.post(`/tasks/${taskId}/acceptance/check`, undefined, AI_REQUEST)),
     records: (taskId) => data(http.get(`/tasks/${taskId}/acceptance/records`)),
   },
   retros: {
