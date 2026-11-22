@@ -1,6 +1,11 @@
 import { GitBranch, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useSession } from '@/hooks/useSession';
+import { AUTH_CALLBACK_PATH, AUTH_CONFIGURED, AUTH_ENABLED, supabase } from '@/lib/supabase';
+
+/** 登入後要回到的頁面（RequireAuth 導向登入頁時帶入），存在 sessionStorage 跨過 GitHub 授權跳轉 */
+export const RETURN_TO_KEY = 'taskline.returnTo';
 
 const FEATURES = [
   'AI 從會議紀錄自動拆解任務',
@@ -10,12 +15,39 @@ const FEATURES = [
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { session, loading: checking } = useSession();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Demo：假裝連接 GitHub，等一下下就直接進入主頁
-  const handleLogin = () => {
+  // 已經登入就直接進入主頁
+  if (AUTH_ENABLED && !checking && session) return <Navigate to="/" replace />;
+
+  const handleLogin = async () => {
+    // mock 模式：假裝連接 GitHub，稍等一下就進入主頁
+    if (!AUTH_ENABLED) {
+      setLoading(true);
+      setTimeout(() => navigate('/'), 900);
+      return;
+    }
+    if (!supabase) return;
     setLoading(true);
-    setTimeout(() => navigate('/'), 900);
+    setError(null);
+    const from = (location.state as { from?: string } | null)?.from;
+    try {
+      if (from) sessionStorage.setItem(RETURN_TO_KEY, from);
+    } catch {
+      // 無法寫入 storage 時登入後回到主頁
+    }
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo: `${window.location.origin}${AUTH_CALLBACK_PATH}` },
+    });
+    // 成功時瀏覽器會跳轉到 GitHub；有錯誤才會停在這裡
+    if (err) {
+      setLoading(false);
+      setError(`無法連接 GitHub：${err.message}`);
+    }
   };
 
   return (
@@ -46,8 +78,8 @@ export function LoginPage() {
 
         <button
           type="button"
-          onClick={handleLogin}
-          disabled={loading}
+          onClick={() => void handleLogin()}
+          disabled={loading || (AUTH_ENABLED && !AUTH_CONFIGURED)}
           className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-neutral-900 text-sm font-medium text-white transition-colors duration-150 hover:bg-neutral-700 disabled:cursor-wait disabled:bg-neutral-700"
         >
           {loading ? (
@@ -62,6 +94,17 @@ export function LoginPage() {
             </>
           )}
         </button>
+
+        {AUTH_ENABLED && !AUTH_CONFIGURED && (
+          <p role="alert" className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            尚未設定 Supabase：請在 frontend/.env.local 填入 VITE_SUPABASE_URL 與 VITE_SUPABASE_PUBLISHABLE_KEY 後重新啟動
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
 
         <p className="mt-4 text-center text-xs text-gray-500">
           第一次使用？以 GitHub 登入即會自動建立帳號

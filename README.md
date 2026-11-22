@@ -9,112 +9,77 @@ Group-14/
 ├── frontend/            React + TypeScript + Vite（完整的 mock 模式，可獨立運作）
 ├── backend/             Python FastAPI（目前為架構，端點回傳 501）
 ├── docs/                架構說明與 API 對照表
-├── docker-compose.yml   本機開發用的 PostgreSQL 與 Redis
+├── setup.sh             第一次使用的初始化腳本
+├── dev.sh               啟動前端（mock）或前後端（full）
+├── docker-compose.yml   本機資料庫（選用，預設使用雲端 Supabase）
 └── .github/             CI、PR 範本與決策紀錄
 ```
 
 各資料夾的詳細說明：[frontend](frontend/README.md)、[backend](backend/README.md)、[docs](docs/README.md)。
 
-## 環境建置
+## 快速開始
 
-### 1. 安裝必要工具（每台電腦只需要做一次）
-
-依你負責的部分安裝即可：只做前端的人不需要 uv 和 Docker。
-
-| 工具 | 版本 | 用途 | 誰需要 |
-|---|---|---|---|
-| Git | 任意 | 版本控制 | 所有人 |
-| Node.js | 22 以上 | 前端 | 所有人 |
-| uv | 最新版 | 管理 Python 與後端套件（會自動安裝 Python 3.12，不需要另外裝 Python） | 開發後端的人 |
-| Docker Desktop | 最新版 | 本機的 PostgreSQL 與 Redis | 開發後端的人 |
-
-安裝 uv：
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows（PowerShell）
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-> 部分 macOS 版本的 `brew install uv` 會從原始碼編譯（需要數小時），建議使用上面的官方安裝程式。
-
-安裝完成後**重新開啟終端機**，確認版本：
-
-```bash
-git --version
-node --version     # v22 以上
-uv --version
-docker --version
-```
-
-### 2. 取得專案
+只要三步，不需要手動一步步設定：
 
 ```bash
 git clone <repo 網址>
 cd Group-14
+./setup.sh        # 第一次：安裝套件、建立設定檔、輸入 Supabase 設定
+./dev.sh          # 之後每次：選擇模式並啟動
 ```
 
-### 3. 前端（mock 模式，不需要後端）
+事前只需要自己安裝 **Git** 與 **Node.js 22 以上**；uv（Python 套件管理）會由 `setup.sh` 詢問後自動安裝。
+Windows 請在 Git Bash 或 WSL 執行這兩個腳本。
+
+## 腳本說明
+
+### `setup.sh`：第一次使用的初始化
 
 ```bash
-cd frontend
-npm install
-npm run dev            # http://localhost:5173
+./setup.sh             # 完整設定（前端 + 後端 + 登入）
+./setup.sh --frontend  # 只做前端、只用模擬資料時
 ```
 
-打開網頁後，從右上角身分選單切換 Leader 與成員，體驗兩種角色的流程。
+依序完成：
 
-### 4. 後端（第一次）
+1. 檢查 Git、Node.js 版本；沒有 uv 時詢問是否自動安裝；檢查 Docker（選用）
+2. 安裝前端套件，建立 `frontend/.env.local`
+3. 安裝 Python 3.12 與後端套件，建立 `backend/.env`
+4. 互動輸入 Supabase 設定（已填過的欄位會略過，按 Enter 可以先跳過）：
+   - Project URL：Supabase → Project Settings → API Keys（前後端共用，只需輸入一次）
+   - publishable key：同一頁（舊版介面叫 anon key）
+   - 資料庫連線字串：專案頁面上方 Connect → Session pooler（輸入時不會顯示；開頭的 `postgresql://` 會自動轉成需要的格式）
+5. 執行後端測試、檢查資料庫連線，並套用資料表遷移
 
-先開啟 Docker Desktop，再執行：
+可以重複執行：已完成的步驟會略過，不會覆蓋已填好的設定。設定有缺漏或資料庫連不上時，會直接說明原因與解決方式。
+
+Supabase 與 GitHub 登入的團隊設定（每個專案只需做一次）見 [docs/auth.md](docs/auth.md)；金鑰請向負責人取得或自己登入 Supabase 後台複製，不要 commit。
+
+### `dev.sh`：啟動開發環境
 
 ```bash
-# 在 repo 根目錄：啟動 PostgreSQL 與 Redis
-docker compose up -d
-
-# 安裝後端套件
-cd backend
-cp .env.example .env    # Windows 用 copy .env.example .env
-uv sync                 # 第一次會自動下載 Python 3.12
-
-# 確認環境正常
-uv run pytest
-
-# 啟動 API
-uv run uvicorn app.main:app --reload
+./dev.sh          # 顯示選單，輸入 1 或 2
+./dev.sh mock     # 只啟動前端，使用模擬資料（不需要後端與登入）
+./dev.sh full     # 同時啟動後端與前端，使用真正的 GitHub 登入與後端 API
 ```
 
-打開 http://localhost:8000/docs 看到 API 文件、http://localhost:8000/api/health 回傳 `{"status":"ok"}` 就代表成功。
+| 模式 | 啟動的服務 | 適合 |
+|---|---|---|
+| `mock` | 前端 http://localhost:5173 | 開發畫面、展示流程；從右上角切換 Leader 與成員 |
+| `full` | 後端 http://localhost:8000 （API 文件在 `/docs`）+ 前端 | 開發或測試後端、GitHub 登入 |
 
-`.env` 裡的金鑰（Supabase、Anthropic、GitHub）在對應功能開始實作時才需要填，由負責人提供，不要 commit。
+- 按 Ctrl+C 會一起關閉前後端
+- 腳本會直接指定模式，不需要手動修改 `frontend/.env.local` 的 `VITE_USE_MOCK`
+- 8000 port 被占用時：`BACKEND_PORT=8001 ./dev.sh full`
+- `full` 模式會先檢查 Supabase 設定，缺少時會提示重新執行 `./setup.sh`
+- 後端尚未實作的功能會顯示「尚未實作」，屬於正常狀況
 
-### 5. 前端改為呼叫後端
-
-在 `frontend/` 建立 `.env.local`，內容如下（這個檔案不會 commit）：
-
-```
-VITE_USE_MOCK=false
-```
-
-重新執行 `npm run dev`。後端尚未實作的功能會顯示「尚未實作」的錯誤訊息，屬於正常狀況；刪除 `.env.local` 或改回 `true` 就回到 mock 模式。
-
-### 日常開發
+## 日常開發
 
 ```bash
-git pull                       # 先同步 main 的最新內容
-
-# 後端（套件或資料表有變動時）
-cd backend
-uv sync                        # 有人新增套件時
-uv run alembic upgrade head    # 有人新增資料表遷移時
-uv run uvicorn app.main:app --reload
-
-# 前端
-cd frontend
-npm install                    # 有人新增套件時
-npm run dev
+git pull          # 先同步 main 的最新內容
+./setup.sh        # 有人新增套件或資料表遷移時（會自動 npm install、uv sync、alembic upgrade）
+./dev.sh          # 啟動
 ```
 
 發 PR 前先在本機跑一次 CI 會檢查的項目：
@@ -124,16 +89,40 @@ cd frontend && npm run lint && npm run build
 cd backend && uv run ruff check . && uv run ruff format --check . && uv run pytest
 ```
 
-### 常見問題
+## 常見問題
 
 | 狀況 | 解決方式 |
 |---|---|
+| `permission denied: ./setup.sh` | 執行 `chmod +x setup.sh dev.sh` |
 | `uv: command not found` | 安裝後要重新開啟終端機；仍然找不到時，依安裝程式最後的提示把路徑加入 PATH |
-| `docker compose up` 失敗 | 確認 Docker Desktop 已經開啟 |
-| 5432 或 6379 port 被占用 | 本機已經有其他 Postgres 或 Redis 在執行，先關閉它們，或修改 `docker-compose.yml` 的 port |
-| 前端 port 不是 5173 | 5173 被占用時 Vite 會改用其他 port；後端已允許 5173 與 5175，其他 port 要加進 `backend/.env` 的 `CORS_ORIGINS` |
-| 前端出現 Network Error | 後端沒有啟動，或 `VITE_API_URL` 設定錯誤 |
-| 想清空本機資料庫 | `docker compose down -v` 後再 `docker compose up -d` |
+| `brew install uv` 跑了很久 | 部分 macOS 版本會從原始碼編譯，改用 `./setup.sh` 或官方安裝程式 `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| 資料庫連線失敗：`tenant/user ... not found` | 連線字串的使用者名稱要是 `postgres.<專案代號>`（Project URL 的子網域），不是專案名稱；到 Connect → Session pooler 重新複製 |
+| 前端 port 不是 5173 | 5173 被占用時 Vite 會改用 5174、5175，後端與 Supabase 都已允許這三個 port |
+| 前端出現 Network Error | 後端沒有啟動；用 `./dev.sh full` 會一起啟動 |
+| GitHub 登入相關錯誤 | 見 [docs/auth.md](docs/auth.md) 的常見問題 |
+
+<details>
+<summary>不使用腳本的手動設定</summary>
+
+```bash
+# 前端
+cd frontend
+npm install
+cp .env.example .env.local      # 填入 Supabase 設定（只用 mock 模式可以不填）
+npm run dev                     # mock 模式；要接後端時在 .env.local 設 VITE_USE_MOCK=false
+
+# 後端（需要先安裝 uv）
+cd backend
+cp .env.example .env            # 填入 DATABASE_URL 與 SUPABASE_URL
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+```
+
+只想用本機資料庫時：先開啟 Docker Desktop，在根目錄執行 `docker compose up -d`，
+再把 `backend/.env` 的 `DATABASE_URL` 改成檔案裡註解的本機連線字串。清空本機資料庫：`docker compose down -v`。
+
+</details>
 
 ## 技術選擇
 
