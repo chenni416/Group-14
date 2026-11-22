@@ -70,7 +70,7 @@ github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 ## 3. 共通規則
 
 1. **只用 Alembic 建立與修改資料表**。在 `backend/app/models/` 定義，用 `alembic revision --autogenerate` 產生遷移檔；不要在 Supabase 後台手動建表或改欄位。
-2. **每張表都啟用 RLS 且不建立 policy**。遷移檔要手動加上 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`（Alembic 不會自動產生）。後端以資料表擁有者連線，不受影響；前端的 publishable key 則完全讀不到這些表，所有存取都必須經過後端的權限檢查。
+2. **每張表都啟用 RLS 且不建立 policy**。遷移檔要手動加上 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`（Alembic 不會自動產生）。後端以資料表擁有者連線，不受影響；前端的 publishable key 則完全讀不到這些表，所有存取都必須經過後端的權限檢查。`alembic_version`（Alembic 記錄遷移進度的表）不在任何 model 裡，由遷移檔 `enable rls on alembic_version` 另外啟用 RLS。
 3. **主鍵**預設為 `uuid`，由資料庫以 `gen_random_uuid()` 產生。例外：GitHub 提供的 id（`github_installations.installation_id`）與 webhook 的 `delivery_id`；`project_members` 使用 `(project_id, member_id)` 複合主鍵。
 4. **列舉值用 `text` + `CHECK` 約束**，不用 PostgreSQL enum：之後新增值只需要改約束。可為空的欄位，空值不受 CHECK 限制（例如 `backlog_items.decision` 為空表示尚未決定）。
 5. **時間一律 `timestamptz`**（存 UTC）；只需要日期的欄位用 `date`（例如 Sprint 起訖日）。`updated_at` 由後端在更新時寫入。
