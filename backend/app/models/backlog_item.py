@@ -3,7 +3,6 @@
 對應 frontend/src/types/sprint.ts 的 BacklogItem。
 在「上輪 Sprint 統整」時由 Leader 決定處理方式；選擇「納入本輪」的項目會寫進本次會議紀錄。
 - 前端的 fromSprint（顯示用名稱）由 from_sprint_id 查出
-- task_id 的外鍵等 tasks 資料表建立後再加
 """
 
 import uuid
@@ -26,8 +25,8 @@ class BacklogItem(Base):
     """deferred（延後）或 multi（需要延續一個 Sprint 以上）"""
     from_sprint_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sprints.id", ondelete="SET NULL"))
     """從哪個 Sprint 延續過來"""
-    task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
-    """相關的任務；tasks 資料表建立後加上外鍵（ON DELETE SET NULL）"""
+    task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("tasks.id", ondelete="SET NULL"), index=True)
+    """相關的任務"""
     used_in_sprint_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("sprints.id", ondelete="SET NULL"))
     """已寫入哪個 Sprint 的會議紀錄；為空表示尚未帶入"""
     decision: Mapped[str | None] = mapped_column(Text)

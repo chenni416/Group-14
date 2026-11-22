@@ -12,6 +12,7 @@ from app.models.project import Project
 from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
 from app.models.sprint import Sprint
+from app.models.task import Task, TaskDependency
 
 __all__ = [
     "BacklogItem",
@@ -27,4 +28,6 @@ __all__ = [
     "ProjectMember",
     "Sprint",
     "Document",
+    "Task",
+    "TaskDependency",
 ]
