@@ -6,7 +6,7 @@ Python 3.12 + FastAPI + SQLAlchemy 2 + Alembic，套件以 [uv](https://docs.ast
 
 ## 本機開發
 
-需要先安裝 uv 與 Docker Desktop，完整的環境建置步驟與常見問題見[根目錄 README](../README.md#環境建置)。
+需要 uv（`setup.sh` 會詢問後自動安裝），建議直接在根目錄執行 `./setup.sh` 完成初始化、`./dev.sh full` 啟動，說明見[根目錄 README](../README.md#腳本說明)。
 
 ```bash
 # 第一次

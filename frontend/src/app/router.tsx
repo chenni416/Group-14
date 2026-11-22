@@ -1,13 +1,19 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
+import { RequireAuth } from '@/components/layout/RequireAuth';
 import { PageSkeleton } from '@/components/ui';
 
 /** 每個頁面獨立切 chunk，首屏只載入需要的程式碼 */
 export const router = createBrowserRouter([
   // 登入頁不需要側邊欄與頂部列，所以放在 AppShell 外面
   { path: 'login', HydrateFallback: PageSkeleton, lazy: () => import('@/features/auth/LoginPage').then((m) => ({ Component: m.LoginPage })) },
+  { path: 'auth/callback', HydrateFallback: PageSkeleton, lazy: () => import('@/features/auth/AuthCallbackPage').then((m) => ({ Component: m.AuthCallbackPage })) },
   {
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     HydrateFallback: PageSkeleton,
     children: [
       { index: true, lazy: () => import('@/features/dashboard/DashboardPage').then((m) => ({ Component: m.DashboardPage })) },

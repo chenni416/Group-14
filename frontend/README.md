@@ -4,7 +4,7 @@ React 18 + TypeScript + Vite + Tailwind CSS。預設使用 `src/mocks` 的記憶
 
 ## 開發
 
-需要 Node.js 22 以上，完整的環境建置步驟見[根目錄 README](../README.md#環境建置)。
+需要 Node.js 22 以上，建議直接在根目錄執行 `./setup.sh --frontend` 與 `./dev.sh mock`，說明見[根目錄 README](../README.md#腳本說明)。
 
 ```bash
 npm install

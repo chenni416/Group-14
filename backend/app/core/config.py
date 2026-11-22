@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     api_prefix: str = "/api"
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5175"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"]
 
     # 資料庫：本機為 docker-compose 的 Postgres，雲端為 Supabase 的連線字串
     database_url: str = "postgresql+psycopg://taskline:taskline@localhost:5432/taskline"

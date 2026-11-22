@@ -9,13 +9,23 @@ const sizes = {
 };
 
 interface Props {
-  member: Pick<Member, 'name'> | undefined;
+  member: Pick<Member, 'name' | 'avatarUrl'> | undefined;
   size?: keyof typeof sizes;
   className?: string;
   muted?: boolean;
 }
 
 export function Avatar({ member, size = 'sm', className, muted }: Props) {
+  // GitHub 登入的成員顯示 GitHub 頭像
+  if (member?.avatarUrl && !muted)
+    return (
+      <img
+        src={member.avatarUrl}
+        alt={member.name}
+        title={member.name}
+        className={cn('inline-block shrink-0 rounded-full bg-gray-100 object-cover', sizes[size], className)}
+      />
+    );
   return (
     <span
       title={member?.name}
