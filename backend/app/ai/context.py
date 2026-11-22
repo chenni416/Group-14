@@ -46,3 +46,11 @@ def build_context(
     task_id: str | None = None,
 ) -> AiContext:
     raise NotImplementedError(f"{feature} 的脈絡組裝尚未實作")
+
+
+@dataclass
+class DocSnippet:
+    """提供給模型參考的專案文件片段（之後由 RAG 檢索填入）"""
+
+    name: str
+    text: str

@@ -8,7 +8,10 @@
 
 from fastapi import APIRouter
 
+from app.ai.llm import Llm
+from app.core.auth import CurrentMember, require_leader
 from app.core.errors import not_implemented
+from app.repo import Store
 from app.schemas.acceptance import SubmitDeliveryInput
 from app.schemas.project import ReviewPolicy
 from app.schemas.task import (
@@ -26,6 +29,7 @@ from app.schemas.task import (
     Task,
     UpdateTaskInput,
 )
+from app.services import planning_flow
 
 router = APIRouter(tags=["任務"])
 
@@ -105,8 +109,9 @@ async def resend(id: str) -> ResendResult:
     summary="協商退回：AI 重新建議負責人（排除提出協商的成員）",
     response_model=SuggestAssigneeResult,
 )
-async def suggest_assignee(id: str) -> SuggestAssigneeResult:
-    raise not_implemented("tasks.suggestAssignee")
+def suggest_assignee(id: str, store: Store, me: CurrentMember, llm: Llm) -> SuggestAssigneeResult:
+    require_leader(me)
+    return planning_flow.suggest_assignee(store, id, llm)
 
 
 @router.post(

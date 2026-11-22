@@ -72,7 +72,9 @@ export const httpServices: Services = {
     generateDraft: (input) => data(http.post('/planning/drafts', input)),
     generateTasks: (input) => data(http.post('/planning/drafts/tasks', input)),
     submitPlan: (draft) => data(http.post('/planning/drafts/submit', draft)),
-    askStoryAssistant: (question, storyTitle) => data(http.post('/planning/drafts/chat', { question, storyTitle })),
+    // [v0.2 修改] 一併送出 Story 草稿
+    askStoryAssistant: (question, storyTitle, stories) =>
+      data(http.post('/planning/drafts/chat', { question, storyTitle, stories })),
     decompose: (sprintId) => data(http.post(`/sprints/${sprintId}/decompose`)),
     deferSuggested: (sprintId) => data(http.post(`/sprints/${sprintId}/defer-suggested`)),
     rebalance: (sprintId) => data(http.post(`/sprints/${sprintId}/rebalance`)),
