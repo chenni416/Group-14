@@ -5,13 +5,15 @@
 """
 
 import logging
+import time
 from functools import lru_cache
-from typing import Annotated, Protocol, TypeVar
+from typing import Annotated, Any, Protocol, TypeVar
 
 import openai
 from fastapi import Depends
 from pydantic import BaseModel
 
+from app.ai import audit
 from app.core.config import get_settings
 from app.core.errors import ApiError
 
@@ -51,16 +53,22 @@ class OpenAILlm:
         return {} if temperature is None else {"temperature": temperature}
 
     def generate_json(self, *, system: str, user: str, schema: type[T]) -> T:
+        params = self._sampling(self._temperature)  # [v0.2 修改]
+        t0 = time.perf_counter()
         try:
             res = self._client.chat.completions.parse(
                 model=self._model,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 response_format=schema,
-                **self._sampling(self._temperature),  # [v0.2 修改]
+                **params,
             )
         except openai.OpenAIError as exc:
+            self._audit("json", system, user, schema.__name__, params, t0, error=f"{type(exc).__name__}: {exc}")
             raise _to_api_error(exc) from exc
         message = res.choices[0].message
+        self._audit(
+            "json", system, user, schema.__name__, params, t0, res=res, output=getattr(message, "content", None)
+        )
         if message.refusal:
             raise ApiError("AI 無法處理這份內容，請調整後再試", status=422, code="AI_REFUSED")
         if message.parsed is None:
@@ -69,16 +77,55 @@ class OpenAILlm:
         return message.parsed
 
     def generate_text(self, *, system: str, user: str) -> str:
+        params = self._sampling(self._text_temperature)  # [v0.2 修改]
+        t0 = time.perf_counter()
         try:
             res = self._client.chat.completions.create(
                 model=self._model,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-                **self._sampling(self._text_temperature),  # [v0.2 修改]
+                **params,
             )
         except openai.OpenAIError as exc:
+            self._audit("text", system, user, None, params, t0, error=f"{type(exc).__name__}: {exc}")
             raise _to_api_error(exc) from exc
+        self._audit(
+            "text", system, user, None, params, t0, res=res, output=getattr(res.choices[0].message, "content", None)
+        )
         self._log_usage(res)
         return res.choices[0].message.content or ""
+
+    def _audit(
+        self,
+        kind: str,
+        system: str,
+        user: str,
+        schema_name: str | None,
+        params: dict[str, float],
+        t0: float,
+        *,
+        res: Any = None,
+        output: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """寫入稽核紀錄（app/ai/audit.py）：提示詞、模型、token、模型原始回傳、耗時、錯誤"""
+        usage = getattr(res, "usage", None)
+        choice = res.choices[0] if res is not None else None
+        audit.llm_call(
+            kind=kind,
+            schema=schema_name,
+            model=getattr(res, "model", None) or self._model,
+            temperature=params.get("temperature"),
+            system_prompt=system,
+            user_message=user,
+            prompt_tokens=getattr(usage, "prompt_tokens", None),
+            completion_tokens=getattr(usage, "completion_tokens", None),
+            total_tokens=getattr(usage, "total_tokens", None),
+            finish_reason=getattr(choice, "finish_reason", None),
+            raw_output=output,
+            refusal=getattr(getattr(choice, "message", None), "refusal", None),
+            duration_ms=round((time.perf_counter() - t0) * 1000),
+            error=error,
+        )
 
     def _log_usage(self, res: object) -> None:
         usage = getattr(res, "usage", None)

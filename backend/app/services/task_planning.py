@@ -2,6 +2,7 @@
 
 import re
 
+from app.ai import audit
 from app.ai.llm import LlmClient
 from app.ai.prompts import load_prompt
 from app.ai.schemas import LlmDeferral, LlmTaskDraft
@@ -94,6 +95,14 @@ def _drop_cycles(deps: dict[str, list[DraftDependency]]) -> None:
         for d in items:
             if not reaches(d.id, task_id):
                 kept[task_id].append(d)
+            else:
+                audit.note(
+                    "drop_dependency_cycle",
+                    f"移除會造成循環的相依：{task_id} → {d.id}",
+                    task=task_id,
+                    depends_on=d.id,
+                    reason=d.reason,
+                )
     deps.update(kept)
 
 
@@ -114,24 +123,58 @@ def generate_tasks(
     if not stories:
         raise ApiError("請先建立至少一個 Story（已延後的 Story 不會拆解）")
 
-    user = block("stories", _stories_text(list(stories.values())))
-    if sprint_answers:  # [v0.2 修改]
-        user += "\n\n" + block("clarifications", "\n".join(f"- {a}" for a in sprint_answers))
-    result = llm.generate_json(
-        system=load_prompt("generate_tasks"),
-        user=user,
-        schema=LlmTaskDraft,
-    )
+    def ask(items: list[StoryDraft]) -> LlmTaskDraft:
+        user = block("stories", _stories_text(items))
+        if sprint_answers:  # [v0.2 修改]
+            user += "\n\n" + block("clarifications", "\n".join(f"- {a}" for a in sprint_answers))
+        return llm.generate_json(system=load_prompt("generate_tasks"), user=user, schema=LlmTaskDraft)
+
+    result = ask(list(stories.values()))
 
     counters: dict[int, int] = {}
     keyed: dict[tuple[int, int], str] = {}  # (story_no, task_no) → draft id
     drafts: list[TaskDraft] = []
     raws = [t for t in result.tasks if t.story_no in stories]
+    if len(raws) != len(result.tasks):
+        bad = [(t.story_no, t.title) for t in result.tasks if t.story_no not in stories]
+        audit.note("drop_unknown_story_tasks", f"捨棄 story_no 不存在的 Task：{bad}", dropped=bad)
+    # 每個 Story 都要有 Task：模型偶爾會整個漏掉某些 Story（例如把標題有「延後」字樣的當成已延後），
+    # 漏掉的針對那幾個 Story 再拆一次，不然這些需求會悄悄消失
+    missing = [n for n in stories if n not in {t.story_no for t in raws}]
+    if missing:
+        audit.note(
+            "retry_uncovered_stories",
+            f"模型沒有為 Story {missing} 拆出任何 Task，針對這些 Story 再拆一次",
+            stories=missing,
+        )
+        retry = ask([stories[n] for n in missing])
+        raws = sorted(raws + [t for t in retry.tasks if t.story_no in missing], key=lambda t: t.story_no)
+        still = [n for n in missing if n not in {t.story_no for t in raws}]
+        if still:
+            audit.note("uncovered_stories", f"重試後 Story {still} 仍然沒有 Task，請 Leader 手動新增", stories=still)
     for raw in raws:
         story = stories[raw.story_no]
         no = counters[story.no] = counters.get(story.no, 0) + 1
         draft_id = f"{story.id}-tk-{no}"
         keyed[(story.no, no)] = draft_id
+        points = _snap_points(raw.story_points)
+        if points != raw.story_points:
+            audit.note(
+                "snap_story_points",
+                f"{draft_id}「{raw.title.strip()}」：點數 {raw.story_points} 調整為 {points}（只允許 1、2、3、5、8）",
+                task=draft_id,
+                raw=raw.story_points,
+                adjusted=points,
+            )
+        slug = _slug(raw.branch_slug, no)
+        if slug != raw.branch_slug:
+            audit.note(
+                "normalize_branch_slug",
+                f"{draft_id}：branch_slug「{raw.branch_slug}」整理為「{slug}」",
+                task=draft_id,
+                raw=raw.branch_slug,
+                adjusted=slug,
+            )
         drafts.append(
             TaskDraft(
                 id=draft_id,
@@ -141,8 +184,8 @@ def generate_tasks(
                 title=raw.title.strip(),
                 domain=raw.domain,
                 branch_prefix=raw.branch_prefix,
-                branch_slug=_slug(raw.branch_slug, no),
-                story_points=_snap_points(raw.story_points),  # [v0.2 修改] 最大 8
+                branch_slug=slug,
+                story_points=points,  # [v0.2 修改] 最大 8
                 acceptance_criteria=[a.strip() for a in raw.acceptance_criteria if a.strip()],
                 assignee_id=None,
                 suggested_assignee_id=None,
@@ -153,6 +196,7 @@ def generate_tasks(
             )
         )
     if not drafts:
+        audit.note("empty_result", "模型沒有拆出任何可用的 Task，回傳 422")
         raise ApiError("AI 沒有拆出任何 Task，請確認 Story 的範疇後再試", status=422, code="AI_EMPTY_RESULT")
 
     # 依賴：只保留指向存在的其他 Task 的項目，再去掉循環
@@ -163,6 +207,18 @@ def generate_tasks(
             for d in raw.depends_on
             if (d.story_no, d.task_no) in keyed and keyed[(d.story_no, d.task_no)] != draft.id
         ]
+        bad_deps = [
+            (d.story_no, d.task_no)
+            for d in raw.depends_on
+            if not ((d.story_no, d.task_no) in keyed and keyed[(d.story_no, d.task_no)] != draft.id)
+        ]
+        if bad_deps:
+            audit.note(
+                "drop_unknown_task_dependencies",
+                f"{draft.id}：捨棄指向不存在或自己的相依 {bad_deps}",
+                task=draft.id,
+                dropped=bad_deps,
+            )
     _drop_cycles(deps)
     for draft in drafts:
         draft.depends_on = deps[draft.id]
@@ -174,6 +230,9 @@ def generate_tasks(
                 draft.suggested_assignee_id, draft.assign_reason = assigned[draft.code]
             else:
                 draft.assign_reason = "AI 沒有給出合適的人選，請自行指派。"
+                audit.note(
+                    "no_assignee", f"{draft.code}：模型沒有給出有效的人選，留空請 Leader 自行指派", task=draft.code
+                )
     return drafts
 
 
@@ -226,6 +285,10 @@ def defer_suggested(
     )
     ids = {d.id for d in active}
     deferred = {i for i in result.task_ids if i in ids}
+    unknown = [i for i in result.task_ids if i not in ids]
+    if unknown:
+        audit.note("drop_unknown_deferral_ids", f"捨棄不存在的延後 Task id：{unknown}", dropped=unknown)
+    model_choice = set(deferred)
     # 依賴被延後任務的 Task 也必須一起延後，否則會卡住
     changed = True
     while changed:
@@ -234,6 +297,9 @@ def defer_suggested(
             if d.id not in deferred and any(x.id in deferred for x in d.depends_on):
                 deferred.add(d.id)
                 changed = True
+    added = sorted(deferred - model_choice)
+    if added:
+        audit.note("add_dependent_deferrals", f"依賴被延後任務的 Task 一併延後：{added}", added=added)
     return [d.id for d in active if d.id in deferred]
 
 

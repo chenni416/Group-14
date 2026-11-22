@@ -13,13 +13,12 @@ from fastapi import APIRouter
 
 from app.ai.llm import Llm
 from app.core.auth import CurrentMember, require_leader
-from app.core.errors import not_implemented
 from app.ports import Members
 from app.repo import Store
 from app.schemas.planning import GenerateDraftInput, GenerateTasksInput, PlanningDraft, StoryAssistantBody, TaskDraft
 from app.schemas.sprint import CreatedResult, DeferredResult, UpdatedResult
 from app.schemas.task import CountResult
-from app.services import planning_flow, task_planning
+from app.services import planning_flow, task_edit_flow, task_planning
 
 router = APIRouter(tags=["Sprint 規劃"])
 
@@ -28,7 +27,9 @@ router = APIRouter(tags=["Sprint 規劃"])
     "/planning/minutes/sample", operation_id="planning.getSampleMinutes", summary="範例會議紀錄", response_model=str
 )
 async def get_sample_minutes() -> str:
-    raise not_implemented("planning.getSampleMinutes")
+    from app.repo.seed import SAMPLE_MINUTES
+
+    return SAMPLE_MINUTES
 
 
 @router.post(
@@ -62,8 +63,9 @@ def generate_tasks(body: GenerateTasksInput, members: Members, store: Store, llm
     summary="核准規劃：建立任務並發送指派邀請",
     response_model=CountResult,
 )
-async def submit_plan(body: PlanningDraft) -> CountResult:
-    raise not_implemented("planning.submitPlan")
+async def submit_plan(body: PlanningDraft, store: Store, me: CurrentMember) -> CountResult:
+    require_leader(me)
+    return CountResult(count=task_edit_flow.submit_plan(store, me, body))
 
 
 @router.post(

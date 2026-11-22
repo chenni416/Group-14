@@ -3,6 +3,7 @@
 AI 只整理證據與疑點；事實性欄位（測試結果、變更檔案、缺少的交付項目）直接取自 PR 與交付資料，不採信模型。
 """
 
+from app.ai import audit
 from app.ai.llm import LlmClient
 from app.ai.prompts import load_prompt
 from app.ai.schemas import LlmAcceptance
@@ -50,6 +51,14 @@ def check_delivery(task: Task, llm: LlmClient) -> AcceptanceCheck:
 
     # 每條驗收條件都要有結果；模型漏掉的標為 unclear，不能預設為通過
     by_index = {i.ac_index: i for i in result.items if 0 <= i.ac_index < len(task.acceptance_criteria)}
+    bad_index = [i.ac_index for i in result.items if not 0 <= i.ac_index < len(task.acceptance_criteria)]
+    if bad_index:
+        audit.note("drop_unknown_ac_index", f"捨棄驗收條件編號不存在的判斷：{bad_index}", dropped=bad_index)
+    no_verdict = [i for i in range(len(task.acceptance_criteria)) if i not in by_index]
+    if no_verdict:
+        audit.note(
+            "default_unclear", f"模型漏掉第 {no_verdict} 條驗收條件，標為 unclear（不預設為通過）", indexes=no_verdict
+        )
     items = [
         AcceptanceItem(
             ac=ac,
@@ -64,6 +73,11 @@ def check_delivery(task: Task, llm: LlmClient) -> AcceptanceCheck:
     if tests != "passed":
         for item in items:
             if item.ai == "met" and "測試" in item.ac:
+                audit.note(
+                    "downgrade_met",
+                    f"「{item.ac}」：PR 沒有通過的測試結果（{tests}），met 降為 unclear",
+                    criterion=item.ac,
+                )
                 item.ai = "unclear"
     missing = [d.text for d in delivery.deliverables if not d.provided]
     return AcceptanceCheck(
