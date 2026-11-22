@@ -1,5 +1,6 @@
 """所有資料表都要在這裡匯入，Alembic autogenerate 才找得到"""
 
+from app.models.backlog_item import BacklogItem
 from app.models.base import Base
 from app.models.document import Document
 from app.models.github_commit import GithubCommit
@@ -13,6 +14,8 @@ from app.models.project_member import ProjectMember
 from app.models.sprint import Sprint
 
 __all__ = [
+    "BacklogItem",
+    "Base",
     "Base",
     "GithubCommit",
     "GithubInstallation",
