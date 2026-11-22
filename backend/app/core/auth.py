@@ -1,11 +1,7 @@
 """登入驗證與權限。
 
-前端以 Supabase Auth（GitHub 登入）取得 access token，放在 `Authorization: Bearer <token>`；
-後端只負責驗證 token，不處理 OAuth 流程。之後若改為自行實作 GitHub OAuth，只需替換這一層。
-
-驗證方式依 Supabase 專案的設定：
-- 新的 JWT Signing Keys（ES256 / RS256）：從 `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` 取得公開金鑰，不需要密鑰
-- Legacy JWT Secret（HS256）：有設定 `SUPABASE_JWT_SECRET` 時使用
+前端以 Supabase Auth（GitHub 登入）取得 access token，放在 `Authorization` header；
+後端負責驗證 token，並在開發環境保留以 `X-Demo-User` 指定測試成員的入口。
 """
 
 from dataclasses import dataclass
@@ -17,6 +13,7 @@ from fastapi import Depends, Header
 
 from app.core.config import get_settings
 from app.core.errors import ApiError
+from app.repo import Store
 from app.schemas.member import Member
 
 AUDIENCE = "authenticated"
@@ -28,7 +25,6 @@ class AuthUser:
     """從 Supabase token 取得的登入身分（GitHub 帳號資料）"""
 
     id: str
-    """Supabase 使用者 id（token 的 sub）"""
     email: str
     github_login: str | None
     name: str
@@ -37,7 +33,6 @@ class AuthUser:
 
 @lru_cache
 def _jwks_client(jwks_url: str) -> jwt.PyJWKClient:
-    # 公開金鑰會快取，Supabase 輪替金鑰時遇到新的 kid 會自動重新抓取
     return jwt.PyJWKClient(jwks_url, cache_keys=True, lifespan=3600)
 
 
@@ -86,7 +81,6 @@ def verify_token(token: str) -> AuthUser:
     except jwt.InvalidTokenError as exc:
         raise ApiError("登入資訊無效，請重新登入", status=401, code="INVALID_TOKEN") from exc
 
-    # GitHub 登入時 Supabase 寫入的使用者資料
     meta: dict[str, Any] = claims.get("user_metadata") or {}
     github_login = meta.get("user_name") or meta.get("preferred_username")
     return AuthUser(
@@ -105,12 +99,16 @@ async def get_current_user(authorization: Annotated[str | None, Header()] = None
     return verify_token(token)
 
 
-async def get_current_member(user: Annotated[AuthUser, Depends(get_current_user)]) -> Member:
-    """目前登入的成員。
+async def get_current_member(
+    store: Store,
+    authorization: Annotated[str | None, Header()] = None,
+    x_demo_user: Annotated[str | None, Header()] = None,
+) -> Member:
+    """回傳開發用假成員或經 JWT 驗證的登入成員。"""
+    if not authorization and x_demo_user and get_settings().app_env == "development":
+        return store.find_member(x_demo_user)
 
-    TODO（第二階段，建立 members 資料表後）：依 user.id 查詢成員，第一次登入時自動建立；
-    目前先以 GitHub 身分組成成員資料，角色一律為 Member。
-    """
+    user = await get_current_user(authorization)
     return Member(
         id=user.id,
         name=user.name,
@@ -126,7 +124,7 @@ async def get_current_member(user: Annotated[AuthUser, Depends(get_current_user)
 
 
 def require_leader(member: Member) -> None:
-    """Leader 限定的操作（派工、決策等）呼叫此函式檢查"""
+    """Leader 限定的操作（派工、決策等）"""
     if member.role != "Leader":
         raise ApiError("只有 Leader 可以執行這個操作", status=403, code="FORBIDDEN")
 
