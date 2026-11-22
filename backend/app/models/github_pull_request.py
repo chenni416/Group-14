@@ -2,7 +2,6 @@
 
 規格見 docs/github.md 3.6。同步時以 github_id 為準寫入或更新，畫面顯示進度時讀這張表，不用每次呼叫 GitHub。
 對應前端 Task.pr（frontend/src/types/task.ts 的 PullRequest）。
-task_id 的外鍵等 tasks 資料表建立後再加。
 """
 
 import uuid
@@ -65,8 +64,10 @@ class GithubPullRequest(Base):
     deletions: Mapped[int] = mapped_column(Integer, server_default="0")
     task_code: Mapped[str | None] = mapped_column(Text)
     """從 head_branch 解析出的任務編號，例如 S-221；解析不到時為空"""
-    task_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
-    """對應的任務；tasks 資料表建立後加上外鍵（ON DELETE SET NULL）"""
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("tasks.id", ondelete="SET NULL", use_alter=True), index=True
+    )
+    """對應的任務；由後端依 task_code 對應"""
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     merged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     merged_by_login: Mapped[str | None] = mapped_column(Text)
