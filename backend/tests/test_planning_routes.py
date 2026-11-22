@@ -338,11 +338,13 @@ def test_submit_plan_records_deferred_items_in_backlog(client) -> None:
 
 
 def test_start_without_planning_sprint_then_create_sprint_3() -> None:
+    from app.ai.llm import get_llm
     from app.repo import get_store
     from app.repo.seed import build_seed
 
     fresh = build_seed(planning_sprint=False)
     app.dependency_overrides[get_store] = lambda: fresh
+    app.dependency_overrides[get_llm] = lambda: object()  # 不呼叫模型；也不依賴本機有沒有 OPENAI_API_KEY
     client = TestClient(app, headers=LEADER)
 
     assert client.get("/api/project").json()["planningSprintId"] is None
@@ -356,6 +358,7 @@ def test_start_without_planning_sprint_then_create_sprint_3() -> None:
     assert (created["id"], created["status"], created["step"]) == (3, "planning", 2)
     assert client.get("/api/project").json()["planningSprintId"] == 3
     assert client.post("/api/sprints", json=body).status_code == 409  # 不能同時有兩個規劃中的 Sprint
+    app.dependency_overrides.pop(get_llm, None)
 
 
 def test_sample_minutes() -> None:
