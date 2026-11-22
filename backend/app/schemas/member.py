@@ -18,6 +18,10 @@ class Member(ApiModel):
     tags: list[str]
     capacity: int
     """每個 Sprint 可承接的 Story Points"""
+    github_login: str | None = None
+    """GitHub 帳號名稱（GitHub 登入後才有）"""
+    avatar_url: str | None = None
+    """GitHub 頭像網址"""
 
 
 class InviteMemberInput(ApiModel):
