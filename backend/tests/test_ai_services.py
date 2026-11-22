@@ -25,6 +25,8 @@ from app.schemas.planning import (
 from app.schemas.task import PullRequest, Task, TaskDependency
 from app.services import acceptance_ai, chat_ai, execution_ai, sprint_ai, task_planning
 
+LEADER = {"X-Demo-User": "m1"}  # 開發用假登入：Leader（main 的登入驗證不再預設身分）
+
 
 class FakeLlm:
     """依 schema 型別回傳預先指定的結果，並記錄收到的訊息"""
@@ -390,7 +392,7 @@ def test_chat_keeps_only_real_sources() -> None:
 
 @pytest.fixture
 def client():
-    yield TestClient(app)
+    yield TestClient(app, headers=LEADER)
     app.dependency_overrides.clear()
 
 

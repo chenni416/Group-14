@@ -9,14 +9,14 @@ from app.main import app
 from app.schemas.task import Negotiation
 from tests.test_ai_services import FakeLlm, llm_task
 
-LEADER = {}  # 開發環境預設身分就是 Leader（m1）
+LEADER = {"X-Demo-User": "m1"}  # 開發用假登入：Leader（main 的登入驗證不再預設身分）
 OWNER_M3 = {"X-Demo-User": "m3"}  # S-212 的負責人
 MEMBER_M4 = {"X-Demo-User": "m4"}
 
 
 @pytest.fixture
 def client():
-    yield TestClient(app)
+    yield TestClient(app, headers=LEADER)
     app.dependency_overrides.pop(get_llm, None)
 
 
