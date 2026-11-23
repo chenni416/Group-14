@@ -2,6 +2,7 @@
 
 from app.models.backlog_item import BacklogItem
 from app.models.base import Base
+from app.models.collab import Issue, IssueResponse, Notification, Proposal, ProposalComment, TaskComment
 from app.models.document import Document
 from app.models.execution import ExecutionPlan, PromptThread, TaskChatMessage
 from app.models.github_commit import GithubCommit
@@ -34,4 +35,10 @@ __all__ = [
     "ExecutionPlan",
     "PromptThread",
     "TaskChatMessage",
+    "TaskComment",
+    "Issue",
+    "IssueResponse",
+    "Proposal",
+    "ProposalComment",
+    "Notification",
 ]
