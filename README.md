@@ -1,5 +1,7 @@
 # Taskline（Group-14）
 
+> **`Group-14-demo` 分支**（可操作規劃流程、串接 OpenAI、查看 AI 呼叫紀錄）的啟動與使用方式，請看 [README_DEMO.md](README_DEMO.md)。
+
 以會議紀錄為起點的 Sprint 規劃與任務協作平台：AI 協助 Leader 拆解 Story 與任務、建議指派，成員在同一個地方接收任務、規劃執行、回報問題、送審驗收，最後完成回顧。
 
 ## 專案結構
