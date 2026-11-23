@@ -9,6 +9,8 @@ from app.api.routes import api_router
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 
+LOCAL_ORIGIN = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
+
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -20,6 +22,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        # 開發環境放行本機的任何埠（Vite 在 5173 被占用時會自動換埠，用 127.0.0.1 打開網頁也算不同網址）
+        allow_origin_regex=LOCAL_ORIGIN if settings.app_env == "development" else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

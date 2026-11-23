@@ -46,3 +46,37 @@ def test_every_frontend_endpoint_exists() -> None:
     }
     missing = sorted(frontend - backend)
     assert not missing, f"後端缺少這些端點：{missing}"
+
+
+def _preflight(origin: str):
+    return client.options(
+        "/api/planning/drafts",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+
+def test_dev_allows_any_local_port_but_not_other_hosts() -> None:
+    """Vite 換埠或用 127.0.0.1 打開網頁時，開發環境不該被 CORS 擋住；其他主機仍要明確列在 CORS_ORIGINS"""
+    for origin in ("http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:3000"):
+        res = _preflight(origin)
+        assert res.status_code == 200 and res.headers["access-control-allow-origin"] == origin
+    for origin in ("http://192.168.1.5:5173", "https://evil.example.com", "http://localhost.evil.com"):
+        assert _preflight(origin).status_code == 400
+
+
+def test_production_only_allows_listed_origins(monkeypatch) -> None:
+    """放行任意本機埠只限開發環境；正式環境一律只認 CORS_ORIGINS 裡列出的網址"""
+    from app import main
+    from app.core.config import Settings
+
+    monkeypatch.setattr(main, "get_settings", lambda: Settings(app_env="production"))
+    prod = TestClient(main.create_app())
+    headers = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type"}
+    listed = prod.options("/api/planning/drafts", headers={**headers, "Origin": "http://localhost:5173"})
+    other = prod.options("/api/planning/drafts", headers={**headers, "Origin": "http://localhost:5174"})
+    assert listed.status_code == 200
+    assert other.status_code == 400

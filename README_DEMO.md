@@ -227,7 +227,7 @@ npm run dev
 | `APP_ENV` | `development` | 要保持 `development`：開發用的 AI 紀錄查詢網址與預設 Leader 身分都依賴它 |
 | `SEED_PLANNING_SPRINT` | 程式預設 `true`；`.env.example` 已設為 `false` | `false`：從「建立 Sprint」開始；`true`：後端啟動就有規劃中的 Sprint 3 |
 | `AI_LOG_PATH` | `logs/ai-calls.jsonl` | AI 紀錄檔位置（相對於 `backend/`）；留空即不記錄 |
-| `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:5175"]` | 前端的網址；前端不是這兩個埠時要加進來 |
+| `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:5175"]` | 允許呼叫後端的網頁網址。**開發環境（`APP_ENV=development`）本機的任何埠都會自動放行**（`localhost` 與 `127.0.0.1`，例如 Vite 自動換成 5174），不用改這裡；只有從**別台電腦或區網 IP** 開網頁時，才需要把那個網址加進來，例如 `["http://localhost:5173","http://192.168.1.5:5173"]` |
 
 `.env` 裡的 `DATABASE_URL`、`SUPABASE_*`、`ANTHROPIC_*`、`REDIS_URL`、`GITHUB_*` 在展示版**用不到**，可以不管。
 
@@ -247,14 +247,14 @@ npm run dev
 |---|---|
 | `npm error ... package.json` | 沒有先 `cd frontend` |
 | 網頁一直是同樣的假資料，後端也沒有任何紀錄 | 前端是模擬模式。確認 `frontend/.env.local` 有設定，並重啟前端 |
-| 前端網址是 5174，不是 5173 | 5173 已被占用，Vite 自動換埠。關掉舊的前端，避免開錯 |
+| 前端網址是 5174，不是 5173 | 5173 已被占用，Vite 自動換埠。後端會自動放行本機的任何埠，功能不受影響；但建議關掉舊的前端，避免開錯 |
 | 按 AI 按鈕出現 **503**（`AI_NOT_CONFIGURED`） | `backend/.env` 的 `OPENAI_API_KEY` 沒填，或填完沒有重啟後端 |
 | 出現 **429**（`AI_RATE_LIMITED`） | OpenAI 限流或額度不足，檢查帳號的儲值與用量，稍後再試 |
 | 出現 **504**（`AI_TIMEOUT`）或 **502**（`AI_UNAVAILABLE`） | OpenAI 逾時或暫時無法使用；紀錄頁卡片的錯誤欄位會有詳細訊息，重試即可 |
 | 出現 **422**（`AI_REFUSED`） | 模型拒絕處理這份內容，調整會議紀錄後再試 |
 | 出現 **502**（`AI_BAD_OUTPUT`） | 模型回傳的格式不正確，重試；紀錄頁可以看模型實際回了什麼 |
 | 前端出現 Network Error | 後端沒有啟動，或 `VITE_API_URL` 設錯 |
-| 前端出現 CORS 錯誤 | 前端的埠不在 `CORS_ORIGINS` 裡 |
+| 前端出現 CORS 錯誤（後端日誌看到 `OPTIONS ... 400 Bad Request`） | 網頁網址不被允許。本機（`localhost`／`127.0.0.1` 任何埠）在開發環境會自動放行，所以通常是**從別台電腦或區網 IP 開網頁**，或 `APP_ENV` 不是 `development`。把網頁的完整網址加進 `CORS_ORIGINS` 並重啟後端 |
 | 紀錄頁打不開（404） | `APP_ENV` 不是 `development` |
 | 紀錄頁打開但沒有紀錄 | 還沒呼叫過 AI，或前端是模擬模式；也確認後端是在 `backend/` 資料夾啟動的 |
 | 核准派工被擋下（422） | 看訊息：通常是某位成員超過點數上限（例如 `陳怡君 超過點數上限（10/8）`），把 Task 改派給別人或調低點數再核准 |
