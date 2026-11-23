@@ -32,10 +32,21 @@ Taskline 後端的資料表總覽、設計規則與新增資料表的步驟。�
 | `backlog_items` | 延後或跨 Sprint、要帶到之後規劃的事項 | `BacklogItem` |
 | `tasks` | 任務，包含 AI 拆解的草稿（`AI_DRAFT`、`DRAFT`）與正式任務 | `Task` |
 | `task_dependencies` | 前置任務（任務 A 要等任務 B 完成） | `Task.dependsOn`、`Dependency` |
+| `execution_plans` | 成員的執行計畫：步驟、檢查點、前置條件 | `ExecutionPlan` |
+| `prompt_threads` | 任務的 Living Prompt 版本紀錄 | `PromptState` |
+| `task_chat_messages` | Prompt Studio 裡與專案脈絡助理的對話 | `ChatMessage` |
+| `task_comments` | 任務留言區 | `TaskComment` |
+| `issues`、`issue_responses` | 問題回報（Blocker）與回應 | `Issue` |
+| `proposals`、`proposal_comments` | Idea 與改善提案、討論 | `Proposal` |
+| `notifications` | 通知 | `Notification` |
+| `acceptance_records` | Reviewer 的驗收決定 | `AcceptanceRecord` |
+| `retros`、`retro_entries`、`retro_actions` | Sprint 回顧、成員填寫的內容、改善行動 | `Retro` |
 | `github_installations` | GitHub App 安裝紀錄 | — |
 | `github_pull_requests` | PR 狀態快照 | `PullRequest` |
 | `github_commits` | 預設 branch 最近 commit 的快取 | — |
 | `github_webhook_events` | GitHub webhook 的原始事件 | — |
+
+共 26 張。另外 `alembic_version` 是 Alembic 記錄遷移進度的表。
 
 前端看到的 `Member` 由 `members` 與 `project_members` 組成：帳號資料（GitHub 名稱、頭像）不分專案，角色、職稱、容量每個專案不同。
 
@@ -46,19 +57,28 @@ Taskline 後端的資料表總覽、設計規則與新增資料表的步驟。�
 ```
 members ─┬─< project_members >── projects ──○ github_installations
          ├─< project_invitations >─┘  │
-         └─（負責人、建立者等紀錄欄位）│
+         ├─< notifications（收件人）    │
+         └─（作者、負責人等紀錄欄位）    │
                                       ├─< sprints ─┬─< tasks ─┬─< task_dependencies（任務之間）
+                                      │            │          ├── execution_plans（一對一）
+                                      │            │          ├── prompt_threads（一對一）
+                                      │            │          ├─< task_chat_messages
+                                      │            │          ├─< task_comments
+                                      │            │          ├─< issues ─< issue_responses
+                                      │            │          ├─< acceptance_records
                                       │            │          ├─○ backlog_items
                                       │            │          └─○ github_pull_requests
+                                      │            ├─< proposals ─< proposal_comments
+                                      │            ├── retros（一對一）─┬─< retro_entries
+                                      │            │                   └─< retro_actions
                                       │            ├─< documents（會議文件）
                                       │            └─○ backlog_items
                                       ├─< documents（知識庫，sprint_id 為空）
-                                      ├─< backlog_items
                                       ├─< github_pull_requests
                                       └─< github_commits
 github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 
-─<  一對多      ○  可為空的關聯
+─<  一對多      ──  一對一（主鍵就是外鍵）      ○  可為空的關聯
 ```
 
 `tasks` 與 `github_pull_requests` 互相參照：PR 屬於哪個任務（`github_pull_requests.task_id`），以及哪個 PR 讓任務自動完成（`tasks.completed_by_pull_request_id`）。
@@ -70,14 +90,15 @@ github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 ## 3. 共通規則
 
 1. **只用 Alembic 建立與修改資料表**。在 `backend/app/models/` 定義，用 `alembic revision --autogenerate` 產生遷移檔；不要在 Supabase 後台手動建表或改欄位。
-2. **每張表都啟用 RLS 且不建立 policy**。遷移檔要手動加上 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`（Alembic 不會自動產生）。後端以資料表擁有者連線，不受影響；前端的 publishable key 則完全讀不到這些表，所有存取都必須經過後端的權限檢查。`alembic_version`（Alembic 記錄遷移進度的表）不在任何 model 裡，由遷移檔 `enable rls on alembic_version` 另外啟用 RLS。
+2. **每張表都啟用 RLS 且不建立 policy**。遷移檔要手動加上 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`（Alembic 不會自動產生）。後端以資料表擁有者連線，不受影響；前端的 publishable key 則完全讀不到這些表，所有存取都必須經過後端的權限檢查。`alembic_version` 不在任何 model 裡，由遷移檔 `enable rls on alembic_version` 另外啟用。
 3. **主鍵**預設為 `uuid`，由資料庫以 `gen_random_uuid()` 產生。例外：GitHub 提供的 id（`github_installations.installation_id`）與 webhook 的 `delivery_id`；`project_members` 使用 `(project_id, member_id)` 複合主鍵。
 4. **列舉值用 `text` + `CHECK` 約束**，不用 PostgreSQL enum：之後新增值只需要改約束。可為空的欄位，空值不受 CHECK 限制（例如 `backlog_items.decision` 為空表示尚未決定）。
 5. **時間一律 `timestamptz`**（存 UTC）；只需要日期的欄位用 `date`（例如 Sprint 起訖日）。`updated_at` 由後端在更新時寫入。
 6. **GitHub 的 id 一律 `bigint`**，而且是比對依據；帳號名稱、repo 名稱都可能被改名，只作為顯示用。
 7. **外鍵的刪除行為**：
    - 從屬資料隨上層刪除（`CASCADE`）：專案刪除時，成員關係、邀請、Sprint、任務、文件、PR、commit 一起刪除；Sprint 刪除時，任務與會議文件一起刪除；任務刪除時，相依關係一起刪除
-   - 紀錄類欄位設為空（`SET NULL`）：例如負責人、上傳者、連結 repo 的人、延續事項的來源 Sprint、PR 對應的任務
+   - 紀錄類欄位設為空（`SET NULL`）：例如負責人、上傳者、留言與回報的作者、連結 repo 的人、延續事項的來源 Sprint、PR 對應的任務；內容保留，只是作者變成空的
+   - 成員刪除時，寄給他的通知一起刪除（`notifications.recipient_member_id` 為 `CASCADE`）
    - 必填的建立者欄位不設刪除行為：有關聯資料時不能刪除該成員（`projects.created_by_member_id`、`project_invitations.invited_by_member_id`）
 8. **拆成獨立的表或用 JSONB**：需要單獨查詢的資料拆成獨立的表（例如通知、留言、任務相依）；總是跟主體一起讀寫的清單或物件用 JSONB 或陣列（例如 `projects.default_policy`、`sprints.capacity`、`tasks.negotiation`）。
 9. **命名規則**由 `app/models/base.py` 自動套用：主鍵 `pk_表名`、唯一 `uq_表名_欄位`、索引 `ix_表名_欄位`、CHECK `ck_表名_名稱`、外鍵 `fk_表名_欄位_參照表`。多欄位索引的第一個欄位相同時，名稱會重複，要手動指定完整名稱（例如 `ix_github_pull_requests_project_id_state`）。
@@ -100,6 +121,10 @@ github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 | 「未指派」怎麼表示？ | `tasks.assignee_member_id` 為空值；回傳前端時轉成空字串 | 外鍵只能是存在的成員或空值 |
 | 任務點數的限制 | 資料庫只檢查 `story_points > 0`；只能選 1、2、3、5、8 的規則由前端與後端處理 | 點數規則可能調整，放在程式裡改起來不需要遷移 |
 | 前置任務 | 拆成獨立的 `task_dependencies` | 需要雙向查詢：「A 依賴誰」與「誰依賴 A」 |
+| 每個任務只有一份的資料 | `execution_plans`、`prompt_threads` 以 `task_id` 為主鍵（同時是外鍵）；`retros` 以 `sprint_id` 為主鍵 | 資料庫自動保證一個任務只有一份計畫、一個 Sprint 只有一份回顧 |
+| Living Prompt 存什麼？ | 只存每個版本的釐清結論（`prompt_threads.clarifications`），完整 Prompt 由「任務規格 + 釐清結論」即時組出 | 與 AI 流程一致；任務規格修改後，所有版本的 Prompt 都會更新 |
+| AI 驗收檢查要存嗎？ | 不存，每次即時產生；Reviewer 的最終判斷（含 AI 當時的判斷）存在 `acceptance_records.items` | 與 AI 流程一致，避免保存過時的 AI 結果 |
+| 通知的 `ref_id` | 不建外鍵 | 依通知類型指向不同的表（問題回報或提案），外鍵只能指向一張表 |
 | 兩張表互相參照時 | 在其中一邊的外鍵加上 `use_alter=True`（`github_pull_requests.task_id`） | 避免 SQLAlchemy 無法決定建表順序的警告 |
 | 前端顯示用的格式 | 不存，由後端轉換：Sprint 的 `start`、`end`（MM/DD）、文件的 `size`（38 KB） | 存原始值才能排序、計算 |
 
@@ -348,6 +373,168 @@ AI 指派時會計算「上一輪帶入的工作量」：上一輪 `carry = true
 
 CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 
+### `execution_plans`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `task_id` | uuid | ✓ | | 主鍵；→ `tasks.id`（CASCADE） |
+| `checklist` | jsonb | ✓ | `[]` | 執行步驟 `[{id, text, done, acIndex, dueAt}]` |
+| `checkpoints` | jsonb | ✓ | `[]` | 階段檢查點 `[{id, title, dueAt, reachedAt}]` |
+| `dep_checks` | jsonb | ✓ | `[]` | 前置條件 `[{id, text, met, source}]` |
+| `origin` | text | ✓ | `'ai'` | `ai`、`human` |
+| `edited` | boolean | ✓ | `false` | 成員是否調整過 AI 建議 |
+| `confirmed_at` | timestamptz | | | 成員確認計畫的時間；空值表示尚未確認 |
+| `created_at`、`updated_at` | timestamptz | ✓ | `now()` | |
+
+### `prompt_threads`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `task_id` | uuid | ✓ | | 主鍵；→ `tasks.id`（CASCADE） |
+| `clarifications` | jsonb | ✓ | `[[]]` | 每個版本累積的釐清結論；第 0 版為空（只有任務規格） |
+| `cursor` | integer | ✓ | `0` | 目前選取的版本（從 0 開始，`>= 0`） |
+| `updated_at` | timestamptz | ✓ | `now()` | |
+
+### `task_chat_messages`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `task_id` | uuid | ✓ | | → `tasks.id`（CASCADE） |
+| `role` | text | ✓ | | `user`、`assistant` |
+| `text` | text | ✓ | | |
+| `sources` | text[] | | | AI 回答引用的文件 |
+| `prompt_addition` | text | | | 這次回答加進 Prompt 的釐清結論 |
+| `prompt_version` | integer | | | 加入後的 Prompt 版本 |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+索引：`(task_id, created_at)`。
+
+### `task_comments`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `task_id` | uuid | ✓ | | → `tasks.id`（CASCADE） |
+| `author_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `text` | text | ✓ | | |
+| `mentions` | uuid[] | ✓ | `{}` | 被 @ 標注的成員 |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+### `issues`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `task_id` | uuid | ✓ | | → `tasks.id`（CASCADE）；所屬 Sprint 由任務查出 |
+| `type` | text | ✓ | | `tech`、`dependency`、`schedule`、`other` |
+| `description` | text | ✓ | | |
+| `reporter_member_id` | uuid | | | 回報者 → `members.id`（SET NULL） |
+| `owner_member_id` | uuid | | | 處理人 → `members.id`（SET NULL） |
+| `suggested_owner_member_id` | uuid | | | 系統推薦的處理人 → `members.id`（SET NULL） |
+| `owner_reason` | text | ✓ | `''` | 推薦理由 |
+| `status` | text | ✓ | `'reported'` | `reported`、`assigned`、`responded`、`resolved`、`replan` |
+| `created_at`、`updated_at` | timestamptz | ✓ | `now()` | |
+
+### `issue_responses`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `issue_id` | uuid | ✓ | | → `issues.id`（CASCADE） |
+| `author_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `text` | text | ✓ | | |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+### `proposals`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `sprint_id` | uuid | ✓ | | → `sprints.id`（CASCADE） |
+| `task_id` | uuid | | | 相關的任務 → `tasks.id`（SET NULL）；可以沒有 |
+| `title` | text | ✓ | | |
+| `description` | text | ✓ | `''` | |
+| `kind` | text | ✓ | | `idea`、`improve`、`change` |
+| `author_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `status` | text | ✓ | `'open'` | `open`、`adopted`、`rejected`、`nextSprint` |
+| `decision` | text | ✓ | `''` | Leader 的決定理由 |
+| `decided_by_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+### `proposal_comments`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `proposal_id` | uuid | ✓ | | → `proposals.id`（CASCADE） |
+| `author_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `text` | text | ✓ | | |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+### `notifications`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `recipient_member_id` | uuid | ✓ | | 收件人 → `members.id`（CASCADE） |
+| `sender_member_id` | uuid | | | 觸發通知的人 → `members.id`（SET NULL） |
+| `type` | text | ✓ | | `invite`、`review`、`pool`、`returned`、`info`、`issue`、`proposal`、`plan`、`mention` |
+| `task_id` | uuid | | | → `tasks.id`（CASCADE）；提案可以沒有（前端以空字串表示） |
+| `ref_id` | uuid | | | 相關的問題回報或提案（不建外鍵） |
+| `text` | text | ✓ | | |
+| `status` | text | ✓ | `'pending'` | `pending`、`done` |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+索引：`(recipient_member_id, status, created_at)`，用來列出某人的待處理通知。
+
+### `acceptance_records`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `task_id` | uuid | ✓ | | → `tasks.id`（CASCADE） |
+| `items` | jsonb | ✓ | `[]` | 逐條驗收條件的判斷 `[{ac, ai, evidence, reviewer, note}]` |
+| `decision` | text | ✓ | | `approved`（通過）、`changes`（退回修改） |
+| `reason` | text | ✓ | `''` | |
+| `reviewer_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+成員送審的交付內容存在 `tasks.delivery`。
+
+### `retros`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `sprint_id` | uuid | ✓ | | 主鍵；→ `sprints.id`（CASCADE） |
+| `status` | text | ✓ | `'open'` | `open`、`closed` |
+| `created_at` | timestamptz | ✓ | `now()` | |
+| `closed_at` | timestamptz | | | |
+
+### `retro_entries`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `sprint_id` | uuid | ✓ | | → `retros.sprint_id`（CASCADE）：要先開啟回顧才能填寫 |
+| `author_member_id` | uuid | | | → `members.id`（SET NULL） |
+| `well`、`hard`、`improve` | text | ✓ | `''` | 做得好的地方、遇到的困難、下次改進 |
+| `created_at`、`updated_at` | timestamptz | ✓ | `now()` | |
+
+唯一：`(sprint_id, author_member_id)`，每人每個 Sprint 一份。
+
+### `retro_actions`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `from_sprint_id` | uuid | ✓ | | 在哪個 Sprint 的回顧訂出 → `retros.sprint_id`（CASCADE） |
+| `text` | text | ✓ | | |
+| `owner_member_id` | uuid | | | 負責人 → `members.id`（SET NULL） |
+| `done` | boolean | ✓ | `false` | |
+| `used_in_sprint_id` | uuid | | | 已帶入哪個 Sprint 追蹤 → `sprints.id`（SET NULL） |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
 ### GitHub 相關資料表
 
 `github_installations`、`github_pull_requests`、`github_commits`、`github_webhook_events` 的欄位與用途，依 [docs/github.md](github.md) 第 3 節的規格建立，這裡不重複列出。`github_pull_requests.task_id` 指向 `tasks.id`（SET NULL），由後端依 `task_code` 對應。
@@ -356,12 +543,15 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 
 ## 6. 尚未完成的部分
 
-| 批次 | 資料表 | 對應前端型別 |
-|---|---|---|
-| D：執行與協作 | `execution_plans`、Living Prompt 與對話、留言、問題回報、提案、通知 | `ExecutionPlan`、`PromptState`、`ChatMessage`、`TaskComment`、`Issue`、`Proposal`、`Notification` |
-| E：驗收與回顧 | `acceptance_checks`、`acceptance_records`、`retros`、`retro_entries`、`retro_actions` | `AcceptanceCheck`、`AcceptanceRecord`、`Retro` |
+依前端型別與後端 API（`app/schemas/`）規劃的資料表都已建立。尚未處理的部分：
 
-原本規劃的「規劃草稿」資料表（`planning_drafts`、`planning_chat_messages`）不建立：AI 拆解的草稿直接存成 `tasks`，Story 助理的對話不保存。若之後需要保存 Story 審核階段的草稿（目前只存在前端），再另外新增。
+| 項目 | 說明 |
+|---|---|
+| 讀寫資料表的程式 | 目前沒有程式使用這些資料表：登入、成員、專案、GitHub 的部分由 GitHub 整合實作；AI 規劃與執行流程需要把 `app/repo/memory.py` 的 `MemoryStore` 改為查詢資料表 |
+| Story 審核階段的草稿 | 目前只存在前端，重新整理會消失；如果需要保存，再新增資料表 |
+| Supabase Storage | 文件的 bucket（`documents`）尚未建立，實作上傳時設定 |
+
+原本規劃但不建立的資料表：`planning_drafts`、`planning_chat_messages`（草稿直接存成 `tasks`，Story 助理的對話不保存）、`acceptance_checks`（AI 驗收檢查即時產生）。
 
 ---
 
@@ -369,8 +559,8 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 
 以下指令都在 `backend/` 執行。
 
-1. **定義 model**：在 `app/models/` 新增檔案，繼承 `Base`。欄位用 `Mapped[型別]` 宣告，可為空的寫 `Mapped[型別 | None]`；預設值用 `server_default`。
-2. **登記**：在 `app/models/__init__.py` 匯入並加進 `__all__`（依字母順序）。沒有登記，Alembic 偵測不到。確認方式：
+1. **定義 model**：在 `app/models/` 新增檔案，繼承 `Base`。欄位用 `Mapped[型別]` 宣告，可為空的寫 `Mapped[型別 | None]`；預設值用 `server_default`。如果有欄位叫 `text`，SQLAlchemy 的 `text()` 函式要改名匯入（`from sqlalchemy import text as sql_text`），否則會被欄位名稱蓋掉。
+2. **登記**：在 `app/models/__init__.py` 匯入並加進 `__all__`。`ruff check --fix` 會排好 import 的順序，但**不會排 `__all__`**，要自己依字母順序加入。沒有登記，Alembic 偵測不到。確認方式：
 
    ```bash
    uv run python -c "from app.models import Base; print(Base.metadata.tables.keys())"
