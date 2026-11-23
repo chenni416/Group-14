@@ -28,6 +28,7 @@ export const router = createBrowserRouter([
       { path: 'inbox', lazy: () => import('@/features/inbox/InboxPage').then((m) => ({ Component: m.InboxPage })) },
       { path: 'team', lazy: () => import('@/features/team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
       { path: 'settings', lazy: () => import('@/features/settings/SettingsPage').then((m) => ({ Component: m.SettingsPage })) },
+      { path: 'projects/new', lazy: () => import('@/features/projects/CreateProjectPage').then((m) => ({ Component: m.CreateProjectPage })) },
       { path: 'onboarding', lazy: () => import('@/features/onboarding/OnboardingPage').then((m) => ({ Component: m.OnboardingPage })) },
       { path: '*', element: <Navigate to="/" replace /> },
     ],

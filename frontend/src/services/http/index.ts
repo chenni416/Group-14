@@ -18,6 +18,8 @@ export const httpServices: Services = {
   },
   workspace: {
     getOrganization: () => data(http.get('/organization')),
+    listProjects: () => data(http.get('/projects')),
+    createProject: (input) => data(http.post('/projects', input)),
     getProject: () => data(http.get('/project')),
     updateProject: (patch) => data(http.patch('/project', patch)),
   },

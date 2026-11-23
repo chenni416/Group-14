@@ -112,11 +112,12 @@ def get_current_member(
     db: Annotated[Session, Depends(get_db)],
     authorization: Annotated[str | None, Header()] = None,
     x_demo_user: Annotated[str | None, Header()] = None,
+    x_project_id: Annotated[str | None, Header()] = None,
 ) -> Member:
     """回傳開發用假成員，或經 JWT 驗證、對應到 members 資料表的登入成員。
 
     第一次登入時自動建立成員；之後 GitHub 帳號名稱、頭像、email 有變動時同步更新。
-    專案內的角色與設定（role、title、domain、capacity）在專案功能完成前先用預設值。
+    專案內的角色與設定（role、title、domain、capacity）取自目前專案的 project_members。
     """
     if not authorization and x_demo_user and get_settings().app_env == "development":
         return store.find_member(x_demo_user)
@@ -125,9 +126,12 @@ def get_current_member(
     if scheme.lower() != "bearer" or not token:
         raise ApiError("請先登入", status=401, code="UNAUTHORIZED")
     # 放在函式內引用，避免 app.services 與 app.core 互相引用
-    from app.services import members
+    from app.services import members, projects
 
-    return members.to_schema(members.sync_member(db, verify_token(token)))
+    row = members.sync_member(db, verify_token(token))
+    # 角色、職稱等設定每個專案不同：取目前專案（X-Project-Id）中的設定；還沒有專案時用預設值
+    current = projects.current_membership(db, row.id, x_project_id)
+    return members.to_schema(row, current[1] if current else None)
 
 
 def require_leader(member: Member) -> None:

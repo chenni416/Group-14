@@ -3,6 +3,7 @@
 from typing import Literal
 
 from app.schemas.base import ApiModel
+from app.schemas.member import MemberRole
 
 ReviewMode = Literal["leader", "pool", "target"]
 ReviewRule = Literal["any", "all"]
@@ -43,6 +44,23 @@ class Project(ApiModel):
     active_sprint_id: int
     planning_sprint_id: int | None
     """規劃中的 Sprint；null 表示目前沒有"""
+
+
+class ProjectSummary(ApiModel):
+    """「我的專案」清單的一項（側邊欄的專案切換用）"""
+
+    id: str
+    name: str
+    prefix: str
+    role: MemberRole
+    """我在這個專案的角色"""
+
+
+class CreateProjectInput(ApiModel):
+    name: str
+    prefix: str
+    """專案代碼，例如 TL；只保留英文大寫與數字"""
+    goal: str = ""
 
 
 class UpdateProjectInput(ApiModel):

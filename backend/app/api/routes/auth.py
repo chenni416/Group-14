@@ -32,7 +32,11 @@ def me(member: CurrentMember, db: Db) -> Member:
 
 @router.patch("/me", operation_id="auth.updateMe", summary="修改自己的顯示名稱", response_model=Member)
 def update_me(body: UpdateMeInput, member: CurrentMember, db: Db) -> Member:
-    return members.to_schema(members.update_display_name(db, member.id, body.display_name))
+    row = members.update_display_name(db, member.id, body.display_name)
+    # 只改顯示名稱，專案內的角色與設定沿用目前的值
+    return members.to_schema(row).model_copy(
+        update={k: getattr(member, k) for k in ("role", "title", "domain", "tags", "capacity")}
+    )
 
 
 @router.post(

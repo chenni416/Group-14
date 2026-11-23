@@ -8,6 +8,7 @@ import type {
   BurndownPoint,
   ChatMessage,
   AddCommentInput,
+  CreateProjectInput,
   CreateProposalInput,
   CreateSprintInput,
   CreateTaskInput,
@@ -26,6 +27,7 @@ import type {
   Organization,
   PlanningDraft,
   Project,
+  ProjectSummary,
   PromptState,
   Proposal,
   TaskComment,
@@ -70,6 +72,10 @@ export interface MemberService {
 
 export interface WorkspaceService {
   getOrganization(): Promise<Organization>;
+  /** 我參與的專案（最近加入的在前） */
+  listProjects(): Promise<ProjectSummary[]>;
+  /** 建立專案，建立的人成為 Leader */
+  createProject(input: CreateProjectInput): Promise<ProjectSummary>;
   getProject(): Promise<Project>;
   updateProject(patch: UpdateProjectInput): Promise<Project>;
 }

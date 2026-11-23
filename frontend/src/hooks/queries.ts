@@ -8,6 +8,7 @@ import { BOARD_STATES, type Member, type Task } from '@/types';
 export const useCurrentUser = () => useQuery({ queryKey: queryKeys.me, queryFn: api.auth.me });
 export const useMembers = () => useQuery({ queryKey: queryKeys.members, queryFn: api.members.list });
 export const useOrganization = () => useQuery({ queryKey: queryKeys.org, queryFn: api.workspace.getOrganization });
+export const useMyProjects = () => useQuery({ queryKey: queryKeys.projects, queryFn: api.workspace.listProjects });
 export const useProject = () => useQuery({ queryKey: queryKeys.project, queryFn: api.workspace.getProject });
 export const useSprints = () => useQuery({ queryKey: queryKeys.sprints, queryFn: api.sprints.list });
 export const useTasks = () => useQuery({ queryKey: queryKeys.tasks, queryFn: api.tasks.list });

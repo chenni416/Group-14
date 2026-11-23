@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import AuthUser
 from app.core.errors import ApiError
 from app.models import Member as MemberRow
+from app.models import ProjectMember as ProjectMemberRow
 from app.schemas.member import Member
 
 DISPLAY_NAME_MAX = 50
@@ -101,17 +102,17 @@ def update_display_name(db: Session, member_id: str, display_name: str | None) -
     return row
 
 
-def to_schema(row: MemberRow) -> Member:
-    """轉成前端的 Member；專案內的設定在專案功能完成前先用預設值"""
+def to_schema(row: MemberRow, membership: ProjectMemberRow | None = None) -> Member:
+    """轉成前端的 Member；專案內的設定（角色、職稱等）取自 project_members，沒有專案時用預設值"""
     return Member(
         id=str(row.id),
         name=row.display_name or row.github_login,
         email=row.email or "",
-        role="Member",
-        title="",
-        domain="FE",
-        tags=[],
-        capacity=0,
+        role=membership.role if membership else "Member",
+        title=membership.title if membership else "",
+        domain=(membership.domain if membership else None) or "FE",
+        tags=list(membership.tags) if membership else [],
+        capacity=membership.capacity if membership else 0,
         github_login=row.github_login,
         avatar_url=row.avatar_url,
         display_name=row.display_name,
