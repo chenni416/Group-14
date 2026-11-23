@@ -3,6 +3,7 @@
 from app.models.backlog_item import BacklogItem
 from app.models.base import Base
 from app.models.document import Document
+from app.models.execution import ExecutionPlan, PromptThread, TaskChatMessage
 from app.models.github_commit import GithubCommit
 from app.models.github_installation import GithubInstallation
 from app.models.github_pull_request import GithubPullRequest
@@ -30,4 +31,7 @@ __all__ = [
     "Document",
     "Task",
     "TaskDependency",
+    "ExecutionPlan",
+    "PromptThread",
+    "TaskChatMessage",
 ]
