@@ -66,6 +66,14 @@ def get_project(me: CurrentMember, store: Store, db: Db, project_id: ProjectId =
 
 
 @router.patch("/project", operation_id="workspace.updateProject", summary="修改專案設定", response_model=Project)
-async def update_project(body: UpdateProjectInput, store: Store, me: CurrentMember) -> Project:
+def update_project(
+    body: UpdateProjectInput, me: CurrentMember, store: Store, db: Db, project_id: ProjectId = None
+) -> Project:
     require_leader(me)
-    return workspace_flow.update_project(store, body)
+    member_id = projects.parse_uuid(me.id)
+    if member_id is None:
+        return workspace_flow.update_project(store, body)
+    current = projects.current_membership(db, member_id, project_id)
+    if current is None:
+        raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
+    return projects.to_schema(projects.update_project(db, current[0], body))

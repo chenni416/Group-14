@@ -82,3 +82,28 @@ def test_demo_member_keeps_memory_store() -> None:
     assert client.get("/api/project", headers=demo).json()["name"] == "Taskline — 會議到交付平台"
     assert client.get("/api/projects", headers=demo).json()[0]["id"] == "taskline"
     assert client.post("/api/projects", headers=demo, json={"name": "x", "prefix": "X"}).status_code == 400
+
+
+def test_leader_updates_project(db: Session) -> None:
+    token = make_token()
+    create(token)
+    patch = {
+        "name": "新名稱",
+        "goal": "新的目標",
+        "prefix": "nx",
+        "defaultPolicy": {"mode": "leader", "targets": [], "rule": "any"},
+    }
+    res = client.patch("/api/project", headers=bearer(token), json=patch)
+    assert res.status_code == 200, res.json()
+    project = client.get("/api/project", headers=bearer(token)).json()
+    assert project["name"] == "新名稱"
+    assert project["goal"] == "新的目標"
+    assert project["prefix"] == "NX"
+    assert project["defaultPolicy"]["mode"] == "leader"
+
+
+def test_member_cannot_update_project(db: Session) -> None:
+    token = make_token()
+    # 還沒有專案時是 Member：不能修改
+    res = client.patch("/api/project", headers=bearer(token), json={"name": "x"})
+    assert res.status_code == 403

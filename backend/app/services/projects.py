@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ApiError
 from app.models import Project as ProjectRow
 from app.models import ProjectMember as ProjectMemberRow
-from app.schemas.project import CreateProjectInput, Project, ProjectSummary, ReviewPolicy
+from app.schemas.project import CreateProjectInput, Project, ProjectSummary, ReviewPolicy, UpdateProjectInput
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
 NAME_MAX = 100
@@ -88,6 +88,31 @@ def create_project(db: Session, member_id: uuid.UUID, body: CreateProjectInput) 
     db.add(ProjectMemberRow(project_id=project.id, member_id=member_id, role="Leader", joined_at=datetime.now(UTC)))
     db.commit()
     return ProjectSummary(id=str(project.id), name=project.name, prefix=project.prefix, role="Leader")
+
+
+def update_project(db: Session, project: ProjectRow, patch: UpdateProjectInput) -> ProjectRow:
+    """修改專案設定：只改前端有傳的欄位。Git 平台與 repo 由 GitHub 整合處理，這裡不修改"""
+    if patch.name is not None:
+        name = patch.name.strip()
+        if not name:
+            raise ApiError("請輸入專案名稱", status=422, code="VALIDATION_ERROR")
+        project.name = name[:NAME_MAX]
+    if patch.goal is not None:
+        project.goal = patch.goal.strip()
+    if patch.prefix is not None:
+        prefix = normalize_prefix(patch.prefix)
+        if not prefix:
+            raise ApiError("專案代碼需要至少一個英文字母或數字", status=422, code="VALIDATION_ERROR")
+        project.prefix = prefix
+    if patch.branch_pattern is not None:
+        project.branch_pattern = patch.branch_pattern.strip()
+    if patch.sprint_length is not None:
+        project.sprint_length = patch.sprint_length
+    if patch.default_policy is not None:
+        project.default_policy = patch.default_policy.model_dump()
+    project.updated_at = datetime.now(UTC)
+    db.commit()
+    return project
 
 
 def to_schema(row: ProjectRow) -> Project:
