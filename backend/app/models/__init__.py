@@ -13,13 +13,17 @@ from app.models.member import Member
 from app.models.project import Project
 from app.models.project_invitation import ProjectInvitation
 from app.models.project_member import ProjectMember
+from app.models.review import AcceptanceRecord, Retro, RetroAction, RetroEntry
 from app.models.sprint import Sprint
 from app.models.task import Task, TaskDependency
 
 __all__ = [
     "BacklogItem",
     "Base",
-    "Base",
+    "AcceptanceRecord",
+    "Retro",
+    "RetroAction",
+    "RetroEntry",
     "GithubCommit",
     "GithubInstallation",
     "GithubPullRequest",
