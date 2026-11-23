@@ -96,3 +96,5 @@ class GenerateTasksInput(ApiModel):
 class StoryAssistantBody(ApiModel):
     question: str
     story_title: str | None
+    stories: list[StoryDraft] | None = None
+    """[v0.2 修改] 目前的 Story 草稿（前端持有）。選填，舊版前端不帶時助理只能依 Sprint 目標回答"""

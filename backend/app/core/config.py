@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +24,29 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     storage_bucket: str = "documents"
 
-    # LLM：Anthropic API
+    # LLM：OpenAI API（AI 功能目前使用這個；app/ai/llm.py）
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4.1"
+    openai_timeout_seconds: float = 60.0
+    # [v0.2 修改] 取樣溫度：越低輸出越穩定。結構化輸出（切 Story、拆 Task、指派等）用低溫，純文字對話稍高。
+    # 換成不支援 temperature 的模型（例如推理模型）時，在 .env 設為空字串即不傳送此參數。
+    openai_temperature: float | None = 0.2
+    openai_text_temperature: float | None = 0.5
+
+    @field_validator("openai_temperature", "openai_text_temperature", mode="before")
+    @classmethod
+    def _blank_is_none(cls, v: object) -> object:
+        """[v0.2 修改] .env 中留空代表「不傳 temperature」"""
+        return None if isinstance(v, str) and not v.strip() else v
+
+    # 假資料：是否預先建好規劃中的 Sprint 3。設 false 就從畫面的「建立 Sprint」開始規劃（重新啟動後端才生效）
+    seed_planning_sprint: bool = True
+
+    # AI 稽核紀錄：每次呼叫模型的提示詞、token、原始回傳、程式的修正與回給前端的內容（app/ai/audit.py）
+    # 留空表示不記錄；紀錄含會議紀錄等使用者資料，檔案已加入 .gitignore，不要提交
+    ai_log_path: str = "logs/ai-calls.jsonl"
+
+    # LLM：Anthropic API（舊的客戶端 app/ai/client.py，保留備用）
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-5-5"
 

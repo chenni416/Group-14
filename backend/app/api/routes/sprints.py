@@ -9,7 +9,10 @@
 
 from fastapi import APIRouter
 
+from app.ai.llm import Llm
+from app.core.auth import CurrentMember, require_leader
 from app.core.errors import not_implemented
+from app.repo import Store
 from app.schemas.sprint import (
     AddSprintDocsBody,
     AnalyzeBody,
@@ -26,13 +29,14 @@ from app.schemas.sprint import (
     StartSprintResult,
     UpdateSprintInput,
 )
+from app.services import planning_flow, sprint_flow
 
 router = APIRouter(tags=["Sprint"])
 
 
 @router.get("/sprints", operation_id="sprints.list", summary="Sprint 列表", response_model=list[Sprint])
-async def list_sprints() -> list[Sprint]:
-    raise not_implemented("sprints.list")
+async def list_sprints(store: Store) -> list[Sprint]:
+    return sprint_flow.list_sprints(store)
 
 
 @router.get(
@@ -41,27 +45,30 @@ async def list_sprints() -> list[Sprint]:
     summary="建立 Sprint 的預設值（日期、Capacity、已帶入延續事項的會議紀錄）",
     response_model=NewSprintDefaults,
 )
-async def defaults() -> NewSprintDefaults:
-    raise not_implemented("sprints.defaults")
+async def defaults(store: Store) -> NewSprintDefaults:
+    return sprint_flow.defaults(store)
 
 
 @router.post("/sprints", operation_id="sprints.create", summary="建立 Sprint", response_model=Sprint)
-async def create(body: CreateSprintInput) -> Sprint:
-    raise not_implemented("sprints.create")
+async def create(body: CreateSprintInput, store: Store, me: CurrentMember) -> Sprint:
+    require_leader(me)
+    return sprint_flow.create(store, body)
 
 
 @router.patch(
     "/sprints/{sprint_id}", operation_id="sprints.update", summary="修改規劃中 Sprint 的設定", response_model=Sprint
 )
-async def update(sprint_id: int, body: UpdateSprintInput) -> Sprint:
-    raise not_implemented("sprints.update")
+async def update(sprint_id: int, body: UpdateSprintInput, store: Store, me: CurrentMember) -> Sprint:
+    require_leader(me)
+    return sprint_flow.update(store, sprint_id, body)
 
 
 @router.post(
     "/sprints/{sprint_id}/docs", operation_id="sprints.addDocs", summary="加入本次文件資料", response_model=Sprint
 )
-async def add_docs(sprint_id: int, body: AddSprintDocsBody) -> Sprint:
-    raise not_implemented("sprints.addDocs")
+async def add_docs(sprint_id: int, body: AddSprintDocsBody, store: Store, me: CurrentMember) -> Sprint:
+    require_leader(me)
+    return sprint_flow.add_docs(store, sprint_id, body)
 
 
 @router.post(
@@ -70,8 +77,9 @@ async def add_docs(sprint_id: int, body: AddSprintDocsBody) -> Sprint:
     summary="AI 分析會議紀錄，產生待釐清問題，回傳未回答數",
     response_model=AnalyzeResult,
 )
-async def analyze(sprint_id: int, body: AnalyzeBody) -> AnalyzeResult:
-    raise not_implemented("sprints.analyze")
+def analyze(sprint_id: int, body: AnalyzeBody, store: Store, me: CurrentMember, llm: Llm) -> AnalyzeResult:
+    require_leader(me)
+    return planning_flow.analyze(store, sprint_id, body.minutes, llm)
 
 
 @router.put(
@@ -80,8 +88,9 @@ async def analyze(sprint_id: int, body: AnalyzeBody) -> AnalyzeResult:
     summary="回答待釐清問題",
     response_model=Sprint,
 )
-async def answer(sprint_id: int, question_id: str, body: AnswerBody) -> Sprint:
-    raise not_implemented("sprints.answer")
+async def answer(sprint_id: int, question_id: str, body: AnswerBody, store: Store, me: CurrentMember) -> Sprint:
+    require_leader(me)
+    return planning_flow.answer_question(store, sprint_id, question_id, body.answer)
 
 
 @router.post(
@@ -115,8 +124,8 @@ async def burndown(sprint_id: int) -> list[BurndownPoint]:
 
 
 @router.get("/backlog", operation_id="sprints.backlog", summary="延續事項", response_model=list[BacklogItem])
-async def backlog() -> list[BacklogItem]:
-    raise not_implemented("sprints.backlog")
+async def backlog(store: Store) -> list[BacklogItem]:
+    return store.backlog
 
 
 @router.put(
@@ -125,13 +134,15 @@ async def backlog() -> list[BacklogItem]:
     summary="上輪統整：延續事項納入本輪、繼續保留或移除",
     response_model=BacklogItem,
 )
-async def decide_backlog(id: str, body: BacklogDecisionBody) -> BacklogItem:
-    raise not_implemented("sprints.decideBacklog")
+async def decide_backlog(id: str, body: BacklogDecisionBody, store: Store, me: CurrentMember) -> BacklogItem:
+    require_leader(me)
+    return sprint_flow.decide_backlog(store, id, body.decision)
 
 
 @router.delete("/backlog/{id}", operation_id="sprints.removeBacklog", summary="移除延續事項", status_code=204)
-async def remove_backlog(id: str) -> None:
-    raise not_implemented("sprints.removeBacklog")
+async def remove_backlog(id: str, store: Store, me: CurrentMember) -> None:
+    require_leader(me)
+    sprint_flow.remove_backlog(store, id)
 
 
 @router.get(
@@ -140,5 +151,5 @@ async def remove_backlog(id: str) -> None:
     summary="相依性分析：本次任務與上一個 Sprint 的相依",
     response_model=list[Dependency],
 )
-async def dependencies(sprint_id: int) -> list[Dependency]:
-    raise not_implemented("sprints.dependencies")
+async def dependencies(sprint_id: int, store: Store) -> list[Dependency]:
+    return planning_flow.dependencies(store, sprint_id)

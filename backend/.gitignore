@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+logs/
 
 # GitHub App private key
 *.pem
