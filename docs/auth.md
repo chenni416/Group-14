@@ -12,7 +12,9 @@
 
 - 前端只在 `VITE_USE_MOCK=false` 時使用真正的登入；mock 模式維持假登入與身分切換
 - 後端不處理 OAuth，只驗證 Supabase 簽發的 token
-- 目前所有 GitHub 帳號都可以登入；成員資料表完成前，`/api/me` 直接回傳 token 裡的 GitHub 身分，角色一律為 Member
+- 所有 GitHub 帳號都可以登入；第一次呼叫 `/api/me` 時在 `members` 資料表建立成員，之後同步 GitHub 帳號名稱、頭像與 email（以 GitHub id 比對）
+- 顯示名稱預設為 GitHub 帳號名稱，可在設定頁修改（`PATCH /api/me`），登入時不會被覆蓋
+- 專案內的角色、職稱、領域、容量在專案功能完成前先回傳預設值（角色為 Member）
 
 ## 設定（團隊只需要做一次）
 

@@ -31,6 +31,7 @@
 |---|---|---|
 | `auth.me` | GET | `/api/me` |
 | `auth.switchUser` | POST | `/api/auth/switch` |
+| `auth.updateMe` | PATCH | `/api/me` |
 
 ## members
 

@@ -8,8 +8,9 @@ services:
       POSTGRES_USER: taskline
       POSTGRES_PASSWORD: taskline
       POSTGRES_DB: taskline
+    # 主機端預設用 5433，避免和其他專案的 Postgres（常用 5432）衝突；可用 TASKLINE_DB_PORT 調整
     ports:
-      - "5432:5432"
+      - "${TASKLINE_DB_PORT:-5433}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:

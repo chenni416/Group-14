@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"]
 
     # 資料庫：本機為 docker-compose 的 Postgres，雲端為 Supabase 的連線字串
-    database_url: str = "postgresql+psycopg://taskline:taskline@localhost:5432/taskline"
+    database_url: str = "postgresql+psycopg://taskline:taskline@localhost:5433/taskline"
 
     # 登入：Supabase Auth 簽發的 JWT，由後端驗證
     supabase_url: str = ""

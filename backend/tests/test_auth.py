@@ -1,86 +1,48 @@
-"""登入驗證：用測試金鑰簽出 Supabase 格式的 token，不需要連線到 Supabase"""
+"""登入驗證（token 本身）：不需要資料庫。成員的建立與更新見 tests/db/test_members.py"""
 
 import time
 from collections.abc import Iterator
-from types import SimpleNamespace
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
-from app.core import auth
+from app.core.auth import verify_token
 from app.core.config import get_settings
+from app.core.errors import ApiError
 from app.main import app
-
-SUPABASE_URL = "https://test-project.supabase.co"
-ISSUER = f"{SUPABASE_URL}/auth/v1"
-PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
-OTHER_KEY = ec.generate_private_key(ec.SECP256R1())
-LEGACY_SECRET = "legacy-secret-for-tests-only-0123456789abcdef"
+from tests.auth_helpers import LEGACY_SECRET, OTHER_KEY, bearer, make_token, use_fake_supabase
 
 client = TestClient(app)
 
 
-class FakeJwksClient:
-    """取代 PyJWKClient：一律回傳測試用公開金鑰"""
-
-    def get_signing_key_from_jwt(self, _token: str) -> SimpleNamespace:
-        return SimpleNamespace(key=PRIVATE_KEY.public_key())
-
-
 @pytest.fixture(autouse=True)
-def settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("SUPABASE_URL", SUPABASE_URL)
-    monkeypatch.setenv("SUPABASE_JWT_SECRET", "")
-    get_settings.cache_clear()
-    monkeypatch.setattr(auth, "_jwks_client", lambda _url: FakeJwksClient())
+def fake_supabase(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    use_fake_supabase(monkeypatch)
     yield
     get_settings.cache_clear()
 
 
-def make_token(key: object = PRIVATE_KEY, alg: str = "ES256", **overrides: object) -> str:
-    now = int(time.time())
-    claims = {
-        "sub": "user-123",
-        "aud": "authenticated",
-        "iss": ISSUER,
-        "exp": now + 3600,
-        "iat": now,
-        "email": "octocat@example.com",
-        "user_metadata": {
-            "user_name": "octocat",
-            "full_name": "The Octocat",
-            "avatar_url": "https://avatars.githubusercontent.com/u/1",
-        },
-    }
-    claims.update(overrides)
-    return jwt.encode(claims, key, algorithm=alg)
+def test_verify_token_reads_github_identity() -> None:
+    user = verify_token(make_token())
+    assert user.id == "5f0c6a8e-1d2b-4c3a-9e8f-000000000123"
+    assert user.github_id == 1001
+    assert user.github_login == "octocat"
+    assert user.email == "octocat@example.com"
+    assert user.avatar_url == "https://avatars.githubusercontent.com/u/1001"
 
 
-def get_me(token: str | None) -> tuple[int, dict]:
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    res = client.get("/api/me", headers=headers)
-    return res.status_code, res.json()
-
-
-def test_me_returns_github_identity() -> None:
-    status, body = get_me(make_token())
-    assert status == 200
-    assert body["id"] == "user-123"
-    assert body["name"] == "The Octocat"
-    assert body["email"] == "octocat@example.com"
-    assert body["githubLogin"] == "octocat"
-    assert body["avatarUrl"] == "https://avatars.githubusercontent.com/u/1"
+def test_verify_token_without_github_id() -> None:
+    assert verify_token(make_token(github_id=None)).github_id is None
 
 
 def test_missing_token() -> None:
-    assert get_me(None) == (401, {"code": "UNAUTHORIZED", "message": "請先登入"})
+    res = client.get("/api/me")
+    assert (res.status_code, res.json()) == (401, {"code": "UNAUTHORIZED", "message": "請先登入"})
 
 
 def test_expired_token() -> None:
-    status, body = get_me(make_token(exp=int(time.time()) - 3600))
-    assert (status, body["code"]) == (401, "TOKEN_EXPIRED")
+    res = client.get("/api/me", headers=bearer(make_token(exp=int(time.time()) - 3600)))
+    assert (res.status_code, res.json()["code"]) == (401, "TOKEN_EXPIRED")
 
 
 @pytest.mark.parametrize(
@@ -94,13 +56,17 @@ def test_expired_token() -> None:
     ],
 )
 def test_rejects_invalid_token(token) -> None:
-    status, body = get_me(token())
-    assert (status, body["code"]) == (401, "INVALID_TOKEN")
+    res = client.get("/api/me", headers=bearer(token()))
+    assert (res.status_code, res.json()["code"]) == (401, "INVALID_TOKEN")
 
 
 def test_legacy_jwt_secret(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SUPABASE_JWT_SECRET", LEGACY_SECRET)
-    get_settings.cache_clear()
-    status, body = get_me(make_token(key=LEGACY_SECRET, alg="HS256"))
-    assert status == 200
-    assert body["githubLogin"] == "octocat"
+    use_fake_supabase(monkeypatch, legacy_secret=LEGACY_SECRET)
+    assert verify_token(make_token(key=LEGACY_SECRET, alg="HS256")).github_login == "octocat"
+
+
+def test_legacy_token_rejected_with_wrong_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    use_fake_supabase(monkeypatch, legacy_secret=LEGACY_SECRET)
+    with pytest.raises(ApiError) as exc:
+        verify_token(make_token(key="another-secret-for-tests-0123456789abcdef", alg="HS256"))
+    assert exc.value.code == "INVALID_TOKEN"

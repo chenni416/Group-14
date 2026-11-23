@@ -12,6 +12,14 @@ export const auth: AuthService = {
       db.sessionUserId = findMember(memberId).id;
       return findMember(memberId);
     }, 80),
+  // mock 成員沒有 GitHub 帳號：有輸入名稱時直接改名
+  updateMe: (input) =>
+    respond(() => {
+      const me = findMember(db.sessionUserId);
+      const name = input.displayName?.trim();
+      if (name) me.name = name;
+      return { ...me };
+    }, 80),
 };
 
 export const members: MemberService = {

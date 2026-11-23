@@ -42,6 +42,7 @@ import type {
   SubmitRetroEntryInput,
   Task,
   TaskDraft,
+  UpdateMeInput,
   UpdateMemberInput,
   UpdateProjectInput,
   UpdateSprintInput,
@@ -57,6 +58,8 @@ export interface AuthService {
   me(): Promise<Member>;
   /** 開發用：切換示範身分（真實後端改為重新登入） */
   switchUser(memberId: string): Promise<Member>;
+  /** 修改自己的顯示名稱（GitHub 登入模式） */
+  updateMe(input: UpdateMeInput): Promise<Member>;
 }
 
 export interface MemberService {

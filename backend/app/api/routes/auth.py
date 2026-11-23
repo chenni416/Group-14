@@ -6,19 +6,33 @@
 登入流程由前端與 Supabase Auth 完成，後端只驗證 token（見 app/core/auth.py）。
 """
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.core.auth import CurrentMember
 from app.core.config import get_settings
 from app.core.errors import ApiError, not_implemented
-from app.schemas.member import Member, SwitchUserInput
+from app.db.session import get_db
+from app.schemas.member import Member, SwitchUserInput, UpdateMeInput
+from app.services import members
+
+Db = Annotated[Session, Depends(get_db)]
 
 router = APIRouter(tags=["登入"])
 
 
 @router.get("/me", operation_id="auth.me", summary="目前登入的成員", response_model=Member)
-async def me(member: CurrentMember) -> Member:
+def me(member: CurrentMember, db: Db) -> Member:
+    # 第一次登入時 get_current_member 會建立成員；這裡另外記錄最後登入時間
+    members.touch_login(db, member.id)
     return member
+
+
+@router.patch("/me", operation_id="auth.updateMe", summary="修改自己的顯示名稱", response_model=Member)
+def update_me(body: UpdateMeInput, member: CurrentMember, db: Db) -> Member:
+    return members.to_schema(members.update_display_name(db, member.id, body.display_name))
 
 
 @router.post(

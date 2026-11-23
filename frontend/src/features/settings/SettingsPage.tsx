@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Avatar, Button, Card, CardHeader, Field, Input, PageHeader, PageSkeleton, Tag } from '@/components/ui';
 import { useTeamMutations } from '@/features/team/hooks/useTeam';
 import { useCurrentUser } from '@/hooks/queries';
+import { useUpdateMe } from '@/hooks/useUpdateMe';
 import { DOMAIN_KEYS, DOMAINS } from '@/lib/constants';
+import { AUTH_ENABLED } from '@/lib/supabase';
 import { toast } from '@/stores/toast.store';
 import type { Domain, Member } from '@/types';
 
@@ -11,8 +13,73 @@ export function SettingsPage() {
   const { data: me } = useCurrentUser();
   if (!me) return <PageSkeleton />;
 
+  // GitHub 登入模式：帳號資料來自 GitHub，只能修改顯示名稱
+  if (AUTH_ENABLED) return <AccountForm key={me.id} member={me} />;
   // key 讓右上角切換身分時，表單會換成新使用者的資料
   return <ProfileForm key={me.id} member={me} />;
+}
+
+function AccountForm({ member }: { member: Member }) {
+  const updateMe = useUpdateMe();
+  const [displayName, setDisplayName] = useState(member.displayName ?? '');
+  const login = member.githubLogin ?? '';
+  const trimmed = displayName.trim();
+  const unchanged = trimmed === (member.displayName ?? '');
+  const shownName = trimmed || login;
+
+  const save = () => updateMe.mutate({ displayName: trimmed || null });
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Personal Settings"
+        title="個人設定"
+        actions={
+          <Button variant="primary" onClick={save} disabled={updateMe.isPending || unchanged || trimmed.length > 50}>
+            <Save className="h-4 w-4" strokeWidth={1.75} />
+            儲存
+          </Button>
+        }
+      />
+
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader title="帳號" description="以 GitHub 帳號登入，帳號名稱同時是你在系統內的 ID" />
+          <div className="mb-6 flex items-center gap-4">
+            <Avatar member={{ name: shownName, avatarUrl: member.avatarUrl }} size="lg" />
+            <div className="min-w-0">
+              <div className="truncate font-medium text-gray-900">{shownName}</div>
+              <div className="truncate text-sm text-gray-500">@{login}</div>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <Field label="顯示名稱" htmlFor="account-display-name">
+              <Input
+                id="account-display-name"
+                value={displayName}
+                maxLength={50}
+                placeholder={login}
+                onChange={(e) => setDisplayName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !unchanged && save()}
+              />
+              <p className="mt-1.5 text-xs text-gray-500">留空會使用 GitHub 帳號名稱 @{login}；每次登入不會覆蓋你自訂的名稱</p>
+            </Field>
+            <Field label="GitHub 帳號" htmlFor="account-github">
+              <Input id="account-github" value={`@${login}`} disabled />
+            </Field>
+            <Field label="Email" htmlFor="account-email">
+              <Input id="account-email" value={member.email || '（GitHub 未提供）'} disabled />
+            </Field>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="專案內的設定" description="職稱、主要領域、專長標籤與可用時間依專案設定" />
+          <p className="rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-600">加入或建立專案後，可以在專案中設定這些資料，AI 會依據它們推薦適合你的任務。</p>
+        </Card>
+      </div>
+    </>
+  );
 }
 
 function ProfileForm({ member }: { member: Member }) {

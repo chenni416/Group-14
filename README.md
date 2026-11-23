@@ -89,6 +89,14 @@ git pull          # 先同步 main 的最新內容
 ./dev.sh          # 啟動
 ```
 
+後端有一部分測試需要資料庫（`backend/tests/db`），使用本機 Docker 的 Postgres，**不會連到共用的 Supabase**：
+
+```bash
+docker compose up -d     # 先開啟 Docker Desktop；本機 Postgres 在 port 5433
+```
+
+沒有啟動時這些測試會自動略過；CI 上會使用自己的 Postgres 服務一律執行。
+
 發 PR 前先在本機跑一次 CI 會檢查的項目：
 
 ```bash

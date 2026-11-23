@@ -9,6 +9,7 @@ export const httpServices: Services = {
   auth: {
     me: () => data(http.get('/me')),
     switchUser: (memberId) => data(http.post('/auth/switch', { memberId })),
+    updateMe: (input) => data(http.patch('/me', input)),
   },
   members: {
     list: () => data(http.get('/members')),
