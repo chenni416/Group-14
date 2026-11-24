@@ -2,10 +2,8 @@ import { GitBranch, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '@/hooks/useSession';
+import { rememberReturnTo } from '@/lib/authRedirect';
 import { AUTH_CALLBACK_PATH, AUTH_CONFIGURED, AUTH_ENABLED, supabase } from '@/lib/supabase';
-
-/** 登入後要回到的頁面（RequireAuth 導向登入頁時帶入），存在 sessionStorage 跨過 GitHub 授權跳轉 */
-export const RETURN_TO_KEY = 'taskline.returnTo';
 
 const FEATURES = [
   'AI 從會議紀錄自動拆解任務',
@@ -33,12 +31,8 @@ export function LoginPage() {
     if (!supabase) return;
     setLoading(true);
     setError(null);
-    const from = (location.state as { from?: string } | null)?.from;
-    try {
-      if (from) sessionStorage.setItem(RETURN_TO_KEY, from);
-    } catch {
-      // 無法寫入 storage 時登入後回到主頁
-    }
+    // 登入逾時被導向這裡時，登入後回到原本的頁面
+    rememberReturnTo((location.state as { from?: string } | null)?.from);
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: { redirectTo: `${window.location.origin}${AUTH_CALLBACK_PATH}` },

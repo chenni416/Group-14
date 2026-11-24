@@ -65,6 +65,11 @@ class CreateProjectInput(ApiModel):
     goal: str = ""
 
 
+class DeleteProjectInput(ApiModel):
+    confirm_name: str
+    """再次輸入專案名稱，與目前名稱相同才會刪除"""
+
+
 class UpdateProjectInput(ApiModel):
     """只傳要修改的欄位（不能直接改 active / planning Sprint）"""
 

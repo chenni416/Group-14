@@ -2,6 +2,7 @@ import { Bell, Link2, MessageSquareWarning, UserCheck, CalendarClock, type Lucid
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
+import { AUTH_ENABLED } from '@/lib/supabase';
 
 type NoticeType = 'dependency' | 'blocker' | 'review' | 'meeting';
 
@@ -15,13 +16,16 @@ interface Notice {
   taskId?: string;
 }
 
-/** Demo 用的寫死通知：根據 dependency 與自己的任務 */
-const NOTICES: Notice[] = [
+/** Demo 用的寫死通知：根據 dependency 與自己的任務（只在 mock 模式顯示） */
+const DEMO_NOTICES: Notice[] = [
   { id: 'n1', type: 'dependency', title: '前置任務已完成', detail: 'S-211 已完成，你可以開始依賴它的工作', time: '10 分鐘前', taskId: 'S-211' },
   { id: 'n2', type: 'review', title: '有新的審查請求', detail: '李雅婷 請你審查 S-231「通知中心 UI 設計稿」', time: '1 小時前', taskId: 'S-231' },
   { id: 'n3', type: 'blocker', title: '成員回報阻礙', detail: '王思妤 在 S-213 回報：等待 API 規格確認', time: '3 小時前', taskId: 'S-213' },
   { id: 'n4', type: 'meeting', title: 'Sprint 會議提醒', detail: 'Sprint 3 規劃會議將於明天 14:00 開始', time: '昨天' },
 ];
+
+/** GitHub 登入模式還沒有真正的通知來源，不顯示示範通知（新使用者不應該看到別人的任務） */
+const NOTICES: Notice[] = AUTH_ENABLED ? [] : DEMO_NOTICES;
 
 const TYPE_STYLE: Record<NoticeType, { icon: LucideIcon; className: string }> = {
   dependency: { icon: Link2, className: 'bg-sky-50 text-accent-sky' },
@@ -88,6 +92,7 @@ export function NotificationBell() {
               全部標為已讀
             </button>
           </div>
+          {NOTICES.length === 0 && <p className="px-3 pb-4 pt-2 text-sm text-gray-500">目前沒有通知</p>}
           <ul>
             {NOTICES.map((n) => {
               const { icon: Icon, className } = TYPE_STYLE[n.type];

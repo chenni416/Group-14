@@ -9,7 +9,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
@@ -187,6 +187,48 @@ def update_project_member(db: Session, project_id: uuid.UUID, member_id: str, pa
         pm.capacity = max(1, patch.capacity)
     db.commit()
     return members.to_schema(member, pm)
+
+
+def delete_project(db: Session, member_id: uuid.UUID, project_id: str | None, confirm_name: str) -> None:
+    """Leader 刪除專案；相關的成員關係、文件、Sprint、任務、GitHub 資料由資料庫一併刪除（ON DELETE CASCADE）。
+
+    刪除一定要明確指定專案（X-Project-Id），不會改用「最近加入的專案」，避免刪錯。
+    """
+    target = parse_uuid(project_id)
+    row = (
+        db.execute(
+            select(ProjectRow, ProjectMemberRow)
+            .join(ProjectMemberRow, ProjectMemberRow.project_id == ProjectRow.id)
+            .where(ProjectRow.id == target, ProjectMemberRow.member_id == member_id)
+        ).first()
+        if target is not None
+        else None
+    )
+    if row is None:
+        raise ApiError("找不到這個專案", status=404, code="NOT_FOUND")
+    project, membership = row
+    if membership.role != "Leader":
+        raise ApiError("只有 Leader 可以刪除專案", status=403, code="FORBIDDEN")
+    if confirm_name.strip() != project.name:
+        raise ApiError("輸入的專案名稱不符，沒有刪除", status=422, code="CONFIRM_MISMATCH")
+    db.execute(delete(ProjectRow).where(ProjectRow.id == project.id))
+    db.commit()
+
+
+def remove_project_member(db: Session, project_id: uuid.UUID, actor_id: uuid.UUID, member_id: str) -> None:
+    """Leader 把成員移出專案：只刪除專案內的成員關係，成員的帳號不受影響，之後可以再邀請回來"""
+    target = parse_uuid(member_id)
+    pm = db.scalar(
+        select(ProjectMemberRow).where(ProjectMemberRow.project_id == project_id, ProjectMemberRow.member_id == target)
+    )
+    if pm is None:
+        raise ApiError("找不到這位成員", status=404, code="NOT_FOUND")
+    if pm.member_id == actor_id:
+        raise ApiError("不能把自己移出專案", status=422, code="VALIDATION_ERROR")
+    if pm.role == "Leader":
+        raise ApiError("不能移除 Leader，請先把 Leader 轉給其他成員", status=422, code="VALIDATION_ERROR")
+    db.delete(pm)
+    db.commit()
 
 
 def organization_of(db: Session, project: ProjectRow) -> Organization:

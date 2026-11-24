@@ -2,7 +2,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ChevronsUpDown, Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ProjectEntryDialog } from '@/features/projects/components/ProjectEntryDialog';
 import { useMyProjects } from '@/hooks/queries';
+import { useDisclosure } from '@/hooks/useDisclosure';
 import { cn } from '@/lib/cn';
 import { useProjectStore } from '@/stores/project.store';
 import { toast } from '@/stores/toast.store';
@@ -24,7 +26,7 @@ const projectButton = (active: boolean) =>
 
 /**
  * 側邊欄的專案切換（像 Discord 切換伺服器），點選後回到該專案的 Project Dashboard。
- * 桌機：垂直列出所有專案與「新增專案」；手機（側邊欄變成畫面底部的一排）：只顯示目前專案，點開選單切換。
+ * 桌機：垂直列出所有專案與「建立或加入專案」；手機（側邊欄變成畫面底部的一排）：只顯示目前專案，點開選單切換。
  */
 export function ProjectSwitcher() {
   const { currentId, setCurrentId } = useProjectStore();
@@ -42,7 +44,10 @@ export function ProjectSwitcher() {
     if (current && current.id !== currentId) setCurrentId(current.id);
   }, [current, currentId, setCurrentId]);
 
-  const addProject = () => navigate('/projects/new');
+  // 建立或加入專案：先跳出視窗問要建立還是加入
+  const entry = useDisclosure();
+  const addProject = entry.open;
+  // 還沒有專案時，手機版的按鈕直接前往建立或加入專案
 
   // 點任何專案（包含目前的專案）都回到該專案的 Project Dashboard
   const select = (id: string) => {
@@ -72,6 +77,7 @@ export function ProjectSwitcher() {
 
   return (
     <>
+      <ProjectEntryDialog open={entry.isOpen} onClose={entry.close} />
       {/* 桌機：垂直列表 */}
       <div className="hidden md:contents">
         {projects.map((p) => (
@@ -89,12 +95,12 @@ export function ProjectSwitcher() {
         ))}
         <button
           type="button"
-          aria-label="新增專案"
+          aria-label="建立或加入專案"
           onClick={addProject}
           className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400 transition-colors duration-150 hover:border-gray-400 hover:text-gray-700 md:h-11 md:w-11"
         >
           <Plus className="h-4 w-4" strokeWidth={1.75} />
-          <Tip label="新增專案" />
+          <Tip label="建立或加入專案" />
         </button>
       </div>
 
@@ -102,11 +108,11 @@ export function ProjectSwitcher() {
       <div ref={menuRef} className="relative md:hidden">
         <button
           type="button"
-          aria-label={current ? `目前專案：${current.name}，點選切換專案` : '切換專案'}
+          aria-label={current ? `目前專案：${current.name}，點選切換專案` : '建立或加入專案'}
           aria-haspopup="menu"
           aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-          className={cn(projectButton(true), 'relative')}
+          onClick={() => (current ? setOpen((o) => !o) : addProject())}
+          className={cn(projectButton(!!current), 'relative')}
         >
           {current?.short ?? <Plus className="h-4 w-4" strokeWidth={1.75} />}
           <ChevronsUpDown className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-white p-0.5 text-gray-600 shadow-card" strokeWidth={2} />
@@ -144,7 +150,7 @@ export function ProjectSwitcher() {
               <span className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-gray-300">
                 <Plus className="h-4 w-4" strokeWidth={1.75} />
               </span>
-              新增專案
+              建立或加入專案
             </button>
           </div>
         )}

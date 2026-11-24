@@ -29,6 +29,7 @@ export const router = createBrowserRouter([
       { path: 'team', lazy: () => import('@/features/team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
       { path: 'settings', lazy: () => import('@/features/settings/SettingsPage').then((m) => ({ Component: m.SettingsPage })) },
       { path: 'projects/new', lazy: () => import('@/features/projects/CreateProjectPage').then((m) => ({ Component: m.CreateProjectPage })) },
+      { path: 'projects/join', lazy: () => import('@/features/projects/JoinProjectPage').then((m) => ({ Component: m.JoinProjectPage })) },
       { path: 'onboarding', lazy: () => import('@/features/onboarding/OnboardingPage').then((m) => ({ Component: m.OnboardingPage })) },
       { path: '*', element: <Navigate to="/" replace /> },
     ],

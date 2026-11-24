@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/ui';
 import { useCurrentUser, useMembers } from '@/hooks/queries';
 import { useSwitchUser } from '@/hooks/useSwitchUser';
+import { markLoggedOut } from '@/lib/authRedirect';
 import { cn } from '@/lib/cn';
 import { AUTH_ENABLED, supabase } from '@/lib/supabase';
 
@@ -37,6 +38,8 @@ export function UserSwitcher() {
   const logout = async () => {
     setOpen(false);
     if (AUTH_ENABLED && supabase) {
+      // 主動登出：重新登入後回到首頁，不回到目前的頁面
+      markLoggedOut();
       await supabase.auth.signOut();
       qc.clear();
     }
