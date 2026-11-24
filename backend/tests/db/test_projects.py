@@ -194,3 +194,20 @@ def test_organization_comes_from_project(db: Session) -> None:
     org = client.get("/api/organization", headers=bearer(token)).json()
     assert org["name"] == "Taskline"
     assert org["teams"] == [{"name": "Taskline", "memberCount": 1, "current": True}]
+
+
+@pytest.mark.parametrize("length", ["1 天", "6 天", "1 週", "4 週", " 3 天 "])
+def test_sprint_length_accepts_days_and_weeks(db: Session, length: str) -> None:
+    token = make_token()
+    res = client.post("/api/projects", headers=bearer(token), json={"name": "X", "prefix": "X", "sprintLength": length})
+    assert res.status_code == 200, res.json()
+    assert client.get("/api/project", headers=bearer(token)).json()["sprintLength"] == length.strip()
+
+
+@pytest.mark.parametrize("length", ["0 天", "7 天", "0 週", "5 週", "1 月", "兩週", "2週", ""])
+def test_sprint_length_out_of_range(db: Session, length: str) -> None:
+    token = make_token()
+    create(token)
+    res = client.patch("/api/project", headers=bearer(token), json={"sprintLength": length})
+    assert res.status_code == 422
+    assert client.get("/api/project", headers=bearer(token)).json()["sprintLength"] == "2 週"

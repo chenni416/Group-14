@@ -9,7 +9,7 @@ const OPTIONS: { to: string; icon: LucideIcon; tone: string; title: string; text
     icon: FolderPlus,
     tone: 'bg-orange-50 text-accent-orange',
     title: '建立新專案',
-    text: '進入專案初始化，建立後你會成為 Leader',
+    text: '填寫專案基本資訊，建立後你會成為 Leader',
   },
   {
     to: '/projects/join',

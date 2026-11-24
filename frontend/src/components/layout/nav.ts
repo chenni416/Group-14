@@ -18,7 +18,7 @@ export const SIDE_NAV: NavItem[][] = [
     { to: '/board', label: 'Active Board', icon: Kanban },
   ],
   [
-    { to: '/onboarding', label: '專案與知識庫', icon: Layers },
+    { to: '/onboarding', label: '專案設定', icon: Layers },
     { to: '/team', label: '組織與團隊', icon: Users },
   ],
 ];
@@ -27,7 +27,7 @@ export const HELP_ICON = CircleHelp;
 
 /**
  * 頂部流程切換器：Sprint 規劃（成員顯示為 Sprint 列表）→ 確認與認領 → Active Board，圖示與側邊欄相同。
- * 團隊設定與專案初始化屬於一次性的設定，只放在側邊欄。
+ * 團隊設定與專案設定不是每天會用到的功能，只放在側邊欄。
  */
 export const FLOW_NAV: NavItem[] = [
   { to: '/sprints', label: 'Sprint 列表', leaderLabel: 'Sprint 規劃', icon: Sparkles },
