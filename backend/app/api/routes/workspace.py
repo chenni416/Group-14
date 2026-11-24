@@ -29,9 +29,15 @@ ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
 @router.get(
     "/organization", operation_id="workspace.getOrganization", summary="目前的組織", response_model=Organization
 )
-async def get_organization(store: Store) -> Organization:
-    assert store.org is not None
-    return store.org
+def get_organization(me: CurrentMember, store: Store, db: Db, project_id: ProjectId = None) -> Organization:
+    member_id = projects.parse_uuid(me.id)
+    if member_id is None:
+        assert store.org is not None
+        return store.org
+    current = projects.current_membership(db, member_id, project_id)
+    if current is None:
+        raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
+    return projects.organization_of(db, current[0])
 
 
 @router.get(

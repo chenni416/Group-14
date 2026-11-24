@@ -36,6 +36,8 @@ class Project(Base):
     """建立專案的人"""
 
     # ---------- GitHub repo 連結 ----------
+    git_integration: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    """是否整合 Git：true 時才顯示 repo 連結與同步（github_* 欄位）；false 表示不連結 repo"""
     github_link_status: Mapped[str] = mapped_column(Text, server_default="none")
     """none、pending、linked、revoked"""
     github_installation_id: Mapped[int | None] = mapped_column(

@@ -26,6 +26,8 @@ export interface Project {
   branchPattern: string;
   sprintLength: string;
   defaultPolicy: ReviewPolicy;
+  /** 是否整合 Git：true 時才進行 repo 連結與同步（由 GitHub 整合設定） */
+  gitIntegration: boolean;
   activeSprintId: number;
   /** 規劃中的 Sprint；null 表示目前沒有 */
   planningSprintId: number | null;

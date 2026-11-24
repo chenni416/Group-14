@@ -17,7 +17,15 @@ from app.models import Member as MemberRow
 from app.models import Project as ProjectRow
 from app.models import ProjectMember as ProjectMemberRow
 from app.schemas.member import Member, UpdateMemberInput
-from app.schemas.project import CreateProjectInput, Project, ProjectSummary, ReviewPolicy, UpdateProjectInput
+from app.schemas.project import (
+    CreateProjectInput,
+    Organization,
+    Project,
+    ProjectSummary,
+    ReviewPolicy,
+    Team,
+    UpdateProjectInput,
+)
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
 NAME_MAX = 100
@@ -120,6 +128,8 @@ def update_project(db: Session, project: ProjectRow, patch: UpdateProjectInput) 
         project.sprint_length = patch.sprint_length
     if patch.default_policy is not None:
         project.default_policy = patch.default_policy.model_dump()
+    if patch.git_integration is not None:
+        project.git_integration = patch.git_integration
     project.updated_at = datetime.now(UTC)
     db.commit()
     return project
@@ -179,6 +189,17 @@ def update_project_member(db: Session, project_id: uuid.UUID, member_id: str, pa
     return members.to_schema(member, pm)
 
 
+def organization_of(db: Session, project: ProjectRow) -> Organization:
+    """組織還沒有資料表：先以目前的專案當作組織與唯一的團隊"""
+    count = len(db.scalars(select(ProjectMemberRow).where(ProjectMemberRow.project_id == project.id)).all())
+    return Organization(
+        name=project.name,
+        slug=project.prefix.lower(),
+        plan="Free",
+        teams=[Team(name=project.name, member_count=count, current=True)],
+    )
+
+
 def to_schema(row: ProjectRow) -> Project:
     """轉成前端的 Project；Sprint 尚未改用資料表，先以 0 表示沒有進行中的 Sprint"""
     return Project(
@@ -190,6 +211,7 @@ def to_schema(row: ProjectRow) -> Project:
         branch_pattern=row.branch_pattern,
         sprint_length=row.sprint_length,
         default_policy=ReviewPolicy.model_validate(row.default_policy),
+        git_integration=row.git_integration,
         active_sprint_id=0,
         planning_sprint_id=None,
     )

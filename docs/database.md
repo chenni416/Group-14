@@ -162,6 +162,7 @@ github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 | `sprint_length` | text | ✓ | `'2 週'` | |
 | `default_policy` | jsonb | ✓ | `{"mode": "pool", "targets": [], "rule": "any"}` | 預設 Review 策略，格式同前端 `ReviewPolicy` |
 | `created_by_member_id` | uuid | ✓ | | → `members.id` |
+| `git_integration` | boolean | ✓ | `false` | 是否整合 Git：`true` 時才進行 repo 連結與同步（`github_*` 欄位） |
 | `github_link_status` | text | ✓ | `'none'` | `none`、`pending`、`linked`、`revoked` |
 | `github_installation_id` | bigint | | | → `github_installations.installation_id`（SET NULL） |
 | `github_repo_id` | bigint | | | 唯一 |
@@ -599,6 +600,22 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 7. **測試還原**：`uv run alembic downgrade -1` 後再 `uv run alembic upgrade head`。
 8. **發 PR 前**：`uv run pytest` 通過，並更新這份文件。
 
+### 在既有資料表新增欄位
+
+除了 model 與遷移檔，前後端要一起改才會出現在畫面上。以 `projects.git_integration` 為例：
+
+| 順序 | 位置 | 要做的事 |
+|---|---|---|
+| 1 | `app/models/` ＋ 遷移檔 | model 加上欄位，`alembic revision --autogenerate` 會偵測到 `Detected added column`。既有的表已經啟用 RLS，不用再補 |
+| 2 | `app/schemas/` | 回傳給前端的格式（例如 `Project`）加上欄位；可以修改的話，修改用的格式（例如 `UpdateProjectInput`）也加上，型別寫成 `型別 \| None = None`，代表沒傳就不修改 |
+| 3 | `app/services/` | 轉成前端格式的函式（`to_schema`）帶上這個欄位；修改的函式加上 `if patch.欄位 is not None:` |
+| 4 | `frontend/src/types/` | 前端型別加上同一個欄位（底線改成駝峰，例如 `gitIntegration`） |
+| 5 | `frontend/src/mocks/data/` | 示範模式的假資料補上這個欄位，否則型別檢查會報錯 |
+| 6 | 畫面元件 | 顯示或修改這個欄位 |
+| 7 | `tests/db/` | 補上讀寫這個欄位的測試 |
+
+欄位要有預設值（`server_default`），已經存在的資料才會自動得到這個值；必填欄位沒有預設值時，遷移會在已有資料的表上失敗。
+
 ---
 
 ## 8. 本機開發與常用指令
@@ -612,7 +629,7 @@ docker compose up -d          # 在 repo 根目錄啟動本機資料庫
 `backend/.env` 的 `DATABASE_URL` 設為：
 
 ```
-DATABASE_URL=postgresql+psycopg://taskline:taskline@localhost:5432/taskline
+DATABASE_URL=postgresql+psycopg://taskline:taskline@localhost:5433/taskline
 ```
 
 遷移檔合併進 `main` 後，成員執行 `./setup.sh` 時會自動套用到 Supabase。**不要在遷移檔合併前把它套用到 Supabase**：其他成員的 `main` 沒有這份遷移檔，Alembic 會找不到版本而失敗。

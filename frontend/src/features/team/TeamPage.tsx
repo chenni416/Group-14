@@ -1,10 +1,11 @@
 import { GitPullRequest, Plus, Users } from 'lucide-react';
 import { Badge, Button, Card, CardHeader, IconButton, PageHeader, PageSkeleton } from '@/components/ui';
-import { useCurrentUser, useMembers, useOrganization } from '@/hooks/queries';
+import { useCurrentUser, useMembers, useOrganization, useProject } from '@/hooks/queries';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { cn } from '@/lib/cn';
 import { isLead } from '@/lib/permissions';
 import { toast } from '@/stores/toast.store';
+import { useOnboardingMutations } from '@/features/onboarding/hooks/useOnboarding';
 import { InviteMemberDialog } from './components/InviteMemberDialog';
 import { MemberCard } from './components/MemberCard';
 import { PermissionMatrix } from './components/PermissionMatrix';
@@ -22,10 +23,17 @@ export function TeamPage() {
   const { data: org } = useOrganization();
   const { data: members } = useMembers();
   const { data: me } = useCurrentUser();
+  const { data: project } = useProject();
+  const { updateProject } = useOnboardingMutations();
   const invite = useDisclosure();
 
-  if (!org || !members || !me) return <PageSkeleton />;
+  if (!org || !members || !me || !project) return <PageSkeleton />;
   const lead = isLead(me);
+  // 是否整合 Git：選「整合」後，repo 連結與同步由 GitHub 整合設定
+  const setGit = (on: boolean) => {
+    if (!lead) return toast('只有 Leader 可以設定');
+    if (on !== project.gitIntegration) updateProject.mutate({ gitIntegration: on });
+  };
 
   return (
     <>
@@ -49,9 +57,26 @@ export function TeamPage() {
                 <span className="font-mono text-xs">taskline.app/{org.slug}</span>
               </Row>
               <Row label="Git 整合">
-                <span className="inline-flex items-center gap-1.5">
-                  <GitPullRequest className="h-4 w-4" strokeWidth={1.75} />
-                  GitHub 已連結
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 p-1">
+                  {[
+                    { on: true, label: '整合 GitHub' },
+                    { on: false, label: '不整合' },
+                  ].map((o) => (
+                    <button
+                      key={o.label}
+                      type="button"
+                      aria-pressed={project.gitIntegration === o.on}
+                      disabled={updateProject.isPending}
+                      onClick={() => setGit(o.on)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors',
+                        project.gitIntegration === o.on ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500',
+                      )}
+                    >
+                      {o.on && <GitPullRequest className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                      {o.label}
+                    </button>
+                  ))}
                 </span>
               </Row>
               <Row label="成員">

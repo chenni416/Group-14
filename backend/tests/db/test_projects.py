@@ -177,3 +177,20 @@ def test_docs_of_other_projects_are_not_visible(db: Session) -> None:
     create(other, "別人的專案", "OT")
     assert client.get("/api/docs", headers=bearer(other)).json() == []
     assert client.delete(f"/api/docs/{doc['id']}", headers=bearer(other)).status_code == 404
+
+
+def test_git_integration_option(db: Session) -> None:
+    token = make_token()
+    create(token)
+    assert client.get("/api/project", headers=bearer(token)).json()["gitIntegration"] is False
+    res = client.patch("/api/project", headers=bearer(token), json={"gitIntegration": True})
+    assert res.status_code == 200
+    assert client.get("/api/project", headers=bearer(token)).json()["gitIntegration"] is True
+
+
+def test_organization_comes_from_project(db: Session) -> None:
+    token = make_token()
+    create(token, "Taskline", "TL")
+    org = client.get("/api/organization", headers=bearer(token)).json()
+    assert org["name"] == "Taskline"
+    assert org["teams"] == [{"name": "Taskline", "memberCount": 1, "current": True}]

@@ -41,6 +41,8 @@ class Project(ApiModel):
     branch_pattern: str
     sprint_length: str
     default_policy: ReviewPolicy
+    git_integration: bool = False
+    """是否整合 Git：true 時才進行 repo 連結與同步"""
     active_sprint_id: int
     planning_sprint_id: int | None
     """規劃中的 Sprint；null 表示目前沒有"""
@@ -74,6 +76,7 @@ class UpdateProjectInput(ApiModel):
     branch_pattern: str | None = None
     sprint_length: str | None = None
     default_policy: ReviewPolicy | None = None
+    git_integration: bool | None = None
 
 
 class KnowledgeDoc(ApiModel):

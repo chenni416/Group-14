@@ -20,6 +20,7 @@ export const seedProject = (): Project => ({
   branchPattern: 'feature/{prefix}-{id}-{slug}',
   sprintLength: '2 週',
   defaultPolicy: { mode: 'pool', targets: [], rule: 'any' },
+  gitIntegration: true,
   activeSprintId: 2,
   // 尚未建立 Sprint 3：從「Sprint 列表 → 建立 Sprint」開始規劃
   planningSprintId: null,
