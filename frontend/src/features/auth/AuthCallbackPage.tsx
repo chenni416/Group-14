@@ -2,8 +2,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { takeReturnTo } from '@/lib/authRedirect';
 import { supabase } from '@/lib/supabase';
-import { RETURN_TO_KEY } from './LoginPage';
+import { api } from '@/services';
 
 /** 從網址讀出 GitHub 或 Supabase 回傳的錯誤（可能在 query 或 hash） */
 function readError(): string | null {
@@ -15,14 +16,14 @@ function readError(): string | null {
   return desc ?? code;
 }
 
-function takeReturnTo(): string {
+/** 登入後的去處：還沒有任何專案時一律到首頁（歡迎頁），否則回到登入前的頁面 */
+async function landingPath(): Promise<string> {
+  const returnTo = takeReturnTo();
   try {
-    const to = sessionStorage.getItem(RETURN_TO_KEY);
-    sessionStorage.removeItem(RETURN_TO_KEY);
-    // 只接受站內路徑
-    return to && to.startsWith('/') && !to.startsWith('//') ? to : '/';
+    const projects = await api.workspace.listProjects();
+    return projects.length === 0 ? '/' : returnTo;
   } catch {
-    return '/';
+    return returnTo;
   }
 }
 
@@ -40,7 +41,7 @@ export function AuthCallbackPage() {
       if (!active) return;
       if (data.session) {
         void qc.invalidateQueries();
-        navigate(takeReturnTo(), { replace: true });
+        void landingPath().then((to) => active && navigate(to, { replace: true }));
       } else {
         setError(err?.message ?? '登入沒有完成，請再試一次');
       }

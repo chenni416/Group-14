@@ -12,7 +12,9 @@ GitHub 整合的程式會等這些資料表完成後再實作，所以請盡量�
 | 階段 | 內容 | 狀態 |
 |---|---|---|
 | 1 | 登入建立成員、同步 GitHub 資料、修改顯示名稱 | 完成 |
-| 2 | 建立專案、成員邀請、切換目前的專案 | 尚未開始 |
+| 2 | 建立專案、切換目前的專案 | 完成（#22） |
+| 2-1 | 新使用者歡迎頁、沒有專案時的空白狀態、建立專案（專案初始化）與加入專案頁、刪除專案、移除成員 | 完成（`feat/new-user-welcome`） |
+| 2-2 | 成員邀請（邀請碼＋Leader 同意、指定 GitHub 帳號） | 尚未開始，設計見[第 7 節](#7-成員邀請的設計) |
 | 3 | 安裝 GitHub App、連結 repo | 尚未開始 |
 | 4 | 同步 PR／審查／CI／commit、PR 合併自動完成任務、進度顯示 | 尚未開始 |
 | 5 | 以實際 repo 端對端測試 | 尚未開始 |
@@ -398,3 +400,60 @@ GitHub 整合只需要確認任務表有以下欄位，用來把 PR 對應到任
 | PR 合併後要自動把任務改成完成嗎？ | **要**，合併到預設 branch 即自動完成（規則見[第 1 節](#1-功能流程與資料表的關係)） | `tasks.completed_at`、`completion_source`、`completed_by_pull_request_id`；`github_pull_requests` 的合併欄位 |
 | 使用者名稱怎麼決定？ | 以 **GitHub 帳號名稱**作為使用者 ID 與預設名稱，可在設定頁修改顯示名稱 | `members.github_login`、`display_name` |
 | commit 要存資料庫嗎？ | 第一版可以每次即時讀取；需要顯示歷史或減少 API 呼叫時再啟用 `github_commits` | `github_commits` |
+
+---
+
+## 7. 成員邀請的設計
+
+已確認提供兩種方式，在下一個分支（`feat/project-invitations`）實作。被邀請的人都在「建立或加入專案」頁（`/projects/new?mode=join`）加入。
+
+### 7.1 指定 GitHub 帳號
+
+1. Leader 在團隊頁輸入對方的 GitHub 帳號，系統向 GitHub 確認帳號存在並顯示頭像；可預先設定角色、職稱、領域、容量
+2. 建立邀請後產生**邀請連結**，Leader 自行貼到 LINE、Discord 等（不寄信）
+3. 對方點連結並以 GitHub 登入後看到確認頁（誰邀請、哪個專案、什麼角色），按接受即加入；也可以拒絕
+4. **只有被邀請的 GitHub 帳號能接受**，連結外流也無法使用；對方沒點連結時，直接登入也會在加入頁看到邀請
+5. Leader 可以看到邀請狀態並撤銷
+
+使用現有的 `project_invitations` 資料表（3.4），不需要新增欄位。
+
+### 7.2 邀請碼＋Leader 同意
+
+1. Leader 產生專案的邀請碼（例如 `TL-7K2QX9`），可以設定有效期限、重新產生或停用
+2. 任何人登入後在加入頁輸入邀請碼，送出加入申請
+3. Leader 在團隊頁看到待審核的申請，同意後對方才加入專案；也可以拒絕
+4. 邀請碼外流時，未經 Leader 同意也無法加入
+
+**需要新增的資料表**（請負責資料表的成員建立）：
+
+`project_join_codes`：專案邀請碼
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `project_id` | uuid | ✓ | | FK → `projects.id`，`ON DELETE CASCADE` |
+| `code` | text | ✓ | | 邀請碼，**唯一**；不分大小寫比對（存大寫） |
+| `role` | text | ✓ | `'Member'` | 經同意加入後的角色（`CHECK`：`Leader`、`Member`） |
+| `expires_at` | timestamptz | | | 為空表示不會過期 |
+| `revoked_at` | timestamptz | | | 停用時間；停用後不能再申請 |
+| `created_by_member_id` | uuid | ✓ | | FK → `members.id` |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+索引：`UNIQUE (code)`；`project_id`。同一個專案同時只會有一組有效的邀請碼，由後端在產生新碼時停用舊碼。
+
+`project_join_requests`：用邀請碼送出的加入申請
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `project_id` | uuid | ✓ | | FK → `projects.id`，`ON DELETE CASCADE` |
+| `join_code_id` | uuid | | | FK → `project_join_codes.id`，`ON DELETE SET NULL`；用哪組邀請碼申請的 |
+| `member_id` | uuid | ✓ | | FK → `members.id`，`ON DELETE CASCADE`；申請的人 |
+| `status` | text | ✓ | `'pending'` | `pending`、`approved`、`rejected`、`cancelled`（`CHECK`） |
+| `decided_by_member_id` | uuid | | | FK → `members.id`，`ON DELETE SET NULL`；同意或拒絕的 Leader |
+| `created_at` | timestamptz | ✓ | `now()` | |
+| `decided_at` | timestamptz | | | |
+
+索引與約束：`UNIQUE (project_id, member_id)` 限定 `status = 'pending'`（部分唯一索引），同一個人對同一個專案只能有一筆待審核的申請；`(project_id, status)`。
+
+兩張表都要啟用 RLS（[第 4 節](#4-共通規則)）。

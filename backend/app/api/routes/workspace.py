@@ -16,7 +16,14 @@ from app.core.auth import CurrentMember, require_leader
 from app.core.errors import ApiError
 from app.db.session import get_db
 from app.repo import Store
-from app.schemas.project import CreateProjectInput, Organization, Project, ProjectSummary, UpdateProjectInput
+from app.schemas.project import (
+    CreateProjectInput,
+    DeleteProjectInput,
+    Organization,
+    Project,
+    ProjectSummary,
+    UpdateProjectInput,
+)
 from app.services import projects, workspace_flow
 
 router = APIRouter(tags=["組織與專案"])
@@ -83,3 +90,11 @@ def update_project(
     if current is None:
         raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
     return projects.to_schema(projects.update_project(db, current[0], body))
+
+
+@router.delete("/project", operation_id="workspace.deleteProject", summary="刪除目前的專案（Leader）", status_code=204)
+def delete_project(body: DeleteProjectInput, me: CurrentMember, db: Db, project_id: ProjectId = None) -> None:
+    member_id = projects.parse_uuid(me.id)
+    if member_id is None:
+        raise ApiError("示範資料無法刪除專案，請以 GitHub 登入", status=400, code="NOT_A_GITHUB_MEMBER")
+    projects.delete_project(db, member_id, project_id, body.confirm_name)

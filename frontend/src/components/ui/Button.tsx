@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'xs' | 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,6 +14,8 @@ const variants: Record<Variant, string> = {
   primary: 'bg-neutral-900 text-white hover:bg-neutral-700 disabled:bg-neutral-300',
   secondary: 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:text-gray-400',
   ghost: 'text-gray-600 hover:bg-gray-100 disabled:text-gray-300',
+  /** 刪除等無法復原的操作 */
+  danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-200',
 };
 
 const sizes: Record<Size, string> = {

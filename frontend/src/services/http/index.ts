@@ -15,11 +15,13 @@ export const httpServices: Services = {
     list: () => data(http.get('/members')),
     invite: (input) => data(http.post('/members', input)),
     update: (id, patch) => data(http.patch(`/members/${id}`, patch)),
+    remove: (id) => data(http.delete(`/members/${id}`)),
   },
   workspace: {
     getOrganization: () => data(http.get('/organization')),
     listProjects: () => data(http.get('/projects')),
     createProject: (input) => data(http.post('/projects', input)),
+    deleteProject: (confirmName) => data(http.delete('/project', { data: { confirmName } })),
     getProject: () => data(http.get('/project')),
     updateProject: (patch) => data(http.patch('/project', patch)),
   },

@@ -46,6 +46,14 @@ export const members: MemberService = {
       Object.assign(member, patch);
       return member;
     }),
+  remove: (id) =>
+    respond(() => {
+      requireLead('移除成員');
+      const member = findMember(id);
+      if (member.id === db.sessionUserId) throw new ApiError('不能把自己移出專案');
+      if (member.role === 'Leader') throw new ApiError('不能移除 Leader，請先把 Leader 轉給其他成員');
+      db.members = db.members.filter((m) => m.id !== id);
+    }),
 };
 
 export const workspace: WorkspaceService = {
@@ -58,6 +66,10 @@ export const workspace: WorkspaceService = {
   createProject: () =>
     respond(() => {
       throw new ApiError('示範模式無法建立專案，請以 GitHub 登入（./dev.sh full）');
+    }),
+  deleteProject: () =>
+    respond(() => {
+      throw new ApiError('示範模式無法刪除專案，請以 GitHub 登入（./dev.sh full）');
     }),
   getProject: () => respond(() => db.project),
   updateProject: (patch) =>

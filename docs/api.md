@@ -40,6 +40,7 @@
 | `members.list` | GET | `/api/members` |
 | `members.invite` | POST | `/api/members` |
 | `members.update` | PATCH | `/api/members/{id}` |
+| `members.remove` | DELETE | `/api/members/{id}` |
 
 ## workspace
 
@@ -48,6 +49,7 @@
 | `workspace.getOrganization` | GET | `/api/organization` |
 | `workspace.getProject` | GET | `/api/project` |
 | `workspace.updateProject` | PATCH | `/api/project` |
+| `workspace.deleteProject` | DELETE | `/api/project` |
 
 ## docs
 

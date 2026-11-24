@@ -57,3 +57,13 @@ def update(
     if current is None:
         return workspace_flow.update_member(store, id, body)
     return projects.update_project_member(db, current, id, body)
+
+
+@router.delete("/members/{id}", operation_id="members.remove", summary="把成員移出專案（Leader）", status_code=204)
+def remove(id: str, me: CurrentMember, db: Db, project_id: ProjectId = None) -> None:
+    require_leader(me)
+    current = _current_project_id(db, me, project_id)
+    actor = projects.parse_uuid(me.id)
+    if current is None or actor is None:
+        raise ApiError("示範資料無法移除成員，請以 GitHub 登入", status=400, code="NOT_A_GITHUB_MEMBER")
+    projects.remove_project_member(db, current, actor, id)

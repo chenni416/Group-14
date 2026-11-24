@@ -1,11 +1,20 @@
-import { X } from 'lucide-react';
+import { UserMinus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Avatar, Button, Input, Label, Select, Tag } from '@/components/ui';
+import { Avatar, Button, IconButton, Input, Label, Select, Tag } from '@/components/ui';
 import { DOMAIN_KEYS, DOMAINS } from '@/lib/constants';
 import type { Member, MemberRole } from '@/types';
 import { useTeamMutations } from '../hooks/useTeam';
 
-export function MemberCard({ member, editable }: { member: Member; editable: boolean }) {
+export function MemberCard({
+  member,
+  editable,
+  onRemove,
+}: {
+  member: Member;
+  editable: boolean;
+  /** 有傳入時顯示「移出專案」按鈕（只有 Leader 會傳入，且不會用在自己或 Leader 身上） */
+  onRemove?: () => void;
+}) {
   const { update } = useTeamMutations();
   const [title, setTitle] = useState(member.title);
   const [capacity, setCapacity] = useState(String(member.capacity));
@@ -25,17 +34,24 @@ export function MemberCard({ member, editable }: { member: Member; editable: boo
             <div className="truncate text-xs text-gray-500">{member.email}</div>
           </div>
         </div>
-        <Select
-          aria-label={`${member.name} 的角色`}
-          className="w-28 shrink-0"
-          value={member.role}
-          disabled={!editable}
-          onChange={(e) => save({ role: e.target.value as MemberRole })}
-        >
-          {(['Leader', 'Member'] as const).map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </Select>
+        <div className="flex shrink-0 items-center gap-1">
+          <Select
+            aria-label={`${member.name} 的角色`}
+            className="w-28 shrink-0"
+            value={member.role}
+            disabled={!editable}
+            onChange={(e) => save({ role: e.target.value as MemberRole })}
+          >
+            {(['Leader', 'Member'] as const).map((r) => (
+              <option key={r}>{r}</option>
+            ))}
+          </Select>
+          {onRemove && (
+            <IconButton aria-label={`將 ${member.name} 移出專案`} variant="ghost" size="sm" onClick={onRemove} className="hover:text-red-600">
+              <UserMinus className="h-4 w-4" strokeWidth={1.75} />
+            </IconButton>
+          )}
+        </div>
       </div>
       <div className="mb-4 grid grid-cols-[1fr_96px] gap-3">
         <div>

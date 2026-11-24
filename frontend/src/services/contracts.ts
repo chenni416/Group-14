@@ -68,6 +68,8 @@ export interface MemberService {
   list(): Promise<Member[]>;
   invite(input: InviteMemberInput): Promise<Member>;
   update(id: string, patch: UpdateMemberInput): Promise<Member>;
+  /** Leader 把成員移出目前的專案（成員帳號不受影響） */
+  remove(id: string): Promise<void>;
 }
 
 export interface WorkspaceService {
@@ -78,6 +80,8 @@ export interface WorkspaceService {
   createProject(input: CreateProjectInput): Promise<ProjectSummary>;
   getProject(): Promise<Project>;
   updateProject(patch: UpdateProjectInput): Promise<Project>;
+  /** Leader 刪除目前的專案；confirmName 需與專案名稱相同 */
+  deleteProject(confirmName: string): Promise<void>;
 }
 
 export interface DocService {
