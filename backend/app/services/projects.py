@@ -13,8 +13,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
+from app.models import Member as MemberRow
 from app.models import Project as ProjectRow
 from app.models import ProjectMember as ProjectMemberRow
+from app.schemas.member import Member, UpdateMemberInput
 from app.schemas.project import CreateProjectInput, Project, ProjectSummary, ReviewPolicy, UpdateProjectInput
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
@@ -113,6 +115,60 @@ def update_project(db: Session, project: ProjectRow, patch: UpdateProjectInput) 
     project.updated_at = datetime.now(UTC)
     db.commit()
     return project
+
+
+def list_project_members(db: Session, project_id: uuid.UUID) -> list[Member]:
+    """專案的成員（含每個人在專案中的角色與技術特徵），先加入的在前"""
+    from app.services import members
+
+    rows = db.execute(
+        select(MemberRow, ProjectMemberRow)
+        .join(ProjectMemberRow, ProjectMemberRow.member_id == MemberRow.id)
+        .where(ProjectMemberRow.project_id == project_id)
+        .order_by(ProjectMemberRow.joined_at)
+    ).all()
+    return [members.to_schema(m, pm) for m, pm in rows]
+
+
+def update_project_member(db: Session, project_id: uuid.UUID, member_id: str, patch: UpdateMemberInput) -> Member:
+    """Leader 修改成員在專案中的設定：角色、職稱、專長、技術標籤、容量。姓名與 email 是成員自己的帳號資料，這裡不修改"""
+    from app.services import members
+
+    target = parse_uuid(member_id)
+    row = db.execute(
+        select(MemberRow, ProjectMemberRow)
+        .join(ProjectMemberRow, ProjectMemberRow.member_id == MemberRow.id)
+        .where(ProjectMemberRow.project_id == project_id, ProjectMemberRow.member_id == target)
+    ).first()
+    if row is None:
+        raise ApiError("找不到這位成員", status=404, code="NOT_FOUND")
+    member, pm = row
+
+    if patch.role is not None and patch.role != pm.role:
+        others = db.scalars(
+            select(ProjectMemberRow).where(
+                ProjectMemberRow.project_id == project_id,
+                ProjectMemberRow.member_id != pm.member_id,
+                ProjectMemberRow.role == "Leader",
+            )
+        ).all()
+        if patch.role == "Leader":
+            # 一個專案只有一位 Leader：原本的 Leader 改為 Member
+            for other in others:
+                other.role = "Member"
+        elif not others:
+            raise ApiError("專案至少要有一位 Leader，請先把另一位成員設為 Leader", status=422, code="VALIDATION_ERROR")
+        pm.role = patch.role
+    if patch.title is not None:
+        pm.title = patch.title.strip()
+    if patch.domain is not None:
+        pm.domain = patch.domain
+    if patch.tags is not None:
+        pm.tags = [t.strip() for t in patch.tags if t.strip()]
+    if patch.capacity is not None:
+        pm.capacity = max(1, patch.capacity)
+    db.commit()
+    return members.to_schema(member, pm)
 
 
 def to_schema(row: ProjectRow) -> Project:

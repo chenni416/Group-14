@@ -107,3 +107,37 @@ def test_member_cannot_update_project(db: Session) -> None:
     # 還沒有專案時是 Member：不能修改
     res = client.patch("/api/project", headers=bearer(token), json={"name": "x"})
     assert res.status_code == 403
+
+
+def test_members_list_and_update(db: Session) -> None:
+    token = make_token()
+    create(token)
+    members = client.get("/api/members", headers=bearer(token)).json()
+    assert len(members) == 1
+    me = members[0]
+    assert me["role"] == "Leader"
+    patch = {"title": "資料庫負責人", "domain": "BE", "tags": ["PostgreSQL", " "], "capacity": 0}
+    res = client.patch(f"/api/members/{me['id']}", headers=bearer(token), json=patch)
+    assert res.status_code == 200, res.json()
+    updated = client.get("/api/members", headers=bearer(token)).json()[0]
+    assert updated["title"] == "資料庫負責人"
+    assert updated["domain"] == "BE"
+    assert updated["tags"] == ["PostgreSQL"]  # 空白標籤被移除
+    assert updated["capacity"] == 1  # 容量至少 1
+
+
+def test_last_leader_cannot_step_down(db: Session) -> None:
+    token = make_token()
+    create(token)
+    me = client.get("/api/members", headers=bearer(token)).json()[0]
+    res = client.patch(f"/api/members/{me['id']}", headers=bearer(token), json={"role": "Member"})
+    assert res.status_code == 422
+
+
+def test_members_of_other_projects_are_not_visible(db: Session) -> None:
+    owner = make_token()
+    create(owner)
+    other = make_token(sub="5f0c6a8e-1d2b-4c3a-9e8f-000000000999", github_id=2002, login="hubot")
+    create(other, "別人的專案", "OT")
+    names = [m["name"] for m in client.get("/api/members", headers=bearer(other)).json()]
+    assert names == ["hubot"]
