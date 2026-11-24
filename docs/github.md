@@ -15,7 +15,7 @@ GitHub 整合的程式會等這些資料表完成後再實作，所以請盡量�
 | 2 | 建立專案、切換目前的專案 | 完成（#22） |
 | 2-1 | 新使用者歡迎頁、沒有專案時的空白狀態、建立專案（專案初始化）與加入專案頁、刪除專案、移除成員 | 完成（`feat/new-user-welcome`） |
 | 2-2 | 成員邀請（邀請碼＋Leader 同意、指定 GitHub 帳號） | 尚未開始，設計見[第 7 節](#7-成員邀請的設計) |
-| 3 | 安裝 GitHub App、連結 repo | 尚未開始 |
+| 3 | 安裝 GitHub App、連結 repo（建立專案時填寫 repo、團隊設定重新連結） | 完成（`feat/github-repo-connect`），流程見[第 8 節](#8-連結-repo-的流程) |
 | 4 | 同步 PR／審查／CI／commit、PR 合併自動完成任務、進度顯示 | 尚未開始 |
 | 5 | 以實際 repo 端對端測試 | 尚未開始 |
 
@@ -457,3 +457,37 @@ GitHub 整合只需要確認任務表有以下欄位，用來把 PR 對應到任
 索引與約束：`UNIQUE (project_id, member_id)` 限定 `status = 'pending'`（部分唯一索引），同一個人對同一個專案只能有一筆待審核的申請；`(project_id, status)`。
 
 兩張表都要啟用 RLS（[第 4 節](#4-共通規則)）。
+
+---
+
+## 8. 連結 repo 的流程
+
+### 8.1 使用者操作
+
+1. **建立專案**：選擇「整合 GitHub」時必須填寫 repo（`https://github.com/owner/repo` 或 `owner/repo`）；選擇「不整合」時可以不填
+2. 按「建立專案並連結 GitHub」→ 前往 GitHub 安裝 Taskline App，勾選該 repo
+3. 回到 `/github/callback`，結果有三種：
+   - **已連結**：回到專案初始化第二步（或團隊設定）
+   - **等待核准**：不是 repo 擁有者時 GitHub 只送出安裝請求；擁有者核准後，在團隊設定按「重新連結」
+   - **選擇 repo**：安裝沒有包含填寫的 repo 時，從已授權的 repo 中選擇，或重新安裝並勾選
+4. 之後可以在**團隊設定 → Git 整合 → Repository** 查看狀態、重新連結或解除連結
+
+### 8.2 安全檢查（`backend/app/services/github_link.py`）
+
+- 安裝網址帶有簽章的 `state`（專案、發起的 Leader、30 分鐘期限），回呼時驗證，不能偽造或拿去綁別的專案
+- 用安裝時取得的使用者授權查詢「登入者可以存取的安裝」，確認 `installation_id` 不是貼上別人的
+- 只有 Leader、且專案開啟 Git 整合時才能連結；一個 repo 只能綁一個專案
+
+### 8.3 GitHub App 需要的設定
+
+在 GitHub App 設定頁確認：
+
+| 項目 | 設定 |
+|---|---|
+| Callback URL | `http://localhost:5173/github/callback`（5174、5175 也加入；部署後加上正式網址） |
+| Request user authorization (OAuth) during installation | 勾選 |
+| Webhook | 部署前先不啟用 |
+| Repository permissions | Contents、Metadata、Pull requests、Checks、Commit statuses 皆為 Read-only |
+| Where can this GitHub App be installed | Any account |
+
+後端需要 `backend/.env` 的 `GITHUB_APP_ID`、`GITHUB_APP_SLUG`、`GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`GITHUB_PRIVATE_KEY_PATH`（`./setup.sh` 的 GitHub 整合步驟會詢問）。

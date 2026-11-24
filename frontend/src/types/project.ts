@@ -16,6 +16,8 @@ export interface Organization {
 
 export type GitProvider = 'GitHub' | 'GitLab';
 
+export type GithubLinkStatus = 'none' | 'pending' | 'linked' | 'revoked';
+
 export interface Project {
   name: string;
   /** G1：專案整體目標 */
@@ -28,6 +30,9 @@ export interface Project {
   defaultPolicy: ReviewPolicy;
   /** 是否整合 Git：true 時才進行 repo 連結與同步（由 GitHub 整合設定） */
   gitIntegration: boolean;
+  /** repo 連結狀態：none 尚未連結、pending 等待 repo 擁有者核准、linked 已連結、revoked 權限被收回 */
+  githubLinkStatus?: GithubLinkStatus;
+  githubRepoUrl?: string;
   activeSprintId: number;
   /** 規劃中的 Sprint；null 表示目前沒有 */
   planningSprintId: number | null;
@@ -47,6 +52,10 @@ export interface CreateProjectInput {
   /** 專案代碼，例如 TL */
   prefix: string;
   goal?: string;
+  sprintLength?: string;
+  gitIntegration?: boolean;
+  /** GitHub repo（https://github.com/owner/repo 或 owner/repo）；整合 Git 時必填 */
+  repo?: string | null;
 }
 
 export type UpdateProjectInput = Partial<Omit<Project, 'activeSprintId' | 'planningSprintId'>>;
