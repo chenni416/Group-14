@@ -28,7 +28,7 @@
 - Previous steward: 林念慈（Veronica Lin）, GitHub @NienTL, 2026-10-23 to 2026-11-23
 - New steward: 葉沛鑫, GitHub @leafs2, from 2026-11-24
 - Responsibilities: review and merge PRs, leave at least one specific comment on every approval (file or line, plus a question, concern or suggestion), keep DECISIONS.md up to date, and write the merge plan before merge day.
-- Decided by: [whole team, 11/24, where]
+- Decided by: whole team, 2026-11-24, in our LINE group
 
 #### Handoff notes (from @NienTL to @leafs2)
 
@@ -37,6 +37,6 @@
 - Since PR #18, every PR uses `.github/pull_request_template.md`. Check that "AI assistance" and "How I checked it" are filled in before approving.
 - Open issues from the Week 12 Lab review: #19 prompt test for targeted malicious minutes, #20 README setup errors on a new machine, #21 hosted version. Owners and dates still to be assigned.
 - Before CP2: write the merge plan entry in DECISIONS.md (every open branch and PR, merge order and why, expected conflicts, PRs to close, what "done" means that day).
-- Other: [念慈補充]
+- Other: To be added by @NienTL in review
 
 ---
