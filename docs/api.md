@@ -192,3 +192,14 @@
 | `retros.addAction` | POST | `/api/sprints/{sprint_id}/retro/actions` |
 | `retros.toggleAction` | POST | `/api/sprints/{sprint_id}/retro/actions/{action_id}/toggle` |
 | `retros.close` | POST | `/api/sprints/{sprint_id}/retro/close` |
+
+## github
+
+GitHub repo 連結（Leader 限定；流程見 `docs/github.md` 第 8 節）
+
+| 方法 | HTTP | 路徑 |
+|---|---|---|
+| `github.installUrl` | GET | `/api/github/install-url` |
+| `github.completeInstallation` | POST | `/api/github/installations` |
+| `github.chooseRepository` | PUT | `/api/github/repository` |
+| `github.unlink` | DELETE | `/api/github/repository` |

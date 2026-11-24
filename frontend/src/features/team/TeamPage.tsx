@@ -17,6 +17,7 @@ import { useOnboardingMutations } from '@/features/onboarding/hooks/useOnboardin
 import { InviteMemberDialog } from './components/InviteMemberDialog';
 import { MemberCard } from './components/MemberCard';
 import { PermissionMatrix } from './components/PermissionMatrix';
+import { RepoLink } from './components/RepoLink';
 import { useTeamMutations } from './hooks/useTeam';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -107,6 +108,7 @@ export function TeamPage() {
                   ))}
                 </span>
               </Row>
+              {project.gitIntegration && <RepoLink project={project} editable={lead} />}
               <Row label="成員">
                 <span className="tabular-nums">{members.length} 人</span>
               </Row>

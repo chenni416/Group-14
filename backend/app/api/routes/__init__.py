@@ -8,6 +8,7 @@ from app.api.routes import (
     comments,
     docs,
     execution,
+    github,
     issues,
     members,
     notifications,
@@ -24,6 +25,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(members.router)
 api_router.include_router(workspace.router)
+api_router.include_router(github.router)
 api_router.include_router(docs.router)
 api_router.include_router(sprints.router)
 api_router.include_router(tasks.router)
