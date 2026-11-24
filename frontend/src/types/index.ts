@@ -4,6 +4,7 @@ export * from './chat';
 export * from './comment';
 export * from './execution';
 export * from './invitation';
+export * from './github';
 export * from './issue';
 export * from './join-code';
 export * from './member';

@@ -9,6 +9,7 @@ from app.api.routes import (
     docs,
     execution,
     invitations,
+    github,
     issues,
     join_codes,
     members,
@@ -28,6 +29,7 @@ api_router.include_router(members.router)
 api_router.include_router(invitations.router)
 api_router.include_router(join_codes.router)
 api_router.include_router(workspace.router)
+api_router.include_router(github.router)
 api_router.include_router(docs.router)
 api_router.include_router(sprints.router)
 api_router.include_router(tasks.router)

@@ -10,6 +10,7 @@ import type {
   AddCommentInput,
   CreateInvitationInput,
   CreateJoinCodeInput,
+  CompleteInstallationInput,
   CreateProjectInput,
   CreateProposalInput,
   CreateSprintInput,
@@ -24,6 +25,7 @@ import type {
   Issue,
   JoinCode,
   JoinRequest,
+  LinkResult,
   KnowledgeDoc,
   Member,
   NegotiateInput,
@@ -282,6 +284,17 @@ export interface JoinCodeService {
   cancel(id: string): Promise<void>;
 }
 
+/** GitHub repo 連結（Leader；流程見 backend/app/services/github_link.py） */
+export interface GithubService {
+  /** GitHub App 安裝網址（含簽章過的 state） */
+  installUrl(): Promise<{ url: string }>;
+  /** 安裝完成後回到 /github/callback：驗證並綁定 repo */
+  completeInstallation(input: CompleteInstallationInput): Promise<LinkResult>;
+  /** 從授權的 repo 中選擇要連結的 */
+  chooseRepository(repoFullName: string): Promise<LinkResult>;
+  unlink(): Promise<void>;
+}
+
 export interface Services {
   auth: AuthService;
   members: MemberService;
@@ -300,4 +313,5 @@ export interface Services {
   comments: CommentService;
   acceptance: AcceptanceService;
   retros: RetroService;
+  github: GithubService;
 }

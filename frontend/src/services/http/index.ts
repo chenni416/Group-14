@@ -152,4 +152,10 @@ export const httpServices: Services = {
     toggleAction: (sprintId, actionId) => data(http.post(`/sprints/${sprintId}/retro/actions/${actionId}/toggle`)),
     close: (sprintId) => data(http.post(`/sprints/${sprintId}/retro/close`)),
   },
+  github: {
+    installUrl: () => data(http.get('/github/install-url')),
+    completeInstallation: (input) => data(http.post('/github/installations', input)),
+    chooseRepository: (repoFullName) => data(http.put('/github/repository', { repoFullName })),
+    unlink: () => data(http.delete('/github/repository')),
+  },
 };

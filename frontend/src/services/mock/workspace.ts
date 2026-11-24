@@ -5,6 +5,7 @@ import { ApiError } from '@/types';
 import type {
   AuthService,
   DocService,
+  GithubService,
   InvitationService,
   JoinCodeService,
   MemberService,
@@ -192,4 +193,17 @@ export const docs: DocService = {
       db.docs = db.docs.filter((d) => d.id !== id);
     }),
   search: (query) => respond(() => searchKnowledge(query), 400),
+};
+
+/** 示範模式沒有真正的 GitHub App 安裝流程 */
+const githubUnavailable = () =>
+  respond(() => {
+    throw new ApiError('示範模式無法連結 GitHub，請以 GitHub 登入（./dev.sh full）');
+  });
+
+export const github: GithubService = {
+  installUrl: githubUnavailable,
+  completeInstallation: githubUnavailable,
+  chooseRepository: githubUnavailable,
+  unlink: githubUnavailable,
 };

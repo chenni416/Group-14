@@ -43,6 +43,9 @@ class Project(ApiModel):
     default_policy: ReviewPolicy
     git_integration: bool = False
     """是否整合 Git：true 時才進行 repo 連結與同步"""
+    github_link_status: Literal["none", "pending", "linked", "revoked"] = "none"
+    """repo 連結狀態：none 尚未連結、pending 等待 repo 擁有者核准、linked 已連結、revoked 權限被收回"""
+    github_repo_url: str = ""
     active_sprint_id: int
     planning_sprint_id: int | None
     """規劃中的 Sprint；null 表示目前沒有"""
@@ -63,6 +66,13 @@ class CreateProjectInput(ApiModel):
     prefix: str
     """專案代碼，例如 TL；只保留英文大寫與數字"""
     goal: str = ""
+    sprint_length: str | None = None
+    git_integration: bool = False
+    repo: str | None = None
+    """GitHub repo（https://github.com/owner/name 或 owner/name）。
+
+    整合 Git 時必填，之後由 GitHub App 安裝流程驗證並綁定
+    """
 
 
 class DeleteProjectInput(ApiModel):

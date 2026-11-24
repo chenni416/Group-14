@@ -28,6 +28,21 @@ from app.schemas.project import (
 )
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
+SPRINT_LENGTHS = ("1 週", "2 週", "3 週")
+# GitHub repo：https://github.com/owner/name、github.com/owner/name 或 owner/name（可帶 .git）
+REPO_PATTERN = re.compile(
+    r"^(?:(?:https?://)?(?:www\.)?github\.com/)?([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/([A-Za-z0-9._-]+?)(?:\.git)?/?$"
+)
+
+
+def parse_repo(text: str) -> str:
+    """把使用者輸入的 repo 轉成 owner/name；格式不符時回傳 422"""
+    match = REPO_PATTERN.match(text.strip())
+    if not match or match.group(2) in (".", ".."):
+        raise ApiError("請輸入 GitHub repo，例如 https://github.com/owner/repo", status=422, code="VALIDATION_ERROR")
+    return f"{match.group(1)}/{match.group(2)}"
+
+
 NAME_MAX = 100
 PREFIX_MAX = 6
 
@@ -93,10 +108,22 @@ def create_project(db: Session, member_id: uuid.UUID, body: CreateProjectInput) 
     if not prefix:
         raise ApiError("專案代碼需要至少一個英文字母或數字", status=422, code="VALIDATION_ERROR")
 
+    sprint_length = body.sprint_length or SPRINT_LENGTHS[1]
+    if sprint_length not in SPRINT_LENGTHS:
+        raise ApiError("Sprint 長度只能是 1、2 或 3 週", status=422, code="VALIDATION_ERROR")
+    repo = parse_repo(body.repo) if body.repo and body.repo.strip() else None
+    if body.git_integration and repo is None:
+        raise ApiError("整合 GitHub 時請填寫 repo", status=422, code="VALIDATION_ERROR")
+
     project = ProjectRow(
         name=name,
         prefix=prefix,
         goal=body.goal.strip(),
+        sprint_length=sprint_length,
+        git_integration=body.git_integration,
+        # 先記錄填寫的 repo；整合時由 GitHub App 安裝流程驗證權限後才標示為已連結
+        github_repo_full_name=repo,
+        github_repo_url=f"https://github.com/{repo}" if repo else None,
         branch_pattern=DEFAULT_BRANCH_PATTERN,
         created_by_member_id=member_id,
     )
@@ -254,6 +281,8 @@ def to_schema(row: ProjectRow) -> Project:
         sprint_length=row.sprint_length,
         default_policy=ReviewPolicy.model_validate(row.default_policy),
         git_integration=row.git_integration,
+        github_link_status=row.github_link_status,
+        github_repo_url=row.github_repo_url or "",
         active_sprint_id=0,
         planning_sprint_id=None,
     )
