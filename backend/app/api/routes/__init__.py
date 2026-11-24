@@ -9,7 +9,9 @@ from app.api.routes import (
     docs,
     execution,
     github,
+    invitations,
     issues,
+    join_codes,
     members,
     notifications,
     planning,
@@ -24,6 +26,8 @@ from app.api.routes import (
 api_router = APIRouter()
 api_router.include_router(auth.router)
 api_router.include_router(members.router)
+api_router.include_router(invitations.router)
+api_router.include_router(join_codes.router)
 api_router.include_router(workspace.router)
 api_router.include_router(github.router)
 api_router.include_router(docs.router)

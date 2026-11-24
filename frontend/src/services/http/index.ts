@@ -17,6 +17,25 @@ export const httpServices: Services = {
     update: (id, patch) => data(http.patch(`/members/${id}`, patch)),
     remove: (id) => data(http.delete(`/members/${id}`)),
   },
+  invitations: {
+    list: () => data(http.get('/invitations')),
+    create: (input) => data(http.post('/invitations', input)),
+    revoke: (id) => data(http.delete(`/invitations/${id}`)),
+    mine: () => data(http.get('/invitations/mine')),
+    accept: (id) => data(http.post(`/invitations/${id}/accept`)),
+    decline: (id) => data(http.post(`/invitations/${id}/decline`)),
+  },
+  joinCodes: {
+    current: () => data(http.get('/join-codes/current')),
+    create: (input) => data(http.post('/join-codes', input)),
+    revoke: () => data(http.delete('/join-codes/current')),
+    listRequests: () => data(http.get('/join-requests')),
+    approve: (id) => data(http.post(`/join-requests/${id}/approve`)),
+    reject: (id) => data(http.post(`/join-requests/${id}/reject`)),
+    submit: (code) => data(http.post('/join-requests', { code })),
+    mine: () => data(http.get('/join-requests/mine')),
+    cancel: (id) => data(http.delete(`/join-requests/${id}`)),
+  },
   workspace: {
     getOrganization: () => data(http.get('/organization')),
     listProjects: () => data(http.get('/projects')),
@@ -86,6 +105,8 @@ export const httpServices: Services = {
   },
   notifications: {
     list: () => data(http.get('/notifications')),
+    markRead: (id) => data(http.post(`/notifications/${id}/read`)),
+    markAllRead: () => data(http.post('/notifications/read-all')),
   },
   studio: {
     getPrompt: (taskId) => data(http.get(`/tasks/${taskId}/prompt`)),

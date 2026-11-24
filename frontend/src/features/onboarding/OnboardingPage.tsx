@@ -143,7 +143,7 @@ export function OnboardingPage() {
           <ReviewPolicyCard project={project} members={members} editable={lead} />
         </div>
       )}
-      {step === 2 && <InviteMembersStep prefix={project.prefix} />}
+      {step === 2 && <InviteMembersStep />}
     </ProjectSettingsLayout>
   );
 }

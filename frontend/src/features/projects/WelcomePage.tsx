@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, CardHeader, PageHeader } from '@/components/ui'
-import { useCurrentUser } from '@/hooks/queries'
+import { useCurrentUser, useMyInvitations } from '@/hooks/queries'
 import { cn } from '@/lib/cn'
 
 const STEPS = [
@@ -89,6 +89,8 @@ function Choice({
 /** 還沒有任何專案時的首頁：讓使用者選擇建立或加入專案，右側列出開始使用的步驟 */
 export function WelcomePage() {
   const { data: me } = useCurrentUser()
+  // Leader 以我的 GitHub 帳號送出的邀請：有的話提示去加入頁接受
+  const invitationCount = useMyInvitations().data?.length ?? 0
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader
@@ -126,7 +128,7 @@ export function WelcomePage() {
                 '或接受以你的 GitHub 帳號送出的邀請',
                 'Leader 同意後就會加入專案',
               ]}
-              action="前往加入"
+              action={invitationCount ? `查看 ${invitationCount} 個邀請` : '前往加入'}
               tone="sky"
             />
           </div>

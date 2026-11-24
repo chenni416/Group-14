@@ -207,6 +207,10 @@ class Notification(ApiModel):
     text: str
     created_at: str
     status: Literal["pending", "done"]
+    link: str | None = None
+    """點通知要前往的頁面，例如 /projects/join"""
+    project_id: str | None = None
+    """前往前要切換到的專案"""
 
 
 # ---------- Living Prompt 與專案脈絡助理 ----------

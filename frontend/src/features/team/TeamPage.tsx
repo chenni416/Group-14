@@ -9,7 +9,10 @@ import { isLead } from '@/lib/permissions';
 import { toast } from '@/stores/toast.store';
 import type { Member } from '@/types';
 import { InviteMemberDialog } from './components/InviteMemberDialog';
+import { JoinCodeCard } from './components/JoinCodeCard';
+import { JoinRequests } from './components/JoinRequests';
 import { MemberCard } from './components/MemberCard';
+import { PendingInvitations } from './components/PendingInvitations';
 import { useTeamMutations } from './hooks/useTeam';
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -61,6 +64,9 @@ export function TeamPage() {
             ))}
           </div>
         </Card>
+        {lead && <JoinRequests />}
+        {lead && <PendingInvitations />}
+        {lead && <JoinCodeCard />}
         <Card>
           <CardHeader
             title="成員角色與技術特徵"

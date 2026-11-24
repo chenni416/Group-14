@@ -8,6 +8,8 @@ import type {
   BurndownPoint,
   ChatMessage,
   AddCommentInput,
+  CreateInvitationInput,
+  CreateJoinCodeInput,
   CompleteInstallationInput,
   CreateProjectInput,
   CreateProposalInput,
@@ -19,7 +21,10 @@ import type {
   GenerateDraftInput,
   GenerateTasksInput,
   InviteMemberInput,
+  Invitation,
   Issue,
+  JoinCode,
+  JoinRequest,
   LinkResult,
   KnowledgeDoc,
   Member,
@@ -185,6 +190,8 @@ export interface PlanningService {
 export interface NotificationService {
   /** 目前登入者的通知 */
   list(): Promise<Notification[]>;
+  markRead(id: string): Promise<void>;
+  markAllRead(): Promise<void>;
 }
 
 export interface StudioService {
@@ -248,6 +255,37 @@ export interface RetroService {
   close(sprintId: number): Promise<Retro>;
 }
 
+/** 用 GitHub 帳號邀請成員：Leader 建立、對方在加入專案頁接受（不寄信） */
+export interface InvitationService {
+  /** 目前專案的邀請（Leader） */
+  list(): Promise<Invitation[]>;
+  create(input: CreateInvitationInput): Promise<Invitation>;
+  revoke(id: string): Promise<void>;
+  /** 寄給我、還沒處理的邀請 */
+  mine(): Promise<Invitation[]>;
+  /** 接受後回傳加入的專案 id */
+  accept(id: string): Promise<{ projectId: string }>;
+  decline(id: string): Promise<void>;
+}
+
+/** 邀請碼加入：Leader 產生邀請碼，成員輸入後送出申請，Leader 同意才加入 */
+export interface JoinCodeService {
+  /** 目前有效的邀請碼（Leader）；沒有時為 null */
+  current(): Promise<JoinCode | null>;
+  /** 產生新的邀請碼，同時停用舊的（Leader） */
+  create(input: CreateJoinCodeInput): Promise<JoinCode>;
+  revoke(): Promise<void>;
+  /** 待審核的加入申請（Leader） */
+  listRequests(): Promise<JoinRequest[]>;
+  approve(id: string): Promise<void>;
+  reject(id: string): Promise<void>;
+  /** 輸入邀請碼送出加入申請 */
+  submit(code: string): Promise<JoinRequest>;
+  /** 我送出、還在等待審核的申請 */
+  mine(): Promise<JoinRequest[]>;
+  cancel(id: string): Promise<void>;
+}
+
 /** GitHub repo 連結（Leader；流程見 backend/app/services/github_link.py） */
 export interface GithubService {
   /** GitHub App 安裝網址（含簽章過的 state） */
@@ -262,6 +300,8 @@ export interface GithubService {
 export interface Services {
   auth: AuthService;
   members: MemberService;
+  invitations: InvitationService;
+  joinCodes: JoinCodeService;
   workspace: WorkspaceService;
   docs: DocService;
   sprints: SprintService;
