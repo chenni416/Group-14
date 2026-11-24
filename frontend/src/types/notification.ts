@@ -25,4 +25,8 @@ export interface Notification {
   text: string;
   createdAt: string;
   status: 'pending' | 'done';
+  /** 點通知要前往的頁面，例如 /projects/join */
+  link?: string | null;
+  /** 前往前要切換到的專案 */
+  projectId?: string | null;
 }

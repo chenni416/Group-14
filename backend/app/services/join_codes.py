@@ -18,6 +18,7 @@ from app.models import ProjectJoinCode as CodeRow
 from app.models import ProjectJoinRequest as RequestRow
 from app.models import ProjectMember as ProjectMemberRow
 from app.schemas.join_code import CreateJoinCodeInput, JoinCode, JoinRequest
+from app.services import notifications
 
 # 去掉容易看錯的字：0 與 O、1 與 I
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -125,8 +126,14 @@ def submit_request(db: Session, member_id: uuid.UUID, code: str) -> JoinRequest:
 
     req = RequestRow(project_id=row.project_id, join_code_id=row.id, member_id=member_id)
     db.add(req)
+    db.flush()  # 先取得 req.id，通知會指向它
+    project = db.get(ProjectRow, row.project_id)
+    member = db.get(MemberRow, member_id)
+    notifications.notify_leaders(
+        db, row.project_id, member_id, f"{notifications.name_of(member)} 申請加入「{project.name}」", req.id
+    )
     db.commit()
-    return _request_schema(req, db.get(ProjectRow, row.project_id), db.get(MemberRow, member_id))
+    return _request_schema(req, project, member)
 
 
 def list_my_requests(db: Session, member_id: uuid.UUID) -> list[JoinRequest]:
@@ -147,6 +154,7 @@ def cancel_my_request(db: Session, member_id: uuid.UUID, request_id: str) -> Non
         raise ApiError("這個申請已經處理過了", status=409, code="REQUEST_CLOSED")
     req.status = "cancelled"
     req.decided_at = _now()
+    notifications.close(db, req.id)
     db.commit()
 
 
@@ -190,4 +198,8 @@ def decide_request(db: Session, project_id: uuid.UUID, leader_id: uuid.UUID, req
     req.status = "approved" if approve else "rejected"
     req.decided_by_member_id = leader_id
     req.decided_at = _now()
+    notifications.close(db, req.id)
+    project = db.get(ProjectRow, project_id)
+    text = f"你已加入「{project.name}」" if approve else f"「{project.name}」的 Leader 拒絕了你的加入申請"
+    notifications.add(db, req.member_id, leader_id, text, req.id)
     db.commit()

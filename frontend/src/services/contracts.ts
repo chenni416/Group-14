@@ -190,6 +190,8 @@ export interface PlanningService {
 export interface NotificationService {
   /** 目前登入者的通知 */
   list(): Promise<Notification[]>;
+  markRead(id: string): Promise<void>;
+  markAllRead(): Promise<void>;
 }
 
 export interface StudioService {

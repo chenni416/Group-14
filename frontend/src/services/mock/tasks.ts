@@ -733,6 +733,15 @@ export const planning: PlanningService = {
 
 export const notifications: NotificationService = {
   list: () => respond(() => db.notifications.filter((n) => n.toId === db.sessionUserId)),
+  markRead: (id) =>
+    respond(() => {
+      const n = db.notifications.find((x) => x.id === id);
+      if (n) n.status = 'done';
+    }),
+  markAllRead: () =>
+    respond(() => {
+      db.notifications.filter((n) => n.toId === db.sessionUserId).forEach((n) => (n.status = 'done'));
+    }),
 };
 
 function ensureGreeting(taskId: string) {

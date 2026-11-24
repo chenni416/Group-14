@@ -105,6 +105,8 @@ export const httpServices: Services = {
   },
   notifications: {
     list: () => data(http.get('/notifications')),
+    markRead: (id) => data(http.post(`/notifications/${id}/read`)),
+    markAllRead: () => data(http.post('/notifications/read-all')),
   },
   studio: {
     getPrompt: (taskId) => data(http.get(`/tasks/${taskId}/prompt`)),

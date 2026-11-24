@@ -19,6 +19,7 @@ from app.models import Project as ProjectRow
 from app.models import ProjectInvitation as InvitationRow
 from app.models import ProjectMember as ProjectMemberRow
 from app.schemas.invitation import CreateInvitationInput, Invitation
+from app.services import notifications
 
 # GitHub 帳號：英數字與連字號，最多 39 個字
 LOGIN_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$")
@@ -111,9 +112,28 @@ def create_invitation(
         invited_by_member_id=inviter_id,
     )
     db.add(inv)
-    db.commit()
+    db.flush()  # 先取得 inv.id，通知會指向它
     project = db.get(ProjectRow, project_id)
-    return _to_schema(inv, project, db.get(MemberRow, inviter_id))
+    inviter = db.get(MemberRow, inviter_id)
+    # 對方已經登入過 Taskline：直接通知；還沒登入過的，第一次讀通知時補上
+    invitee = db.scalars(
+        select(MemberRow).where(
+            or_(func.lower(MemberRow.github_login) == login, MemberRow.github_id == github_id)
+            if github_id is not None
+            else func.lower(MemberRow.github_login) == login
+        )
+    ).first()
+    if invitee is not None:
+        notifications.add(
+            db,
+            invitee.id,
+            inviter_id,
+            f"{notifications.name_of(inviter)} 邀請你加入「{project.name}」",
+            inv.id,
+            invite=True,
+        )
+    db.commit()
+    return _to_schema(inv, project, inviter)
 
 
 def list_project_invitations(db: Session, project_id: uuid.UUID) -> list[Invitation]:
@@ -134,6 +154,7 @@ def revoke_invitation(db: Session, project_id: uuid.UUID, invitation_id: str) ->
         raise ApiError("這個邀請已經處理過了", status=409, code="INVITATION_CLOSED")
     inv.status = "revoked"
     inv.responded_at = _now()
+    notifications.close(db, inv.id)
     db.commit()
 
 
@@ -206,12 +227,26 @@ def accept_invitation(db: Session, member_id: uuid.UUID, invitation_id: str) -> 
     inv.status = "accepted"
     inv.accepted_by_member_id = me.id
     inv.responded_at = _now()
+    notifications.close(db, inv.id)
+    project = db.get(ProjectRow, inv.project_id)
+    notifications.add(
+        db,
+        inv.invited_by_member_id,
+        me.id,
+        f"{notifications.name_of(me)} 接受了你的邀請，加入「{project.name}」",
+        inv.id,
+    )
     db.commit()
     return str(inv.project_id)
 
 
 def decline_invitation(db: Session, member_id: uuid.UUID, invitation_id: str) -> None:
-    inv, _ = _find_mine(db, member_id, invitation_id)
+    inv, me = _find_mine(db, member_id, invitation_id)
     inv.status = "declined"
     inv.responded_at = _now()
+    notifications.close(db, inv.id)
+    project = db.get(ProjectRow, inv.project_id)
+    notifications.add(
+        db, inv.invited_by_member_id, me.id, f"{notifications.name_of(me)} 拒絕了加入「{project.name}」的邀請", inv.id
+    )
     db.commit()
