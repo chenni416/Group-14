@@ -1,11 +1,12 @@
-import { Button, Callout, Card, CardHeader, Label, SegmentedControl } from '@/components/ui';
+import { Button, Card, CardHeader, Label, SegmentedControl } from '@/components/ui';
 import { REVIEW_MODES, REVIEW_POLICIES } from '@/lib/constants';
 import { cn } from '@/lib/cn';
 import { toast } from '@/stores/toast.store';
 import type { Member, Project, ReviewPolicy, ReviewRule } from '@/types';
 import { useOnboardingMutations } from '../hooks/useOnboarding';
 
-export function ReviewDefaultsStep({ project, members, editable }: { project: Project; members: Member[]; editable: boolean }) {
+/** Review 預設策略：選擇模式後立即儲存；指定審查者模式可以選人與同意門檻 */
+export function ReviewPolicyCard({ project, members, editable }: { project: Project; members: Member[]; editable: boolean }) {
   const { updateProject } = useOnboardingMutations();
   const p = project.defaultPolicy;
   const leader = members.find((m) => m.role === 'Leader');
@@ -13,8 +14,9 @@ export function ReviewDefaultsStep({ project, members, editable }: { project: Pr
     editable ? updateProject.mutate({ defaultPolicy: policy }) : toast('只有 Leader 可以設定');
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-2">
-      <div className="space-y-3" role="radiogroup" aria-label="預設審查模式">
+    <Card>
+      <CardHeader title="Review 預設策略" description="專案預設值；單一任務可以覆蓋，AI 也會依任務特性建議策略" />
+      <div className="space-y-2" role="radiogroup" aria-label="預設審查模式">
         {REVIEW_MODES.map((mode) => {
           const on = p.mode === mode;
           const def = REVIEW_POLICIES[mode];
@@ -26,27 +28,27 @@ export function ReviewDefaultsStep({ project, members, editable }: { project: Pr
               aria-checked={on}
               onClick={() => save({ ...p, mode })}
               className={cn(
-                'flex w-full items-start gap-4 rounded-3xl border bg-white p-5 text-left transition-colors duration-150',
-                on ? 'border-neutral-900' : 'border-gray-100 hover:border-gray-300',
+                'flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-colors duration-150',
+                on ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:bg-gray-50',
               )}
             >
-              <span className={cn('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border', on ? 'border-neutral-900' : 'border-gray-300')}>
-                {on && <span className="h-2.5 w-2.5 rounded-full bg-neutral-900" />}
+              <span className={cn('mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border', on ? 'border-neutral-900' : 'border-gray-300')}>
+                {on && <span className="h-2 w-2 rounded-full bg-neutral-900" />}
               </span>
               <span>
-                <span className="block text-base font-semibold text-gray-900">
-                  {def.label} <span className="text-sm font-normal text-gray-500">{def.en}</span>
+                <span className="block text-sm font-medium text-gray-900">
+                  {def.label} <span className="font-normal text-gray-500">{def.en}</span>
                 </span>
-                <span className="mt-1 block text-sm text-gray-500">適用：{def.usage}</span>
+                <span className="mt-0.5 block text-xs text-gray-500">適用：{def.usage}</span>
               </span>
             </button>
           );
         })}
       </div>
-      <Card>
-        <CardHeader title="預設設定" />
+
+      <div className="mt-4 border-t border-gray-100 pt-4">
         {p.mode === 'target' ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
               <Label>指定審查者</Label>
               <div className="flex flex-wrap gap-2">
@@ -80,16 +82,13 @@ export function ReviewDefaultsStep({ project, members, editable }: { project: Pr
             </div>
           </div>
         ) : (
-          <Callout>
+          <p className="text-sm text-gray-500">
             {p.mode === 'leader'
               ? `所有任務進入 In Review 時，直接通知 Leader ${leader?.name ?? ''}。`
-              : '任務進入 In Review 時推送到團隊 Review 公共池，任何人可 Claim，認領後頭像才鎖定在卡片上。'}
-          </Callout>
+              : '任務進入 In Review 時推送到團隊 Review 公共池，任何人可以認領，認領後頭像才鎖定在卡片上。'}
+          </p>
         )}
-        <Callout tone="warning" className="mt-4">
-          這是專案預設值。Leader 或負責人可以在單一任務上覆蓋（Task-level Override），AI 也會依任務特性建議策略。
-        </Callout>
-      </Card>
-    </div>
+      </div>
+    </Card>
   );
 }
