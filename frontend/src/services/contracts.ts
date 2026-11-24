@@ -9,6 +9,7 @@ import type {
   ChatMessage,
   AddCommentInput,
   CreateInvitationInput,
+  CreateJoinCodeInput,
   CreateProjectInput,
   CreateProposalInput,
   CreateSprintInput,
@@ -21,6 +22,8 @@ import type {
   InviteMemberInput,
   Invitation,
   Issue,
+  JoinCode,
+  JoinRequest,
   KnowledgeDoc,
   Member,
   NegotiateInput,
@@ -261,10 +264,29 @@ export interface InvitationService {
   decline(id: string): Promise<void>;
 }
 
+/** 邀請碼加入：Leader 產生邀請碼，成員輸入後送出申請，Leader 同意才加入 */
+export interface JoinCodeService {
+  /** 目前有效的邀請碼（Leader）；沒有時為 null */
+  current(): Promise<JoinCode | null>;
+  /** 產生新的邀請碼，同時停用舊的（Leader） */
+  create(input: CreateJoinCodeInput): Promise<JoinCode>;
+  revoke(): Promise<void>;
+  /** 待審核的加入申請（Leader） */
+  listRequests(): Promise<JoinRequest[]>;
+  approve(id: string): Promise<void>;
+  reject(id: string): Promise<void>;
+  /** 輸入邀請碼送出加入申請 */
+  submit(code: string): Promise<JoinRequest>;
+  /** 我送出、還在等待審核的申請 */
+  mine(): Promise<JoinRequest[]>;
+  cancel(id: string): Promise<void>;
+}
+
 export interface Services {
   auth: AuthService;
   members: MemberService;
   invitations: InvitationService;
+  joinCodes: JoinCodeService;
   workspace: WorkspaceService;
   docs: DocService;
   sprints: SprintService;

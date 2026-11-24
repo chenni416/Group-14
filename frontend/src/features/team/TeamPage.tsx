@@ -15,6 +15,8 @@ import { toast } from '@/stores/toast.store';
 import type { Member } from '@/types';
 import { useOnboardingMutations } from '@/features/onboarding/hooks/useOnboarding';
 import { InviteMemberDialog } from './components/InviteMemberDialog';
+import { JoinCodeCard } from './components/JoinCodeCard';
+import { JoinRequests } from './components/JoinRequests';
 import { MemberCard } from './components/MemberCard';
 import { PendingInvitations } from './components/PendingInvitations';
 import { PermissionMatrix } from './components/PermissionMatrix';
@@ -159,7 +161,9 @@ export function TeamPage() {
           )}
         </div>
         <div className="space-y-6">
+          {lead && <JoinRequests />}
           {lead && <PendingInvitations />}
+          {lead && <JoinCodeCard />}
           <Card>
             <CardHeader
               title="成員角色與技術特徵"

@@ -1,9 +1,10 @@
 import { Copy, KeyRound, MailOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Button, Card, CardHeader, Field, Input, PageHeader } from '@/components/ui';
+import { Button, Card, CardHeader, PageHeader } from '@/components/ui';
 import { useCurrentUser } from '@/hooks/queries';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { cn } from '@/lib/cn';
+import { JoinCodeForm } from './components/JoinCodeForm';
 import { ReceivedInvitations } from './components/ReceivedInvitations';
 
 const STEPS = [
@@ -22,9 +23,9 @@ function IconChip({ icon: Icon, tone }: { icon: typeof KeyRound; tone: string })
 }
 
 /**
- * 加入現有專案（邀請功能完成後接上）：
+ * 加入現有專案：
  * - 輸入 Leader 提供的邀請碼，送出後需要 Leader 同意才會加入
- * - Leader 以 GitHub 帳號直接邀請時，邀請會列在這裡，按接受即加入（已完成）
+ * - Leader 以 GitHub 帳號直接邀請時，邀請會列在這裡，按接受即加入
  */
 export function JoinProjectPage() {
   const { data: me } = useCurrentUser();
@@ -39,17 +40,7 @@ export function JoinProjectPage() {
         <Card className="flex flex-col">
           <IconChip icon={KeyRound} tone="bg-orange-50 text-accent-orange" />
           <CardHeader title="輸入邀請碼" description="向專案 Leader 索取邀請碼；送出申請後，Leader 同意就會加入" />
-          <div className="flex flex-1 flex-col justify-between gap-6">
-            <Field label="邀請碼" htmlFor="join-code">
-              <Input id="join-code" placeholder="例如：TL-7K2QX9" className="font-mono uppercase" disabled />
-            </Field>
-            <div className="space-y-2">
-              <Button variant="primary" className="w-full" disabled>
-                送出加入申請
-              </Button>
-              <p className="text-center text-xs text-gray-500">邀請功能即將開放</p>
-            </div>
-          </div>
+          <JoinCodeForm />
         </Card>
 
         <Card className="flex flex-col">

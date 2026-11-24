@@ -1,8 +1,15 @@
 import { db, findMember, requireLead, uid } from '@/mocks/db';
 import { formatSize, guessDocKind, searchKnowledge } from '@/mocks/handlers/knowledge';
-import type { Invitation, KnowledgeDoc } from '@/types';
+import type { Invitation, JoinCode, KnowledgeDoc } from '@/types';
 import { ApiError } from '@/types';
-import type { AuthService, DocService, InvitationService, MemberService, WorkspaceService } from '../contracts';
+import type {
+  AuthService,
+  DocService,
+  InvitationService,
+  JoinCodeService,
+  MemberService,
+  WorkspaceService,
+} from '../contracts';
 import { respond } from './utils';
 import { DEMO_PROJECTS } from '@/stores/project.store';
 
@@ -60,6 +67,40 @@ export const invitations: InvitationService = {
       throw new ApiError('示範模式沒有收到的邀請');
     }),
   decline: () => respond(() => undefined),
+};
+
+// 示範模式的邀請碼：只存在記憶體；示範模式沒有別的帳號，不會有加入申請
+let mockJoinCode: JoinCode | null = null;
+const randomCode = () =>
+  Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+
+export const joinCodes: JoinCodeService = {
+  current: () => respond(() => mockJoinCode),
+  create: (input) =>
+    respond(() => {
+      requireLead('產生邀請碼');
+      const days = input.expiresInDays === undefined ? 7 : input.expiresInDays;
+      mockJoinCode = {
+        code: `${db.project.prefix}-${randomCode()}`,
+        role: input.role ?? 'Member',
+        expiresAt: days ? new Date(Date.now() + days * 86_400_000).toISOString() : null,
+        createdAt: new Date().toISOString(),
+      };
+      return mockJoinCode;
+    }),
+  revoke: () =>
+    respond(() => {
+      mockJoinCode = null;
+    }),
+  listRequests: () => respond(() => []),
+  approve: () => respond(() => undefined),
+  reject: () => respond(() => undefined),
+  submit: () =>
+    respond(() => {
+      throw new ApiError('示範模式無法用邀請碼加入，請以 GitHub 登入（./dev.sh full）');
+    }),
+  mine: () => respond(() => []),
+  cancel: () => respond(() => undefined),
 };
 
 export const members: MemberService = {

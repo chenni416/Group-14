@@ -25,6 +25,17 @@ export const httpServices: Services = {
     accept: (id) => data(http.post(`/invitations/${id}/accept`)),
     decline: (id) => data(http.post(`/invitations/${id}/decline`)),
   },
+  joinCodes: {
+    current: () => data(http.get('/join-codes/current')),
+    create: (input) => data(http.post('/join-codes', input)),
+    revoke: () => data(http.delete('/join-codes/current')),
+    listRequests: () => data(http.get('/join-requests')),
+    approve: (id) => data(http.post(`/join-requests/${id}/approve`)),
+    reject: (id) => data(http.post(`/join-requests/${id}/reject`)),
+    submit: (code) => data(http.post('/join-requests', { code })),
+    mine: () => data(http.get('/join-requests/mine')),
+    cancel: (id) => data(http.delete(`/join-requests/${id}`)),
+  },
   workspace: {
     getOrganization: () => data(http.get('/organization')),
     listProjects: () => data(http.get('/projects')),

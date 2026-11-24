@@ -5,6 +5,7 @@ export * from './comment';
 export * from './execution';
 export * from './invitation';
 export * from './issue';
+export * from './join-code';
 export * from './member';
 export * from './notification';
 export * from './project';
