@@ -66,6 +66,14 @@ def current_membership(
     return (row[0], row[1]) if row is not None else None
 
 
+def require_current_project_id(db: Session, member_id: uuid.UUID, project_id: str | None) -> uuid.UUID:
+    """目前專案的 id；還沒有任何專案時回傳 404"""
+    current = current_membership(db, member_id, project_id)
+    if current is None:
+        raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
+    return current[0].id
+
+
 def create_project(db: Session, member_id: uuid.UUID, body: CreateProjectInput) -> ProjectSummary:
     """建立專案，建立的人成為 Leader"""
     name = body.name.strip()

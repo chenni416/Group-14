@@ -7,6 +7,7 @@
 - 開發用的示範成員（X-Demo-User）：沿用記憶體版假資料（MemoryStore）
 """
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header
@@ -25,15 +26,10 @@ Db = Annotated[Session, Depends(get_db)]
 ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
 
 
-def _current_project_id(db: Session, me: CurrentMember, project_id: str | None):
+def _current_project_id(db: Session, me: CurrentMember, project_id: str | None) -> uuid.UUID | None:
     """GitHub 登入的成員目前的專案 id；示範成員回傳 None"""
     member_id = projects.parse_uuid(me.id)
-    if member_id is None:
-        return None
-    current = projects.current_membership(db, member_id, project_id)
-    if current is None:
-        raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
-    return current[0].id
+    return None if member_id is None else projects.require_current_project_id(db, member_id, project_id)
 
 
 @router.get("/members", operation_id="members.list", summary="專案成員列表", response_model=list[Member])

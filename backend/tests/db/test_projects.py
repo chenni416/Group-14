@@ -141,3 +141,39 @@ def test_members_of_other_projects_are_not_visible(db: Session) -> None:
     create(other, "別人的專案", "OT")
     names = [m["name"] for m in client.get("/api/members", headers=bearer(other)).json()]
     assert names == ["hubot"]
+
+
+def test_knowledge_docs(db: Session) -> None:
+    token = make_token()
+    create(token)
+    assert client.get("/api/docs", headers=bearer(token)).json() == []
+    res = client.post("/api/docs", headers=bearer(token), json={"files": [{"name": "PRD_v2.md", "size": 2500000}]})
+    assert res.status_code == 200, res.json()
+    assert res.json()[0]["kind"] == "PRD"
+    assert res.json()[0]["size"] == "2.5 MB"
+    link = client.post("/api/docs/links", headers=bearer(token), json={"url": "https://www.figma.com/file/abc"}).json()
+    assert link["kind"] == "Figma"
+    assert link["isLink"] is True
+    docs = client.get("/api/docs", headers=bearer(token)).json()
+    assert [d["name"] for d in docs] == ["PRD_v2.md", "www.figma.com/file/abc"]
+    assert client.delete(f"/api/docs/{link['id']}", headers=bearer(token)).status_code == 204
+    assert len(client.get("/api/docs", headers=bearer(token)).json()) == 1
+
+
+def test_link_needs_http_url(db: Session) -> None:
+    token = make_token()
+    create(token)
+    res = client.post("/api/docs/links", headers=bearer(token), json={"url": "not a url"})
+    assert res.status_code == 422
+
+
+def test_docs_of_other_projects_are_not_visible(db: Session) -> None:
+    owner = make_token()
+    create(owner)
+    doc = client.post("/api/docs", headers=bearer(owner), json={"files": [{"name": "README.md", "size": 100}]}).json()[
+        0
+    ]
+    other = make_token(sub="5f0c6a8e-1d2b-4c3a-9e8f-000000000999", github_id=2002, login="hubot")
+    create(other, "別人的專案", "OT")
+    assert client.get("/api/docs", headers=bearer(other)).json() == []
+    assert client.delete(f"/api/docs/{doc['id']}", headers=bearer(other)).status_code == 404
