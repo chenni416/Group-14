@@ -8,6 +8,7 @@ import type {
   BurndownPoint,
   ChatMessage,
   AddCommentInput,
+  CreateInvitationInput,
   CreateProjectInput,
   CreateProposalInput,
   CreateSprintInput,
@@ -18,6 +19,7 @@ import type {
   GenerateDraftInput,
   GenerateTasksInput,
   InviteMemberInput,
+  Invitation,
   Issue,
   KnowledgeDoc,
   Member,
@@ -246,9 +248,23 @@ export interface RetroService {
   close(sprintId: number): Promise<Retro>;
 }
 
+/** 用 GitHub 帳號邀請成員：Leader 建立、對方在加入專案頁接受（不寄信） */
+export interface InvitationService {
+  /** 目前專案的邀請（Leader） */
+  list(): Promise<Invitation[]>;
+  create(input: CreateInvitationInput): Promise<Invitation>;
+  revoke(id: string): Promise<void>;
+  /** 寄給我、還沒處理的邀請 */
+  mine(): Promise<Invitation[]>;
+  /** 接受後回傳加入的專案 id */
+  accept(id: string): Promise<{ projectId: string }>;
+  decline(id: string): Promise<void>;
+}
+
 export interface Services {
   auth: AuthService;
   members: MemberService;
+  invitations: InvitationService;
   workspace: WorkspaceService;
   docs: DocService;
   sprints: SprintService;

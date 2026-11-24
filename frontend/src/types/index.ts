@@ -3,6 +3,7 @@ export * from './api';
 export * from './chat';
 export * from './comment';
 export * from './execution';
+export * from './invitation';
 export * from './issue';
 export * from './member';
 export * from './notification';

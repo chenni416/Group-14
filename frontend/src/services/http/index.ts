@@ -17,6 +17,14 @@ export const httpServices: Services = {
     update: (id, patch) => data(http.patch(`/members/${id}`, patch)),
     remove: (id) => data(http.delete(`/members/${id}`)),
   },
+  invitations: {
+    list: () => data(http.get('/invitations')),
+    create: (input) => data(http.post('/invitations', input)),
+    revoke: (id) => data(http.delete(`/invitations/${id}`)),
+    mine: () => data(http.get('/invitations/mine')),
+    accept: (id) => data(http.post(`/invitations/${id}/accept`)),
+    decline: (id) => data(http.post(`/invitations/${id}/decline`)),
+  },
   workspace: {
     getOrganization: () => data(http.get('/organization')),
     listProjects: () => data(http.get('/projects')),

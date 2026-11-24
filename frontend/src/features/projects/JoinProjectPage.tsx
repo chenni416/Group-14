@@ -4,6 +4,7 @@ import { Button, Card, CardHeader, Field, Input, PageHeader } from '@/components
 import { useCurrentUser } from '@/hooks/queries';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { cn } from '@/lib/cn';
+import { ReceivedInvitations } from './components/ReceivedInvitations';
 
 const STEPS = [
   { title: '向 Leader 取得邀請', text: '索取邀請碼，或把你的 GitHub 帳號告訴 Leader' },
@@ -23,7 +24,7 @@ function IconChip({ icon: Icon, tone }: { icon: typeof KeyRound; tone: string })
 /**
  * 加入現有專案（邀請功能完成後接上）：
  * - 輸入 Leader 提供的邀請碼，送出後需要 Leader 同意才會加入
- * - Leader 以 GitHub 帳號直接邀請時，邀請會列在這裡，按接受即加入
+ * - Leader 以 GitHub 帳號直接邀請時，邀請會列在這裡，按接受即加入（已完成）
  */
 export function JoinProjectPage() {
   const { data: me } = useCurrentUser();
@@ -55,7 +56,7 @@ export function JoinProjectPage() {
           <IconChip icon={MailOpen} tone="bg-sky-50 text-accent-sky" />
           <CardHeader title="收到的邀請" description="Leader 以你的 GitHub 帳號邀請時，會列在這裡" />
           <div className="flex flex-1 flex-col justify-between gap-6">
-            <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500">目前沒有收到邀請</div>
+            <ReceivedInvitations />
             {login && (
               <div className="flex items-center justify-between gap-3 rounded-2xl bg-gray-50 px-4 py-3">
                 <span className="min-w-0 text-sm text-gray-600">

@@ -16,6 +16,7 @@ import type { Member } from '@/types';
 import { useOnboardingMutations } from '@/features/onboarding/hooks/useOnboarding';
 import { InviteMemberDialog } from './components/InviteMemberDialog';
 import { MemberCard } from './components/MemberCard';
+import { PendingInvitations } from './components/PendingInvitations';
 import { PermissionMatrix } from './components/PermissionMatrix';
 import { useTeamMutations } from './hooks/useTeam';
 
@@ -157,22 +158,25 @@ export function TeamPage() {
             </Card>
           )}
         </div>
-        <Card>
-          <CardHeader
-            title="成員角色與技術特徵"
-            description={lead ? 'AI 推薦指派會依據這些資料' : '僅 Leader 可編輯'}
-          />
-          <div className="grid gap-4 md:grid-cols-2">
-            {members.map((m) => (
-              <MemberCard
-                key={m.id}
-                member={m}
-                editable={lead}
-                onRemove={lead && m.id !== me.id && m.role !== 'Leader' ? () => setRemoving(m) : undefined}
-              />
-            ))}
-          </div>
-        </Card>
+        <div className="space-y-6">
+          {lead && <PendingInvitations />}
+          <Card>
+            <CardHeader
+              title="成員角色與技術特徵"
+              description={lead ? 'AI 推薦指派會依據這些資料' : '僅 Leader 可編輯'}
+            />
+            <div className="grid gap-4 md:grid-cols-2">
+              {members.map((m) => (
+                <MemberCard
+                  key={m.id}
+                  member={m}
+                  editable={lead}
+                  onRemove={lead && m.id !== me.id && m.role !== 'Leader' ? () => setRemoving(m) : undefined}
+                />
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
       <InviteMemberDialog open={invite.isOpen} onClose={invite.close} />
 

@@ -1,6 +1,8 @@
 export const queryKeys = {
   me: ['me'] as const,
   members: ['members'] as const,
+  invitations: ['invitations'] as const,
+  myInvitations: ['invitations', 'mine'] as const,
   org: ['org'] as const,
   project: ['project'] as const,
   projects: ['projects'] as const,

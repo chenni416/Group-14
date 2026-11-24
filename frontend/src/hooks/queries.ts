@@ -6,6 +6,9 @@ import { api } from '@/services';
 import { BOARD_STATES, type Member, type Task } from '@/types';
 
 export const useCurrentUser = () => useQuery({ queryKey: queryKeys.me, queryFn: api.auth.me });
+export const useInvitations = (enabled = true) =>
+  useQuery({ queryKey: queryKeys.invitations, queryFn: api.invitations.list, enabled });
+export const useMyInvitations = () => useQuery({ queryKey: queryKeys.myInvitations, queryFn: api.invitations.mine });
 export const useMembers = () => useQuery({ queryKey: queryKeys.members, queryFn: api.members.list });
 export const useOrganization = () => useQuery({ queryKey: queryKeys.org, queryFn: api.workspace.getOrganization });
 export const useMyProjects = () => useQuery({ queryKey: queryKeys.projects, queryFn: api.workspace.listProjects });
