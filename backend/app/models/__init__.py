@@ -9,6 +9,7 @@ from app.models.github_commit import GithubCommit
 from app.models.github_installation import GithubInstallation
 from app.models.github_pull_request import GithubPullRequest
 from app.models.github_webhook_event import GithubWebhookEvent
+from app.models.join_code import ProjectJoinCode, ProjectJoinRequest
 from app.models.member import Member
 from app.models.project import Project
 from app.models.project_invitation import ProjectInvitation
@@ -45,4 +46,6 @@ __all__ = [
     "Proposal",
     "ProposalComment",
     "Notification",
+    "ProjectJoinCode",
+    "ProjectJoinRequest",
 ]
