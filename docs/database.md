@@ -26,7 +26,9 @@ Taskline 後端的資料表總覽、設計規則與新增資料表的步驟。�
 | `members` | 登入的使用者，一個 GitHub 帳號一筆 | `Member`（帳號部分） |
 | `projects` | 專案，包含綁定的 GitHub repo | `Project` |
 | `project_members` | 成員與專案的關係，以及每個專案不同的角色、職稱、容量 | `Member`（專案部分） |
-| `project_invitations` | 用 GitHub 帳號邀請成員 | `InviteMemberInput` |
+| `project_invitations` | 用 GitHub 帳號邀請成員，對方登入後接受 | `Invitation` |
+| `project_join_codes` | 專案邀請碼 | `JoinCode` |
+| `project_join_requests` | 用邀請碼送出的加入申請，等待 Leader 同意 | `JoinRequest` |
 | `sprints` | Sprint，包含會議紀錄全文與 AI 待釐清問題 | `Sprint` |
 | `documents` | 專案知識庫與 Sprint 會議文件（檔案本身存在 Supabase Storage） | `KnowledgeDoc`、`SprintDoc` |
 | `backlog_items` | 延後或跨 Sprint、要帶到之後規劃的事項 | `BacklogItem` |
@@ -46,7 +48,7 @@ Taskline 後端的資料表總覽、設計規則與新增資料表的步驟。�
 | `github_commits` | 預設 branch 最近 commit 的快取 | — |
 | `github_webhook_events` | GitHub webhook 的原始事件 | — |
 
-共 26 張。另外 `alembic_version` 是 Alembic 記錄遷移進度的表。
+共 28 張。另外 `alembic_version` 是 Alembic 記錄遷移進度的表。
 
 前端看到的 `Member` 由 `members` 與 `project_members` 組成：帳號資料（GitHub 名稱、頭像）不分專案，角色、職稱、容量每個專案不同。
 
@@ -124,6 +126,8 @@ github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 | 每個任務只有一份的資料 | `execution_plans`、`prompt_threads` 以 `task_id` 為主鍵（同時是外鍵）；`retros` 以 `sprint_id` 為主鍵 | 資料庫自動保證一個任務只有一份計畫、一個 Sprint 只有一份回顧 |
 | Living Prompt 存什麼？ | 只存每個版本的釐清結論（`prompt_threads.clarifications`），完整 Prompt 由「任務規格 + 釐清結論」即時組出 | 與 AI 流程一致；任務規格修改後，所有版本的 Prompt 都會更新 |
 | AI 驗收檢查要存嗎？ | 不存，每次即時產生；Reviewer 的最終判斷（含 AI 當時的判斷）存在 `acceptance_records.items` | 與 AI 流程一致，避免保存過時的 AI 結果 |
+| 邀請碼是否有效 | 由 `revoked_at` 與 `expires_at` 即時判斷，不另存狀態欄位 | 過期會隨時間改變，用目前時間比對永遠正確，不需要排程更新 |
+| 兩種邀請分開存 | 指定 GitHub 帳號用 `project_invitations`；邀請碼用 `project_join_codes` 與 `project_join_requests` | 前者由被邀請的人決定，後者由 Leader 審核，流程與欄位不同 |
 | 通知的 `ref_id` | 不建外鍵 | 依通知類型指向不同的表（問題回報或提案），外鍵只能指向一張表 |
 | 兩張表互相參照時 | 在其中一邊的外鍵加上 `use_alter=True`（`github_pull_requests.task_id`） | 避免 SQLAlchemy 無法決定建表順序的警告 |
 | 前端顯示用的格式 | 不存，由後端轉換：Sprint 的 `start`、`end`（MM/DD）、文件的 `size`（38 KB） | 存原始值才能排序、計算 |
@@ -206,6 +210,38 @@ github_webhook_events（獨立紀錄，以 installation_id、repo_id 對應）
 | `responded_at` | timestamptz | | | |
 
 部分唯一索引：同一個專案、同一個帳號只能有一筆 `pending` 邀請；拒絕或撤銷後可以重新邀請。
+
+`github_login` 存小寫。只有被邀請的帳號能接受：比對 `github_login`（不分大小寫）或 `github_id`；接受時把 `role`、`title`、`domain`、`capacity` 複製到 `project_members`。
+
+### `project_join_codes`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `project_id` | uuid | ✓ | | → `projects.id`（CASCADE） |
+| `code` | text | ✓ | | 唯一；專案代碼加 6 碼隨機字元，例如 `TL-7K2QX9`，不含 0、O、1、I；存大寫 |
+| `role` | text | ✓ | `'Member'` | 經同意加入後的角色：`Leader`、`Member` |
+| `expires_at` | timestamptz | | | 為空表示不會過期 |
+| `revoked_at` | timestamptz | | | 停用時間 |
+| `created_by_member_id` | uuid | ✓ | | → `members.id` |
+| `created_at` | timestamptz | ✓ | `now()` | |
+
+有效的邀請碼：`revoked_at` 為空，且沒有過期。同一個專案同時只有一組有效的邀請碼，產生新碼時停用舊碼（由程式處理）。
+
+### `project_join_requests`
+
+| 欄位 | 型別 | 必填 | 預設 | 說明 |
+|---|---|---|---|---|
+| `id` | uuid | ✓ | `gen_random_uuid()` | 主鍵 |
+| `project_id` | uuid | ✓ | | → `projects.id`（CASCADE） |
+| `join_code_id` | uuid | | | 用哪組邀請碼申請 → `project_join_codes.id`（SET NULL） |
+| `member_id` | uuid | ✓ | | 申請的人 → `members.id`（CASCADE） |
+| `status` | text | ✓ | `'pending'` | `pending`、`approved`、`rejected`、`cancelled` |
+| `decided_by_member_id` | uuid | | | 同意或拒絕的 Leader → `members.id`（SET NULL） |
+| `created_at` | timestamptz | ✓ | `now()` | |
+| `decided_at` | timestamptz | | | |
+
+部分唯一索引：`(project_id, member_id) WHERE status = 'pending'`，同一個人對同一個專案只能有一筆待審核的申請；被拒絕或取消後可以再申請。索引 `(project_id, status)` 用來列出待審核的申請。
 
 ### `sprints`
 
@@ -544,13 +580,24 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 
 ## 6. 尚未完成的部分
 
-依前端型別與後端 API（`app/schemas/`）規劃的資料表都已建立。尚未處理的部分：
+依前端型別與後端 API（`app/schemas/`）規劃的資料表都已建立。各功能改為讀寫資料表的進度：
+
+| 功能 | 資料表 | 狀態 |
+|---|---|---|
+| 登入、成員 | `members` | ✅ 已接上 |
+| 建立專案、專案設定、成員技術特徵 | `projects`、`project_members` | ✅ 已接上 |
+| 專案知識庫 | `documents`（`sprint_id` 為空） | ✅ 已接上；檔案尚未上傳到 Storage |
+| 成員邀請（GitHub 帳號、邀請碼） | `project_invitations`、`project_join_codes`、`project_join_requests` | ✅ 已接上 |
+| Sprint、任務、AI 規劃與執行、協作、驗收、回顧 | 其餘資料表 | ⏳ 仍使用 `app/repo/memory.py` 的 `MemoryStore` |
+| repo 綁定與進度同步 | `github_*`、`projects.github_*` | ⏳ GitHub 整合進行中 |
+
+其他尚未處理：
 
 | 項目 | 說明 |
 |---|---|
-| 讀寫資料表的程式 | 目前沒有程式使用這些資料表：登入、成員、專案、GitHub 的部分由 GitHub 整合實作；AI 規劃與執行流程需要把 `app/repo/memory.py` 的 `MemoryStore` 改為查詢資料表 |
 | Story 審核階段的草稿 | 目前只存在前端，重新整理會消失；如果需要保存，再新增資料表 |
 | Supabase Storage | 文件的 bucket（`documents`）尚未建立，實作上傳時設定 |
+| 專案沒有 Leader | Leader 的帳號被刪除時，專案會沒有 Leader；需要決定如何處理（例如自動指派最早加入的成員） |
 
 原本規劃但不建立的資料表：`planning_drafts`、`planning_chat_messages`（草稿直接存成 `tasks`，Story 助理的對話不保存）、`acceptance_checks`（AI 驗收檢查即時產生）。
 
