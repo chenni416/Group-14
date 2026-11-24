@@ -28,6 +28,23 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # 需要資料庫的測試（tests/db）使用這個 Postgres，不會連到共用的 Supabase
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: taskline
+          POSTGRES_PASSWORD: taskline
+          POSTGRES_DB: taskline_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taskline"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://taskline:taskline@localhost:5432/taskline_test
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

@@ -6,6 +6,7 @@ import { TaskStudioDrawer } from '@/features/task-studio/TaskStudioDrawer';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { MAIN_SCROLL_ID, scrollMainToTop } from '@/lib/mainScroll';
 import { HelpModal } from './HelpModal';
+import { RequireProject } from './RequireProject';
 import { SideNav } from './SideNav';
 import { TopBar } from './TopBar';
 
@@ -26,7 +27,9 @@ export function AppShell() {
         <SideNav onHelp={help.open} />
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl bg-white">
           <div id={MAIN_SCROLL_ID} className="scrollbar-thin flex flex-1 flex-col overflow-y-auto p-5 sm:p-8 [&>*]:shrink-0">
-            <Outlet />
+            <RequireProject>
+              <Outlet />
+            </RequireProject>
           </div>
         </main>
       </div>

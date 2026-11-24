@@ -9,6 +9,7 @@ export const httpServices: Services = {
   auth: {
     me: () => data(http.get('/me')),
     switchUser: (memberId) => data(http.post('/auth/switch', { memberId })),
+    updateMe: (input) => data(http.patch('/me', input)),
   },
   members: {
     list: () => data(http.get('/members')),
@@ -17,6 +18,8 @@ export const httpServices: Services = {
   },
   workspace: {
     getOrganization: () => data(http.get('/organization')),
+    listProjects: () => data(http.get('/projects')),
+    createProject: (input) => data(http.post('/projects', input)),
     getProject: () => data(http.get('/project')),
     updateProject: (patch) => data(http.patch('/project', patch)),
   },

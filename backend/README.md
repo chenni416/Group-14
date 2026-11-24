@@ -28,7 +28,7 @@ uv run uvicorn app.main:app --reload    # http://localhost:8000
 ## 常用指令
 
 ```bash
-uv run pytest                    # 測試
+uv run pytest                    # 測試（tests/db 需要先在根目錄 docker compose up -d，否則自動略過）
 uv run ruff check .              # lint
 uv run ruff format .             # 格式化
 uv add <套件>                    # 新增套件（會更新 uv.lock，記得一起 commit）

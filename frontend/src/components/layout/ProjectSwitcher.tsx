@@ -1,8 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { ChevronsUpDown, Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMyProjects } from '@/hooks/queries';
 import { cn } from '@/lib/cn';
-import { DEMO_PROJECTS, useProjectStore } from '@/stores/project.store';
+import { useProjectStore } from '@/stores/project.store';
 import { toast } from '@/stores/toast.store';
 
 /** 滑鼠移上去時顯示的專案名稱 */
@@ -20,27 +22,38 @@ const projectButton = (active: boolean) =>
     active ? 'bg-accent-sky text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900',
   );
 
-const addProject = () => toast('新增專案功能開發中');
-
 /**
  * 側邊欄的專案切換（像 Discord 切換伺服器），點選後回到該專案的 Project Dashboard。
  * 桌機：垂直列出所有專案與「新增專案」；手機（側邊欄變成畫面底部的一排）：只顯示目前專案，點開選單切換。
  */
 export function ProjectSwitcher() {
   const { currentId, setCurrentId } = useProjectStore();
-  const current = DEMO_PROJECTS.find((p) => p.id === currentId) ?? DEMO_PROJECTS[0]!;
+  // 我參與的專案：GitHub 登入時來自資料庫，示範模式為示意專案；圖示顯示專案代碼
+  const { data } = useMyProjects();
+  const projects = (data ?? []).map((p) => ({ id: p.id, name: p.name, short: p.prefix.slice(0, 3) }));
+  const current = projects.find((p) => p.id === currentId) ?? projects[0];
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  // 記住的專案不在清單裡（例如第一次登入、或被移出專案）：改選第一個
+  useEffect(() => {
+    if (current && current.id !== currentId) setCurrentId(current.id);
+  }, [current, currentId, setCurrentId]);
+
+  const addProject = () => navigate('/projects/new');
 
   // 點任何專案（包含目前的專案）都回到該專案的 Project Dashboard
   const select = (id: string) => {
-    const p = DEMO_PROJECTS.find((x) => x.id === id);
+    const p = projects.find((x) => x.id === id);
     setOpen(false);
     if (!p) return;
     navigate('/');
     if (id === currentId) return;
     setCurrentId(id);
+    // 換了專案：所有資料都要重新讀取
+    void qc.invalidateQueries();
     toast(`已切換到「${p.name}」`);
   };
 
@@ -61,7 +74,7 @@ export function ProjectSwitcher() {
     <>
       {/* 桌機：垂直列表 */}
       <div className="hidden md:contents">
-        {DEMO_PROJECTS.map((p) => (
+        {projects.map((p) => (
           <button
             key={p.id}
             type="button"
@@ -89,18 +102,18 @@ export function ProjectSwitcher() {
       <div ref={menuRef} className="relative md:hidden">
         <button
           type="button"
-          aria-label={`目前專案：${current.name}，點選切換專案`}
+          aria-label={current ? `目前專案：${current.name}，點選切換專案` : '切換專案'}
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
           className={cn(projectButton(true), 'relative')}
         >
-          {current.short}
+          {current?.short ?? <Plus className="h-4 w-4" strokeWidth={1.75} />}
           <ChevronsUpDown className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-white p-0.5 text-gray-600 shadow-card" strokeWidth={2} />
         </button>
         {open && (
           <div role="menu" aria-label="切換專案" className="absolute bottom-full left-0 z-40 mb-2 w-64 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-pop">
-            {DEMO_PROJECTS.map((p) => {
+            {projects.map((p) => {
               const active = p.id === currentId;
               return (
                 <button

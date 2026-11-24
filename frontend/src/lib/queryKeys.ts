@@ -3,6 +3,7 @@ export const queryKeys = {
   members: ['members'] as const,
   org: ['org'] as const,
   project: ['project'] as const,
+  projects: ['projects'] as const,
   docs: ['docs'] as const,
   sprints: ['sprints'] as const,
   burndown: (sprintId: number) => ['sprints', sprintId, 'burndown'] as const,

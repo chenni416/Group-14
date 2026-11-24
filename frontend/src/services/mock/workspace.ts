@@ -4,6 +4,7 @@ import type { KnowledgeDoc } from '@/types';
 import { ApiError } from '@/types';
 import type { AuthService, DocService, MemberService, WorkspaceService } from '../contracts';
 import { respond } from './utils';
+import { DEMO_PROJECTS } from '@/stores/project.store';
 
 export const auth: AuthService = {
   me: () => respond(() => findMember(db.sessionUserId), 80),
@@ -11,6 +12,14 @@ export const auth: AuthService = {
     respond(() => {
       db.sessionUserId = findMember(memberId).id;
       return findMember(memberId);
+    }, 80),
+  // mock 成員沒有 GitHub 帳號：有輸入名稱時直接改名
+  updateMe: (input) =>
+    respond(() => {
+      const me = findMember(db.sessionUserId);
+      const name = input.displayName?.trim();
+      if (name) me.name = name;
+      return { ...me };
     }, 80),
 };
 
@@ -41,6 +50,15 @@ export const members: MemberService = {
 
 export const workspace: WorkspaceService = {
   getOrganization: () => respond(() => db.org),
+  // 示範模式：側邊欄列出示意專案（不能新增）
+  listProjects: () =>
+    respond(() =>
+      DEMO_PROJECTS.map((p) => ({ id: p.id, name: p.name, prefix: p.short, role: findMember(db.sessionUserId).role })),
+    ),
+  createProject: () =>
+    respond(() => {
+      throw new ApiError('示範模式無法建立專案，請以 GitHub 登入（./dev.sh full）');
+    }),
   getProject: () => respond(() => db.project),
   updateProject: (patch) =>
     respond(() => {

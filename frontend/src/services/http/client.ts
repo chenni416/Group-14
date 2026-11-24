@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { getAccessToken, supabase } from '@/lib/supabase';
+import { useProjectStore } from '@/stores/project.store';
 import { ApiError } from '@/types';
 
 /** 一般請求的逾時 */
@@ -21,6 +22,9 @@ export const http = axios.create({
 http.interceptors.request.use(async (config) => {
   const token = await getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // 目前選擇的專案：後端依此回傳該專案的資料與我在專案中的角色
+  const projectId = useProjectStore.getState().currentId;
+  if (projectId) config.headers['X-Project-Id'] = projectId;
   return config;
 });
 

@@ -1,3 +1,4 @@
+import type { MemberRole } from './member';
 import type { ReviewPolicy } from './review-policy';
 
 export interface Team {
@@ -25,9 +26,27 @@ export interface Project {
   branchPattern: string;
   sprintLength: string;
   defaultPolicy: ReviewPolicy;
+  /** 是否整合 Git：true 時才進行 repo 連結與同步（由 GitHub 整合設定） */
+  gitIntegration: boolean;
   activeSprintId: number;
   /** 規劃中的 Sprint；null 表示目前沒有 */
   planningSprintId: number | null;
+}
+
+/** 「我的專案」清單的一項（側邊欄的專案切換用） */
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  prefix: string;
+  /** 我在這個專案的角色 */
+  role: MemberRole;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  /** 專案代碼，例如 TL */
+  prefix: string;
+  goal?: string;
 }
 
 export type UpdateProjectInput = Partial<Omit<Project, 'activeSprintId' | 'planningSprintId'>>;
