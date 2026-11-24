@@ -39,12 +39,9 @@ export function GithubCallbackPage() {
 
   const finish = async () => {
     await qc.invalidateQueries();
-    if (returnTo === 'onboarding') {
-      setOnboardingStep(1);
-      navigate('/onboarding', { replace: true });
-    } else {
-      navigate('/team', { replace: true });
-    }
+    // 建立專案後繼續第二步；從專案設定發起時回到基本資訊
+    setOnboardingStep(returnTo === 'onboarding' ? 1 : 0);
+    navigate(returnTo === 'onboarding' ? '/onboarding?setup=1' : '/onboarding', { replace: true });
   };
 
   const onLinked = async (result: LinkResult) => {
@@ -98,11 +95,11 @@ export function GithubCallbackPage() {
           <>
             <CardHeader
               title="已送出安裝請求"
-              description={`你不是 ${view.result.repoFullName ?? 'repo'} 的擁有者，GitHub 已通知擁有者核准。核准後回到團隊設定按「重新連結」即可完成。`}
+              description={`你不是 ${view.result.repoFullName ?? 'repo'} 的擁有者，GitHub 已通知擁有者核准。核准後到專案設定的基本資訊按「重新連結」即可完成。`}
             />
             <div className="flex justify-end">
               <Button variant="primary" onClick={() => void finish()}>
-                {returnTo === 'onboarding' ? '先繼續專案初始化' : '回到團隊設定'}
+                {returnTo === 'onboarding' ? '先繼續專案設定' : '回到專案設定'}
               </Button>
             </div>
           </>
@@ -119,7 +116,7 @@ export function GithubCallbackPage() {
 function Actions({ onSkip, onRetry, retrying }: { onSkip: () => void; onRetry: () => void; retrying: boolean }) {
   return (
     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <Button onClick={onSkip}>先略過，之後在團隊設定連結</Button>
+      <Button onClick={onSkip}>先略過，之後在專案設定連結</Button>
       <Button variant="primary" onClick={onRetry} loading={retrying}>
         <GitPullRequest className="h-4 w-4" strokeWidth={1.75} />
         重新連結 GitHub

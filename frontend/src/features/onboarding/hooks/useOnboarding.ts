@@ -18,6 +18,5 @@ export function useOnboardingMutations() {
     invalidate: [['docs']],
   });
   const removeDoc = useApiMutation({ mutationFn: api.docs.remove, invalidate: [['docs']] });
-  const search = useApiMutation({ mutationFn: api.docs.search, invalidate: [] });
-  return { updateProject, upload, addLink, removeDoc, search };
+  return { updateProject, upload, addLink, removeDoc };
 }

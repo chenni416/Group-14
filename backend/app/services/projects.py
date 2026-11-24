@@ -28,7 +28,23 @@ from app.schemas.project import (
 )
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
-SPRINT_LENGTHS = ("1 週", "2 週", "3 週")
+DEFAULT_SPRINT_LENGTH = "2 週"
+# Sprint 長度：數字加單位；7 天以上用週表示，超過 4 週就失去短週期迭代的意義
+SPRINT_LENGTH_RANGES = {"天": (1, 6), "週": (1, 4)}
+SPRINT_LENGTH_PATTERN = re.compile(r"^(\d+) (天|週)$")
+
+
+def normalize_sprint_length(value: str) -> str:
+    """檢查 Sprint 長度（例如 5 天、2 週）；格式或範圍不符時回傳 422"""
+    match = SPRINT_LENGTH_PATTERN.match(value.strip())
+    if match:
+        count, unit = int(match.group(1)), match.group(2)
+        low, high = SPRINT_LENGTH_RANGES[unit]
+        if low <= count <= high:
+            return f"{count} {unit}"
+    raise ApiError("Sprint 長度可以是 1–6 天或 1–4 週", status=422, code="VALIDATION_ERROR")
+
+
 # GitHub repo：https://github.com/owner/name、github.com/owner/name 或 owner/name（可帶 .git）
 REPO_PATTERN = re.compile(
     r"^(?:(?:https?://)?(?:www\.)?github\.com/)?([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/([A-Za-z0-9._-]+?)(?:\.git)?/?$"
@@ -108,9 +124,7 @@ def create_project(db: Session, member_id: uuid.UUID, body: CreateProjectInput) 
     if not prefix:
         raise ApiError("專案代碼需要至少一個英文字母或數字", status=422, code="VALIDATION_ERROR")
 
-    sprint_length = body.sprint_length or SPRINT_LENGTHS[1]
-    if sprint_length not in SPRINT_LENGTHS:
-        raise ApiError("Sprint 長度只能是 1、2 或 3 週", status=422, code="VALIDATION_ERROR")
+    sprint_length = normalize_sprint_length(body.sprint_length) if body.sprint_length else DEFAULT_SPRINT_LENGTH
     repo = parse_repo(body.repo) if body.repo and body.repo.strip() else None
     if body.git_integration and repo is None:
         raise ApiError("整合 GitHub 時請填寫 repo", status=422, code="VALIDATION_ERROR")
@@ -136,7 +150,20 @@ def create_project(db: Session, member_id: uuid.UUID, body: CreateProjectInput) 
 
 
 def update_project(db: Session, project: ProjectRow, patch: UpdateProjectInput) -> ProjectRow:
-    """修改專案設定：只改前端有傳的欄位。Git 平台與 repo 由 GitHub 整合處理，這裡不修改"""
+    """修改專案設定：只改前端有傳的欄位。
+
+    repo：尚未連結時可以修改（空字串表示清除）；已連結時要先解除連結才能更換。
+    """
+    if patch.repo is not None:
+        if project.github_link_status == "linked":
+            raise ApiError("repo 已經連結，要更換請先解除連結", status=409, code="REPO_LINKED")
+        repo = parse_repo(patch.repo) if patch.repo.strip() else None
+        if repo != project.github_repo_full_name:
+            project.github_repo_full_name = repo
+            project.github_repo_url = f"https://github.com/{repo}" if repo else None
+            # 原本的安裝請求是針對舊的 repo，改回尚未連結
+            project.github_repo_id = None
+            project.github_link_status = "none"
     if patch.name is not None:
         name = patch.name.strip()
         if not name:
@@ -152,7 +179,7 @@ def update_project(db: Session, project: ProjectRow, patch: UpdateProjectInput) 
     if patch.branch_pattern is not None:
         project.branch_pattern = patch.branch_pattern.strip()
     if patch.sprint_length is not None:
-        project.sprint_length = patch.sprint_length
+        project.sprint_length = normalize_sprint_length(patch.sprint_length)
     if patch.default_policy is not None:
         project.default_policy = patch.default_policy.model_dump()
     if patch.git_integration is not None:

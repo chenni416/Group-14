@@ -1,6 +1,6 @@
 import { FileText, Send, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Badge, Tag } from '@/components/ui';
+import { Tag } from '@/components/ui';
 import { useDocs } from '@/hooks/queries';
 import type { Sprint } from '@/types';
 import { useAsk, useChat } from '../hooks/useStudio';
@@ -32,9 +32,6 @@ export function ChatPanel({ taskId, sprint }: { taskId: string; sprint: Sprint |
           <h3 className="text-lg font-semibold tracking-tight">專案脈絡助理</h3>
           <p className="text-xs text-gray-500">Context-Aware Copilot</p>
         </div>
-        <Badge tone="violet" dot>
-          RAG Ready
-        </Badge>
       </div>
       <div className="mb-3 flex flex-wrap gap-1.5">
         <Tag>任務規格</Tag>

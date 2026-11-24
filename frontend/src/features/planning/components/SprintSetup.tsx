@@ -1,12 +1,11 @@
 import { ArrowRight, Sparkles, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
-import { Avatar, Badge, Button, Card, CardHeader, Field, Input, Label, Modal, Tag, Textarea } from '@/components/ui';
+import { Avatar, Button, Card, CardHeader, Field, Input, Label, Modal, Tag, Textarea } from '@/components/ui';
 import { useSprintDefaults, useSprintMutations } from '@/features/sprints/hooks/useSprintMutations';
 import { useDocs, useMembers, useSprintContext } from '@/hooks/queries';
 import { sum } from '@/lib/format';
 import { CARRY_HEADER, carryLoad, carrySP } from '@/lib/planning';
-import { ragStatus } from '@/lib/rag';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
 import type { NewSprintDefaults, Sprint, SprintDoc } from '@/types';
@@ -131,7 +130,6 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
   const carryCount = (form.minutes.match(CARRY_LINE) ?? []).length;
   const carried = carryTasks.filter((t) => t.carry === true);
   const carriedLoad = carryLoad(members, carryTasks);
-  const rag = ragStatus(knowledge ?? []);
 
   /** 寫入目前的設定：新建模式建立 Sprint，編輯模式更新 Sprint。成功回傳 true */
   const persist = async () => {
@@ -379,9 +377,6 @@ export function SprintSetup({ sprint }: { sprint: Sprint | undefined }) {
               <div className="mt-5">
                 <Label>AI 已掛載的專案脈絡</Label>
                 <div className="flex flex-wrap gap-1.5">
-                  <Badge tone={rag.ready ? 'sky' : 'orange'} dot>
-                    {rag.label}
-                  </Badge>
                   {knowledge?.slice(0, 5).map((d) => <Tag key={d.id}>{d.kind}</Tag>)}
                 </div>
               </div>

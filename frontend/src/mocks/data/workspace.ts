@@ -16,7 +16,7 @@ export const seedProject = (): Project => ({
   goal: '讓團隊在每次 Sprint Planning 後，都清楚誰負責什麼、做到哪裡，並能根據實際成果持續調整計畫。',
   prefix: 'TL',
   provider: 'GitHub',
-  repo: 'github.com/atlab/taskline',
+  repo: 'atlab/taskline',
   branchPattern: 'feature/{prefix}-{id}-{slug}',
   sprintLength: '2 週',
   defaultPolicy: { mode: 'pool', targets: [], rule: 'any' },

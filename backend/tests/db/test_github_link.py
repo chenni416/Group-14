@@ -141,7 +141,7 @@ def test_create_project_validation(db: Session) -> None:
     assert post(gitIntegration=True).status_code == 422  # 整合時 repo 必填
     assert post(gitIntegration=True, repo="not a repo").status_code == 422
     assert post(gitIntegration=True, repo="https://gitlab.com/a/b").status_code == 422
-    assert post(sprintLength="4 週").status_code == 422
+    assert post(sprintLength="5 週").status_code == 422
     # 不整合時 repo 可以不填，也可以填
     assert post().status_code == 200
     assert post(repo="octocat/notes").status_code == 200
@@ -250,3 +250,38 @@ def test_not_configured(db: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     pid = create()
     res = client.get("/api/github/install-url", headers=headers(OWNER, pid))
     assert (res.status_code, res.json()["code"]) == (503, "GITHUB_NOT_CONFIGURED")
+
+
+# ---------- 專案設定修改 repo ----------
+
+
+def test_repo_can_change_until_linked(db: Session) -> None:
+    pid = create()
+    res = client.patch("/api/project", headers=headers(OWNER, pid), json={"repo": "https://github.com/octocat/renamed"})
+    assert res.status_code == 200, res.json()
+    assert (res.json()["repo"], res.json()["githubRepoUrl"]) == (
+        "octocat/renamed",
+        "https://github.com/octocat/renamed",
+    )
+    assert client.patch("/api/project", headers=headers(OWNER, pid), json={"repo": "not a repo"}).status_code == 422
+    # 清除 repo
+    assert client.patch("/api/project", headers=headers(OWNER, pid), json={"repo": ""}).json()["repo"] == ""
+
+
+def test_linked_repo_cannot_change_until_unlinked(db: Session) -> None:
+    pid = create()
+    complete(OWNER, start(OWNER, pid))
+    res = client.patch("/api/project", headers=headers(OWNER, pid), json={"repo": "octocat/other"})
+    assert (res.status_code, res.json()["code"]) == (409, "REPO_LINKED")
+    assert project(OWNER, pid)["repo"] == "octocat/Taskline"
+    client.delete("/api/github/repository", headers=headers(OWNER, pid))
+    res = client.patch("/api/project", headers=headers(OWNER, pid), json={"repo": "octocat/other"})
+    assert (res.status_code, res.json()["repo"], res.json()["githubLinkStatus"]) == (200, "octocat/other", "none")
+
+
+def test_changing_repo_resets_pending_request(db: Session) -> None:
+    pid = create()
+    complete(OWNER, start(OWNER, pid), setupAction="request", installationId=None, code=None)
+    assert project(OWNER, pid)["githubLinkStatus"] == "pending"
+    res = client.patch("/api/project", headers=headers(OWNER, pid), json={"repo": "octocat/other"})
+    assert res.json()["githubLinkStatus"] == "none"
