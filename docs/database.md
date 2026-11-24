@@ -588,6 +588,7 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 | 建立專案、專案設定、成員技術特徵 | `projects`、`project_members` | ✅ 已接上 |
 | 專案知識庫 | `documents`（`sprint_id` 為空） | ✅ 已接上；檔案尚未上傳到 Storage |
 | 成員邀請（GitHub 帳號、邀請碼） | `project_invitations`、`project_join_codes`、`project_join_requests` | ✅ 已接上 |
+| 通知（邀請與加入申請） | `notifications` | ✅ 已接上；任務、審查等其他通知仍待 Sprint 與任務換成資料表 |
 | Sprint、任務、AI 規劃與執行、協作、驗收、回顧 | 其餘資料表 | ⏳ 仍使用 `app/repo/memory.py` 的 `MemoryStore` |
 | repo 綁定與進度同步 | `github_*`、`projects.github_*` | ⏳ GitHub 整合進行中 |
 
