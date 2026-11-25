@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"]
 
     # 資料庫：本機為 docker-compose 的 Postgres，雲端為 Supabase 的連線字串
-    database_url: str = "postgresql+psycopg://taskline:taskline@localhost:5433/taskline"
+    # 本機用 127.0.0.1 而不是 localhost：Windows 會先試 IPv6（::1），每次連線要多等約 15 秒才退回 IPv4
+    database_url: str = "postgresql+psycopg://taskline:taskline@127.0.0.1:5433/taskline"
     # 遷移（alembic）用的連線字串；留空時沿用 database_url，若是 Supabase Transaction pooler（6543）
     # 會自動改走 Session pooler（5432），因為 DDL 與 advisory lock 不適合在 transaction mode 執行
     migration_database_url: str = ""
