@@ -222,7 +222,7 @@ elif $INTERACTIVE && [[ "$DB_URL" == *"<資料庫密碼>"* ]]; then
   fi
   unset DB_PASSWORD ENCODED
 else
-  ask_env "$BACKEND_ENV" DATABASE_URL "資料庫連線字串（Supabase → Connect → Session pooler，輸入時不會顯示）" true
+  ask_env "$BACKEND_ENV" DATABASE_URL "資料庫連線字串（Supabase → Connect → Transaction pooler，輸入時不會顯示）" true
 fi
 
 # Supabase 複製的連線字串開頭是 postgresql://，自動改成 SQLAlchemy 需要的格式
@@ -232,6 +232,12 @@ if [[ "$DB_URL" == postgresql://* || "$DB_URL" == postgres://* ]]; then
   [[ "$DB_URL" == *"sslmode="* || "$DB_URL" == *"localhost"* ]] || DB_URL="${DB_URL}$([[ "$DB_URL" == *"?"* ]] && echo "&" || echo "?")sslmode=require"
   set_env "$BACKEND_ENV" DATABASE_URL "$DB_URL"
   ok "DATABASE_URL 已轉換為 postgresql+psycopg:// 格式"
+fi
+
+# 共用 Supabase 要走 Transaction pooler（6543）；舊設定的 Session pooler（5432）會讓連線被佔滿
+if [[ "$DB_URL" == *".pooler.supabase.com:5432"* ]]; then
+  set_env "$BACKEND_ENV" DATABASE_URL "${DB_URL/.pooler.supabase.com:5432/.pooler.supabase.com:6543}"
+  ok "DATABASE_URL 已改用 Transaction pooler（port 6543），避免大家一起把資料庫連線佔滿"
 fi
 
 # ---------- 5. GitHub 整合（選用） ----------
@@ -299,9 +305,9 @@ with create_engine(get_settings().database_url, connect_args={'connect_timeout':
     DB_USER="$(env_value "$BACKEND_ENV" DATABASE_URL | sed -E 's#^[^:]+://([^:@]+).*#\1#')"
     if [ -n "$REF" ] && [[ "$DB_USER" == postgres.* ]] && [ "$DB_USER" != "postgres.$REF" ]; then
       warn "連不上資料庫：DATABASE_URL 的使用者名稱是 ${DB_USER}，應該是 postgres.${REF}（專案代號，不是專案名稱）"
-      warn "請到 Supabase 專案頁面上方 Connect → Session pooler 重新複製完整連線字串，修改 backend/.env 後重新執行 ./setup.sh"
+      warn "請到 Supabase 專案頁面上方 Connect → Transaction pooler 重新複製完整連線字串，修改 backend/.env 後重新執行 ./setup.sh"
     else
-      warn "連不上資料庫：確認 DATABASE_URL 的密碼與主機（建議使用 Session pooler），修改 backend/.env 後重新執行 ./setup.sh"
+      warn "連不上資料庫：確認 DATABASE_URL 的密碼與主機（建議使用 Transaction pooler，port 6543），修改 backend/.env 後重新執行 ./setup.sh"
     fi
   fi
 fi

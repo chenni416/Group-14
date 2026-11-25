@@ -15,6 +15,15 @@ class Settings(BaseSettings):
 
     # 資料庫：本機為 docker-compose 的 Postgres，雲端為 Supabase 的連線字串
     database_url: str = "postgresql+psycopg://taskline:taskline@localhost:5433/taskline"
+    # 遷移（alembic）用的連線字串；留空時沿用 database_url，若是 Supabase Transaction pooler（6543）
+    # 會自動改走 Session pooler（5432），因為 DDL 與 advisory lock 不適合在 transaction mode 執行
+    migration_database_url: str = ""
+
+    @property
+    def resolved_migration_database_url(self) -> str:
+        if self.migration_database_url:
+            return self.migration_database_url
+        return self.database_url.replace(".pooler.supabase.com:6543", ".pooler.supabase.com:5432")
 
     # 登入：Supabase Auth 簽發的 JWT，由後端驗證
     supabase_url: str = ""

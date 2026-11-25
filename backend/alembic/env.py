@@ -9,9 +9,10 @@ from app.core.config import get_settings
 from app.models import Base
 
 config = context.config
-# 測試會透過 config.attributes 指定測試資料庫；否則使用 DATABASE_URL。
+# 測試會透過 config.attributes 指定測試資料庫；否則使用 MIGRATION_DATABASE_URL，
+# 沒設定時沿用 DATABASE_URL（Supabase 的 6543 會自動換成 5432，見 config.py）。
 # ConfigParser 會把 % 當成特殊符號，編碼過的密碼（例如 p%40ss）要先跳脫
-_url = config.attributes.get("database_url") or get_settings().database_url
+_url = config.attributes.get("database_url") or get_settings().resolved_migration_database_url
 config.set_main_option("sqlalchemy.url", _url.replace("%", "%%"))
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

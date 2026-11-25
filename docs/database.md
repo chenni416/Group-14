@@ -668,6 +668,24 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 
 ## 8. 本機開發與常用指令
 
+### 連線共用 Supabase：一定要用 port 6543
+
+Supabase 免費版全專案只有 **15 條**資料庫連線，所有成員的後端共用。
+
+| 連線方式 | port | 行為 |
+|---|---|---|
+| Transaction pooler | **6543** | 只有在交易執行的那一瞬間才佔用資料庫連線，結束就歸還，很多人可以共用 |
+| Session pooler | 5432 | 每條連線都會一直佔住一條資料庫連線，三、四個人同時開後端就會佔滿 |
+
+`backend/.env` 的 `DATABASE_URL` 要用 `...pooler.supabase.com:6543/...`（重跑 `./setup.sh` 會自動把 5432 改成 6543）。
+後端在 `app/db/session.py` 已配合 transaction mode 設定：不保留閒置連線（`NullPool`），並關閉 psycopg 的自動 prepared statement。
+
+遷移（`alembic`）會自動改走 5432，因為 DDL 與 advisory lock 不適合在 transaction mode 執行；要指定其他連線時設定 `MIGRATION_DATABASE_URL`。
+
+如果還是看到 `remaining connection slots are reserved` 或 `max clients reached`，通常是有人的 `.env` 還在用 5432，或 DBeaver、psql 等工具連著沒關。
+
+### 本機 Docker 資料庫
+
 開發資料表時使用本機的 Docker 資料庫，避免影響共用的 Supabase：
 
 ```bash
