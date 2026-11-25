@@ -361,6 +361,12 @@ def run_c07(llm):
 def check_c07(rec: RecordingLlm, result) -> list[Check]:
     pairs = {(d.task_id, d.depends_on_id): d for d in result}
     raw: s.LlmTaskDependencies = rec.raw(s.LlmTaskDependencies)
+    now, prev = {"S-311", "S-312", "S-322"}, {"S-213", "S-211", "S-231", "S-242"}
+    fabricated = [
+        (d.task_id, d.depends_on_id)
+        for d in raw.dependencies
+        if d.task_id not in now or d.depends_on_id not in (prev if d.scope == "prev" else now)
+    ]
     return [
         ok("找到 S-311 → S-213（向量索引）", ("S-311", "S-213") in pairs, sorted(pairs)),
         ok(
@@ -370,11 +376,8 @@ def check_c07(rec: RecordingLlm, result) -> list[Check]:
         ok("找到 S-322 → S-231（設計稿）", ("S-322", "S-231") in pairs, sorted(pairs)),
         ok("沒有把無關的已完成任務當成相依", not [p for p in pairs if p[1] in ("S-211", "S-242")], sorted(pairs)),
         ok("沒有重複已列出的 S-312 → S-311", ("S-312", "S-311") not in pairs),
-        ok(
-            "模型沒有編造任務編號",
-            len(raw.dependencies) == len(result),
-            f"原始 {len(raw.dependencies)} 筆，校正後 {len(result)} 筆",
-        ),
+        # [v0.3.2 修改] 已列出的相依改由程式過濾（R8），這裡只看模型有沒有編造不存在的編號
+        ok("模型沒有編造任務編號", not fabricated, fabricated),
     ]
 
 
