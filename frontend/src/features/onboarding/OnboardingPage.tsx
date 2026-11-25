@@ -1,7 +1,8 @@
 import { Check, Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useBlocker, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, PageSkeleton } from '@/components/ui';
+import { CancelCreateButton } from '@/features/projects/components/CancelCreateButton';
 import { DeleteProjectButton } from '@/features/projects/components/DeleteProjectButton';
 import { useCurrentUser, useDocs, useMembers, useProject } from '@/hooks/queries';
 import { scrollMainToTop } from '@/lib/mainScroll';
@@ -13,6 +14,7 @@ import { startGithubLink } from '@/lib/githubLink';
 import { useOnboardingMutations } from './hooks/useOnboarding';
 import { InviteMembersStep } from './components/InviteMembersStep';
 import { KnowledgeBaseCard } from './components/KnowledgeBaseCard';
+import { LeaveSetupDialog } from './components/LeaveSetupDialog';
 import { ProjectBasicsForm } from './components/ProjectBasicsForm';
 import { ProjectSettingsLayout } from './components/ProjectSettingsLayout';
 import { CREATE_STEPS, SETTINGS_STEPS, basicsFromProject, checkBasics, parseRepo, type ProjectBasics } from './projectBasics';
@@ -45,12 +47,31 @@ export function OnboardingPage() {
   const { onboardingStep, setOnboardingStep } = useUiStore();
   // 從建立流程切到專案設定時，步驟數變少，超出的步驟改為最後一步
   const step = Math.min(onboardingStep, steps.length - 1);
+  // 每次進入專案設定（包含從側邊欄再點一次、切換專案後再進來）都從基本資訊開始；
+  // 建立流程（?setup=1）由建立頁或 GitHub 回呼決定從哪一步繼續，不重設
+  const { key: visit } = useLocation();
+  useLayoutEffect(() => {
+    if (!setup) setOnboardingStep(0);
+  }, [visit, setup, setOnboardingStep]);
   const { data: project } = useProject();
   const { data: docs } = useDocs();
   const { data: members } = useMembers();
   const { data: me } = useCurrentUser();
   const { updateProject } = useOnboardingMutations();
   const [draft, setDraft] = useState<ProjectBasics | null>(null);
+
+  // 建立流程還沒完成就要跳到其他頁面（側邊欄、上方選單、切換專案…）時先確認；
+  // 按「完成」或「取消建立」時先放行。前往 GitHub 安裝 App 是整頁跳轉，不經過這裡
+  const leaving = useRef(false);
+  const blocker = useBlocker(({ nextLocation }) => {
+    if (!setup || leaving.current) return false;
+    const stay = nextLocation.pathname === '/onboarding' && new URLSearchParams(nextLocation.search).get('setup') === '1';
+    return !stay;
+  });
+  const leaveTo = (to: string) => {
+    leaving.current = true;
+    navigate(to);
+  };
 
   // 專案載入或切換、儲存後重新讀取時，表單改為最新的專案資料
   useEffect(() => {
@@ -94,13 +115,17 @@ export function OnboardingPage() {
       onStepChange={(i) => void go(i)}
       footer={
         <>
-          {/* 專案設定的基本資訊沒有上一步，改放刪除專案（僅 Leader） */}
-          {step === 0 && !setup ? (
+          {setup ? (
+            // 建立流程：可以隨時取消建立（刪除剛建立的專案）；第一步沒有上一步
+            <div className="flex gap-2">
+              {lead && <CancelCreateButton project={project} onBeforeLeave={() => (leaving.current = true)} />}
+              {step > 0 && <Button onClick={() => void go(step - 1)}>上一步</Button>}
+            </div>
+          ) : step === 0 ? (
+            // 專案設定的基本資訊沒有上一步，改放刪除專案（僅 Leader）
             lead ? <DeleteProjectButton project={project} /> : <span />
           ) : (
-            <Button disabled={step === 0} onClick={() => void go(Math.max(0, step - 1))}>
-              上一步
-            </Button>
+            <Button onClick={() => void go(step - 1)}>上一步</Button>
           )}
           <div className="flex gap-2">
             {step === 0 && lead && (
@@ -110,7 +135,7 @@ export function OnboardingPage() {
               </Button>
             )}
             {last ? (
-              <Button variant="primary" onClick={() => navigate('/sprints')}>
+              <Button variant="primary" onClick={() => leaveTo('/sprints')}>
                 <Check className="h-4 w-4" strokeWidth={2} />
                 完成並前往 Sprint 列表
               </Button>
@@ -144,6 +169,18 @@ export function OnboardingPage() {
         </div>
       )}
       {step === 2 && <InviteMembersStep />}
+      <LeaveSetupDialog
+        open={blocker.state === 'blocked'}
+        project={project}
+        canCancel={lead}
+        onStay={() => blocker.reset?.()}
+        onLeave={() => blocker.proceed?.()}
+        onBeforeCancel={() => {
+          // 取消建立後一律回到首頁，不前往原本要去的頁面
+          blocker.reset?.();
+          leaving.current = true;
+        }}
+      />
     </ProjectSettingsLayout>
   );
 }

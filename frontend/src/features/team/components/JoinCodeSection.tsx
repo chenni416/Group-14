@@ -1,6 +1,6 @@
 import { Copy, KeyRound, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import { Button, Card, CardHeader, Select } from '@/components/ui';
+import { Button, Select } from '@/components/ui';
 import { useJoinCode } from '@/hooks/queries';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
@@ -13,8 +13,8 @@ const EXPIRY = [
   { label: '不會過期', days: null },
 ] as const;
 
-/** Leader 的專案邀請碼：分享給成員，成員輸入後送出申請，Leader 同意才加入 */
-export function JoinCodeCard() {
+/** 邀請成員視窗下半部的專案邀請碼（Leader）：分享給成員，成員輸入後送出申請，Leader 同意才加入 */
+export function JoinCodeSection() {
   const { data: code } = useJoinCode();
   const copy = useCopyToClipboard();
   const [expiry, setExpiry] = useState(0);
@@ -41,8 +41,11 @@ export function JoinCodeCard() {
   );
 
   return (
-    <Card>
-      <CardHeader title="專案邀請碼" description="分享給成員，對方在「加入專案」頁輸入後送出申請，你同意才會加入" />
+    <section aria-labelledby="join-code-title">
+      <h3 id="join-code-title" className="text-sm font-semibold text-gray-900">
+        專案邀請碼
+      </h3>
+      <p className="mb-3 mt-0.5 text-xs text-gray-500">分享給成員，對方在「加入專案」頁輸入後送出申請，你同意才會加入</p>
       {code ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gray-50 px-4 py-3">
@@ -79,6 +82,6 @@ export function JoinCodeCard() {
           </Button>
         </div>
       )}
-    </Card>
+    </section>
   );
 }

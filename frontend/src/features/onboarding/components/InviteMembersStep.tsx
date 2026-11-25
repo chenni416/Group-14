@@ -1,15 +1,14 @@
 import { Copy, RefreshCw, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import { Badge, Button, Card, CardHeader, IconButton, Input } from '@/components/ui';
+import { GithubAvatarPreview } from '@/features/team/components/GithubAvatarPreview';
 import { useTeamMutations } from '@/features/team/hooks/useTeam';
+import { GITHUB_LOGIN, githubAvatarHint, githubAvatarUrl, useGithubAvatar } from '@/hooks/useGithubAvatar';
 import { useInvitations, useJoinCode } from '@/hooks/queries';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
 import { api } from '@/services';
 import { toast } from '@/stores/toast.store';
-
-/** GitHub 帳號：英數字與連字號，不能以連字號開頭，最長 39 字 */
-const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 
 /**
  * 建立新專案的最後一步：用 GitHub 帳號邀請，或產生團隊邀請碼。
@@ -31,6 +30,8 @@ export function InviteMembersStep() {
   const pending = (invitations ?? []).filter((i) => i.status === 'pending');
   const value = login.trim().replace(/^@/, '');
   const invalid = value !== '' && !GITHUB_LOGIN.test(value);
+  const avatar = useGithubAvatar(value);
+  const hint = githubAvatarHint(avatar.status, value);
   const add = () => {
     if (!value || invalid) return;
     createInvitation.mutate({ githubLogin: value }, { onSuccess: () => setLogin('') });
@@ -41,12 +42,14 @@ export function InviteMembersStep() {
       <Card>
         <CardHeader title="以 GitHub 帳號邀請" description="對方用 GitHub 登入 Taskline 後，會在「加入專案」頁看到邀請" />
         <form
-          className="flex gap-2"
+          className="flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             add();
           }}
         >
+          {/* 頭像來自 GitHub，用來確認帳號存在、沒有打錯 */}
+          <GithubAvatarPreview {...avatar} />
           <Input
             aria-label="GitHub 帳號"
             value={login}
@@ -60,7 +63,11 @@ export function InviteMembersStep() {
             邀請
           </Button>
         </form>
-        {invalid && <p className="mt-1.5 text-xs text-red-600">GitHub 帳號只能包含英文、數字與連字號</p>}
+        {invalid ? (
+          <p className="mt-1.5 text-xs text-red-600">GitHub 帳號只能包含英文、數字與連字號</p>
+        ) : (
+          hint && <p className={hint.tone === 'error' ? 'mt-1.5 text-xs text-red-600' : 'mt-1.5 text-xs text-gray-500'}>{hint.text}</p>
+        )}
 
         <div className="mt-4 text-xs text-gray-500">邀請名單（{pending.length}）</div>
         {pending.length === 0 ? (
@@ -70,7 +77,7 @@ export function InviteMembersStep() {
             {pending.map((inv) => (
               <div key={inv.id} className="flex items-center gap-3 py-2">
                 <img
-                  src={`https://github.com/${encodeURIComponent(inv.githubLogin)}.png?size=64`}
+                  src={githubAvatarUrl(inv.githubLogin)}
                   alt=""
                   className="h-8 w-8 shrink-0 rounded-full bg-gray-100"
                 />

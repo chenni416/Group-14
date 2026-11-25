@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronsUpDown, Plus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ProjectEntryDialog } from '@/features/projects/components/ProjectEntryDialog';
 import { useMyProjects } from '@/hooks/queries';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { cn } from '@/lib/cn';
+import { readSwitchProject, switchProjectState } from '@/lib/projectSwitch';
 import { useProjectStore } from '@/stores/project.store';
 import { toast } from '@/stores/toast.store';
 
@@ -31,7 +32,7 @@ const projectButton = (active: boolean) =>
 export function ProjectSwitcher() {
   const { currentId, setCurrentId } = useProjectStore();
   // 我參與的專案：GitHub 登入時來自資料庫，示範模式為示意專案；圖示顯示專案代碼
-  const { data } = useMyProjects();
+  const { data, isFetching } = useMyProjects();
   const projects = (data ?? []).map((p) => ({ id: p.id, name: p.name, short: p.prefix.slice(0, 3) }));
   const current = projects.find((p) => p.id === currentId) ?? projects[0];
   const [open, setOpen] = useState(false);
@@ -39,28 +40,38 @@ export function ProjectSwitcher() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  // 記住的專案不在清單裡（例如第一次登入、或被移出專案）：改選第一個
+  // 記住的專案不在清單裡（例如第一次登入、或被移出專案）：改選第一個。
+  // 清單重新讀取中時先不改：剛建立或剛加入的專案可能還不在舊的清單裡
   useEffect(() => {
+    if (isFetching) return;
     if (current && current.id !== currentId) setCurrentId(current.id);
-  }, [current, currentId, setCurrentId]);
+  }, [current, currentId, setCurrentId, isFetching]);
 
   // 建立或加入專案：先跳出視窗問要建立還是加入
   const entry = useDisclosure();
   const addProject = entry.open;
   // 還沒有專案時，手機版的按鈕直接前往建立或加入專案
 
-  // 點任何專案（包含目前的專案）都回到該專案的 Project Dashboard
+  // 點任何專案（包含目前的專案）都回到該專案的 Project Dashboard。
+  // 切換在抵達首頁後才發生：跳頁被擋下（建立流程的離開確認）時不會先換掉目前的專案
   const select = (id: string) => {
     const p = projects.find((x) => x.id === id);
     setOpen(false);
     if (!p) return;
-    navigate('/');
-    if (id === currentId) return;
-    setCurrentId(id);
-    // 換了專案：所有資料都要重新讀取
-    void qc.invalidateQueries();
-    toast(`已切換到「${p.name}」`);
+    navigate('/', id === currentId ? undefined : { state: switchProjectState(id, p.name) });
   };
+
+  // 抵達帶有切換專案的頁面：切換並重新讀取所有資料，再清掉 state（重新整理不會再切一次）
+  const location = useLocation();
+  useLayoutEffect(() => {
+    const target = readSwitchProject(location.state);
+    if (!target) return;
+    navigate(location.pathname + location.search + location.hash, { replace: true, state: null });
+    if (target.switchProject === useProjectStore.getState().currentId) return;
+    setCurrentId(target.switchProject);
+    void qc.invalidateQueries();
+    if (target.switchName) toast(`已切換到「${target.switchName}」`);
+  }, [location, navigate, qc, setCurrentId]);
 
   // 手機選單：點選單外或按 Esc 關閉
   useEffect(() => {
