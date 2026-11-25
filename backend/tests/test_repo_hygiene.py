@@ -16,8 +16,10 @@ BACKEND = Path(__file__).resolve().parent.parent
 ROOT = BACKEND.parent
 SCRIPTS = ["setup.sh", "dev.sh", "doctor.sh"]
 
+# 只有完整的 repo（含根目錄與前端）才檢查，例如 backend 的 Docker 映像裡沒有。
+# 注意不能用被檢查的檔案（例如 .gitattributes）當條件：有人刪掉它時，測試會變成「略過」而不是「失敗」
 pytestmark = pytest.mark.skipif(
-    not (ROOT / ".gitattributes").exists(), reason="只有完整的 repo（含根目錄檔案）才檢查，例如 Docker 映像裡沒有"
+    not (ROOT / "frontend" / "package.json").exists(), reason="不是完整的 repo（沒有 frontend/），略過"
 )
 
 
@@ -44,6 +46,10 @@ def test_gitattributes_forces_lf() -> None:
     text = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     assert re.search(r"^\*\s+text=auto\s+eol=lf\s*$", text, re.M), "缺少 `* text=auto eol=lf`"
     assert re.search(r"^\*\.sh\s+text\s+eol=lf\s*$", text, re.M), "缺少 `*.sh text eol=lf`"
+    # 不只看文字，也看 git 實際套用的結果（被後面的規則蓋掉、或寫錯格式時，上面兩行仍會通過）
+    files = [*SCRIPTS, "backend/.env.example", "backend/alembic.ini"]
+    for line in git("check-attr", "eol", "--", *files).splitlines():
+        assert line.endswith("eol: lf"), f"git 實際套用的 eol 不是 lf：{line}"
 
 
 def test_scripts_are_lf_and_executable_in_git() -> None:
