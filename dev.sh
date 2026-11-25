@@ -16,7 +16,7 @@ BACKEND_PORT="${BACKEND_PORT:-8000}"
 
 info() { printf '\033[36m▸ %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m! %s\033[0m\n' "$*"; }
-fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; printf '  遇到問題可以執行 ./doctor.sh 檢查這台電腦的環境\n' >&2; exit 1; }
 
 usage() {
   sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
@@ -26,11 +26,24 @@ usage() {
 env_value() {
   local file="$1" key="$2"
   [ -f "$file" ] || return 0
-  grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- | tr -d '"' || true
+  grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- | tr -d '"\r' || true
 }
 
+# port 是否已被占用（要啟動服務前用）。注意各平台的陷阱：
+# - Windows 的 Git Bash 沒有 lsof；用 /dev/tcp 探測「沒人監聽」的 port 每次要等約 2 秒，而且 Vite 只聽 IPv6（::1）、
+#   uvicorn 只聽 IPv4（127.0.0.1），只探測其中一個會誤判。所以改用 netstat（0.4 秒，一次看到 IPv4 與 IPv6）
+# - WSL／Linux：非 root 的 lsof 看不到 root 的程序（例如 docker-proxy）與 Windows 端的程序，所以先用連線探測
 port_in_use() {
-  command -v lsof >/dev/null 2>&1 && lsof -iTCP:"$1" -sTCP:LISTEN -t >/dev/null 2>&1
+  local p="$1"
+  case "$(uname -s)" in
+    MINGW* | MSYS* | CYGWIN*)
+      netstat -ano 2>/dev/null | tr -d '\r' | grep -qE "[:.]${p}[[:space:]]+[^[:space:]]+[[:space:]]+LISTENING"
+      return
+      ;;
+  esac
+  (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null && return 0
+  (exec 3<>"/dev/tcp/::1/$p") 2>/dev/null && return 0
+  command -v lsof >/dev/null 2>&1 && lsof -iTCP:"$p" -sTCP:LISTEN -t >/dev/null 2>&1
 }
 
 ensure_frontend() {

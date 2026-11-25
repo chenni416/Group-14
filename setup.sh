@@ -22,7 +22,7 @@ step() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✓ %s\033[0m\n' "$*"; }
 info() { printf '\033[36m▸ %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m! %s\033[0m\n' "$*"; }
-fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; printf '  遇到問題可以執行 ./doctor.sh 檢查這台電腦的環境\n' >&2; exit 1; }
 
 usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
 
@@ -39,7 +39,7 @@ esac
 env_value() {
   local file="$1" key="$2"
   [ -f "$file" ] || return 0
-  grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- || true
+  grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- | tr -d '\r' || true
 }
 
 # 寫入或取代 KEY=value；用 node 處理，值裡有 / & ? @ 等符號也不會出錯
@@ -280,10 +280,11 @@ fi
 
 step "6. 檢查環境"
 info "執行後端測試…"
-if (cd "$BACKEND" && uv run pytest -q >/dev/null 2>&1); then
+if TEST_OUTPUT="$(cd "$BACKEND" && uv run pytest -q 2>&1)"; then
   ok "後端測試通過"
 else
-  fail "後端測試失敗，請在 backend/ 執行 uv run pytest 查看原因"
+  printf '%s\n' "$TEST_OUTPUT" | tail -n 25
+  fail "後端測試失敗（上面是最後的輸出），可以在 backend/ 執行 uv run pytest 查看完整內容"
 fi
 
 if is_placeholder "$(env_value "$BACKEND_ENV" DATABASE_URL)"; then
@@ -321,6 +322,7 @@ step "完成"
 if [ ${#MISSING[@]} -eq 0 ]; then
   echo "  ./dev.sh mock   只啟動前端（模擬資料）"
   echo "  ./dev.sh full   啟動前後端（GitHub 登入）"
+  echo "  遇到問題？ ./doctor.sh   檢查這台電腦的環境（工具、設定、資料庫連線）"
   $GITHUB_READY && echo "  GitHub 整合：已設定" || echo "  GitHub 整合：未設定（不影響登入與其他功能）"
 else
   warn "還缺少：${MISSING[*]}，目前只能使用 ./dev.sh mock；補齊後重新執行 ./setup.sh 即可使用 ./dev.sh full"
