@@ -103,3 +103,12 @@ def test_frontend_env_example_keys_are_used() -> None:
     source = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "frontend" / "src").rglob("*.ts*"))
     unused = sorted(k for k in keys if f"import.meta.env.{k}" not in source)
     assert not unused, f"前端沒有使用這些 VITE_ 欄位：{unused}"
+
+
+def test_dev_script_starts_backend_with_python_module() -> None:
+    """`uv run uvicorn` 會執行 uv 在 .venv/Scripts 產生的 uvicorn.exe 啟動器；啟用「應用程式控制」
+    （Smart App Control／WDAC）的 Windows 會擋下新建立的未簽章執行檔（Failed to spawn: uvicorn, os error 4551）。
+    改用 `python -m uvicorn`，走已被信任的 python.exe"""
+    source = (ROOT / "dev.sh").read_bytes().decode("utf-8")
+    assert "uv run uvicorn" not in source, "dev.sh 請用 `uv run python -m uvicorn`"
+    assert "python -m uvicorn" in source

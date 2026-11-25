@@ -150,6 +150,20 @@ if [ -d "$FRONTEND/node_modules" ]; then ok "前端套件已安裝"; else warn "
 if $HAVE_UV; then
   if [ -d "$BACKEND/.venv" ]; then
     if (cd "$BACKEND" && uv sync --frozen --check >/dev/null 2>&1); then ok "後端套件與 uv.lock 同步"; else warn "後端套件與 uv.lock 不同步（有人新增了套件）"; hint "cd backend && uv sync"; fi
+    # 後端程式能不能載入：會碰到 SQLAlchemy 等有編譯檔（.pyd／.dll）的套件。
+    # 啟用「應用程式控制」（Smart App Control／WDAC）的 Windows 會擋下新建立的未簽章檔案（os error 4551）
+    # DOCTOR_IMPORT_CHECK 只供測試用：可以換成別的 Python 敘述來模擬失敗
+    IMPORT_OUT="$(cd "$BACKEND" && uv run --frozen python -c "${DOCTOR_IMPORT_CHECK:-import app.main}" 2>&1)"
+    if [ $? -eq 0 ]; then
+      ok "後端程式可以載入"
+    elif printf '%s' "$IMPORT_OUT" | grep -qiE "application control|os error 4551|blocked this file"; then
+      bad "Windows 的「應用程式控制」（Smart App Control 或 WDAC，錯誤 4551）擋下了後端用到的檔案"
+      hint "通常是新建立、沒有簽章的 .exe／.dll／.pyd。個人電腦可以在 Windows 安全性 → 應用程式與瀏覽器控制 查看狀態；學校或公司管理的電腦請洽管理員"
+      hint "不想更動安全性設定：改在 WSL 裡開發（不受影響），見 README 的「Windows 使用者」"
+    else
+      bad "後端程式無法載入：$(printf '%s' "$IMPORT_OUT" | tail -n 1 | cut -c1-160)"
+      hint "在 backend/ 執行 uv run python -c \"import app.main\" 查看完整錯誤"
+    fi
   else
     warn "後端套件還沒安裝"; hint "./setup.sh（或 cd backend && uv sync）"
   fi

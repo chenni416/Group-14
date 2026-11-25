@@ -96,7 +96,9 @@ run_full() {
   trap cleanup EXIT INT TERM
 
   info "啟動後端：http://localhost:$BACKEND_PORT/docs"
-  (cd "$BACKEND" && exec uv run uvicorn app.main:app --reload --port "$BACKEND_PORT") &
+  # 用 python -m uvicorn，而不是 uvicorn：後者是 uv 在 .venv/Scripts 產生的 uvicorn.exe 啟動器，
+  # 在啟用「應用程式控制」（Smart App Control／WDAC）的 Windows 會被擋下（os error 4551），python.exe 本身不會
+  (cd "$BACKEND" && exec uv run python -m uvicorn app.main:app --reload --port "$BACKEND_PORT") &
   BACKEND_PID=$!
 
   # 等後端可以回應再啟動前端，避免一打開就出現連線錯誤

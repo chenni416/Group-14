@@ -135,6 +135,7 @@ cd backend && uv run ruff check . && uv run ruff format --check . && uv run pyte
 | 不確定問題在哪 | 執行 `./doctor.sh`（見上方說明） |
 | `env: 'bash\r': No such file or directory`、`syntax error near unexpected token $'in\r''` | 腳本是 CRLF（Windows 換行）。`git pull` 後執行 `./doctor.sh`，它會告訴你怎麼修 |
 | `UnicodeDecodeError: 'cp950' codec can't decode…`（執行 alembic 時） | `alembic.ini` 含中文註解；已改成 ASCII，`git pull` 即可 |
+| `Failed to spawn: uvicorn … An Application Control policy has blocked this file (os error 4551)` | Windows 的「應用程式控制」（Smart App Control 或 WDAC）擋下新建立的未簽章執行檔。`./dev.sh` 已改用 `python -m uvicorn` 避開；其他檔案也被擋時 `./doctor.sh` 會說明，不想更動安全性設定可改在 WSL 開發 |
 | 資料庫測試跑很久、像當掉 | 本機資料庫位址要用 `127.0.0.1`；沒有本機資料庫時應該在幾秒內略過，若不是請 `git pull` |
 | `permission denied: ./setup.sh` | 執行 `chmod +x setup.sh dev.sh` |
 | `uv: command not found` | 安裝後要重新開啟終端機；仍然找不到時，依安裝程式最後的提示把路徑加入 PATH |
