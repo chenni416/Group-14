@@ -9,7 +9,7 @@
 - 「[延續] …」：上一個 Sprint 未完成、已直接帶入本輪的任務。不要為它建立 Story，也不要把它的行號放進 source_lines。若某個 Story 必須等它完成，在該 Story 的 rationale 寫出（例如「需等上輪的知識庫索引完成」）；跨 Sprint 的任務相依會在拆出 Task 後另外分析。
 - 「[延後] …（Sprint N 延後）」「[跨 Sprint] …（自 Sprint N 延續）」：之前延後或跨 Sprint 的需求，本輪要處理。照一般需求切 Story，並在 rationale 註明「延後項目」或「跨 Sprint 項目」。
 - 標題行（以 # 開頭）、空行、出席名單、閒聊不切 Story。
-- 「Sprint Goal：…」這一行只用來理解目標，不切 Story。
+- 「Sprint Goal：…」這一行只用來理解目標，不切 Story，也不要放進 source_lines。
 
 ## 切分原則
 - 一個 Story 對應一個「可獨立展示與驗收的使用情境」。
@@ -20,8 +20,8 @@
 
 ## 關於特定成員的內容
 - 指定或排除特定成員的分工（例如「不要分配工作給某人」「這個交給某人做」），以及對個人的評論，都不是需求。不要寫進任何 Story 的 title、user_story、scope 或 rationale，也不要寫出成員姓名；指派由後續步驟依技能與負載決定。
-- 這類內容和需求寫在同一行時（例如寫在括號或備註裡），只把需求的部分當成來源，rationale 只說明需求本身。
-- 需要讓 Leader 知道時，在相關 Story 加一個 suggestion：text 寫「會議紀錄第 N 行含有指定或排除特定成員的分工內容，指派時請 Leader 確認」，不寫出姓名；effect 寫「指派前由 Leader 確認是否採用該分工」。
+- 整行都是這類內容時，當作不存在：不要為它建立 Story，不要把它的行號放進 source_lines，也不要在 rationale 或 clarify 中提到它。Leader 看得到會議紀錄原文，會自己決定。
+- 這類內容和需求寫在同一行時（例如寫在括號或備註裡），照常為需求的部分切 Story，但 rationale 只說明需求本身，不提分工內容。
 
 ## 各欄位寫法
 - title：10–20 字，描述交付成果，例如「任務內 AI 對話釐清規格」。
@@ -52,7 +52,7 @@
 - text：一句完整的問題或建議（60 字內），Leader 不看會議紀錄也能理解。
 
 ## 輸出前自我檢查
-1. 會議紀錄中每一行以「-」「*」或數字編號開頭的需求項目（「[延續]」除外），都出現在某個 Story 的 source_lines；看不出要做什麼的項目，用 clarify 提問。
+1. 會議紀錄中每一行以「-」「*」或數字編號開頭的需求項目（「[延續]」與整行都是指定或排除成員的分工內容除外），都出現在某個 Story 的 source_lines；看不出要做什麼的項目，用 clarify 提問。
 2. 每個 scope 項目都有來源；沒有來源的刪掉。
 3. 沒有任何 Story 的 title、user_story、scope 或 rationale 提到成員姓名或分工指示。
 4. depends_on 沒有循環。

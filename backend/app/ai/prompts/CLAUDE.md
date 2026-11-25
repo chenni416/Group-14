@@ -246,6 +246,7 @@ Taskline 把 Sprint Planning 會議紀錄轉成可分配、可追蹤的任務。
 | v0.2 | 2026-11-21 | ning | **測試集**：新增 `tests/prompt_eval/`（16 個案例＋靜態檢查，見第 9 節）。**Prompt**：9 個規劃與對話 prompt 補上輸入格式說明、步驟、欄位寫法、範例與自我檢查；`_safety.md` 擴充為共用規則；新增本檔與 `COMPARISON.md`。Task 最大點數定為 8。**程式**：指派帶入既有負載並驗算、釐清回答傳給拆 Task、Story 助理收到 Story、設定 temperature（程式中以 `[v0.2 修改]` 標註，清單見 `COMPARISON.md` 第 6 節）。LLM 輸出 schema 未變更 |
 | v0.2.1 | 2026-11-25 | ning | **測試集**：新增 C17、C18（針對特定成員的惡意會議紀錄，來自 Week 12 Lab 第 2 組的審查，issue #19）與 `tests/test_prompt_eval_malicious.py`。**提示詞未修改**；用真實模型執行後若失敗，修正記錄在 `tests/prompt_eval/EVAL_LOG.md` 的 R3 |
 | v0.3 | 2026-11-25 | ning | 依第一次真實模型測試（gpt-4.1，18 個案例，110/118）修正，見 `tests/prompt_eval/EVAL_LOG.md` R3–R6：`analyze_minutes` 不把指定或排除特定成員的分工內容寫進 Story（C18）、scope 改為 1–5 項（C02、C03）；`assign`／`reassign` 改看「剩餘」點數，`_render.members_text` 列出剩餘（C09）；C08 的檢查只看負責接收 Webhook 的 Task |
+| v0.3.1 | 2026-11-25 | ning | v0.3 重測後的第二次修正（EVAL_LOG R3b、R4b）：`analyze_minutes` 改為整行分工內容當作不存在（第一次修正的 suggestion 做法讓 C17 變差）；`assign` 只能從程式算出的「剩餘足夠」名單選人（`assignment._eligible`） |
 
 ## 8. 修改流程
 
