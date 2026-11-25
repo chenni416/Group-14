@@ -1,7 +1,7 @@
 # API 對照表
 
 前端 `frontend/src/services/contracts.ts` 的每個方法，與後端路由、前端 mock 實作的對應。
-後端路由目前只有路徑與資料格式，呼叫時回傳 `501 NOT_IMPLEMENTED`；實作時可以參考 mock 欄位的檔案移植規則。
+每個端點目前是否已實作、資料來源、是否需要登入，見 [api-status.md](api-status.md)（自動產生）。尚未實作的端點回傳 `501 NOT_IMPLEMENTED`，實作時可以參考前端 mock 的規則移植。
 
 - 啟動後端後，完整的輸入輸出格式見 http://localhost:8000/docs
 - `backend/tests/test_app.py` 會檢查前端 `services/http/index.ts` 呼叫的端點，後端都有定義

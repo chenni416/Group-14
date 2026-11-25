@@ -332,6 +332,8 @@ def test_chat_failure_leaves_no_half_conversation(client, store) -> None:
             raise RuntimeError("boom")
 
     use(Broken())
-    with pytest.raises(RuntimeError):
-        client.post("/api/tasks/S-212/chat", json={"question": "hi"}, headers=OWNER_M3)
+    # 未預期的例外由 RequestIdMiddleware 轉成 500 JSON（不再一路拋到伺服器），錯誤代碼可在日誌中搜尋
+    res = client.post("/api/tasks/S-212/chat", json={"question": "hi"}, headers=OWNER_M3)
+    assert res.status_code == 500
+    assert res.json()["code"] == "INTERNAL_ERROR"
     assert [m.role for m in store.thread("S-212").chat] == ["assistant"]  # 只有問候，沒有孤立的使用者訊息

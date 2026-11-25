@@ -8,9 +8,11 @@ from app.ai import audit, audit_view
 from app.api.routes import api_router
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
+from app.core.observability import RequestIdMiddleware, configure_logging
 
 
 def create_app() -> FastAPI:
+    configure_logging()
     settings = get_settings()
     app = FastAPI(
         title="Taskline API",
@@ -23,8 +25,10 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-Id"],  # 讓前端讀得到錯誤對應的 request id
     )
     app.add_middleware(audit.AuditMiddleware)  # AI 呼叫稽核紀錄（app/ai/audit.py）
+    app.add_middleware(RequestIdMiddleware)  # 最後加入 = 最外層：每個請求的 request id 與請求日誌
     register_error_handlers(app)
 
     @app.get(f"{settings.api_prefix}/health", tags=["系統"], operation_id="system.health")

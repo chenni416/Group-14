@@ -5,21 +5,16 @@
 - 開發用的示範成員（X-Demo-User）不能使用：查詢回傳空的，其他操作回傳 400
 """
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
+from app.api.deps import Db, ProjectId
 from app.core.auth import CurrentMember, require_leader
 from app.core.errors import ApiError
-from app.db.session import get_db
 from app.schemas.join_code import CreateJoinCodeInput, JoinCode, JoinRequest, SubmitJoinCodeInput
 from app.services import join_codes, projects
 
 router = APIRouter(tags=["邀請碼加入"])
-
-Db = Annotated[Session, Depends(get_db)]
-ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
 
 
 def _github_member(me: CurrentMember):

@@ -6,19 +6,14 @@
 登入流程由前端與 Supabase Auth 完成，後端只驗證 token（見 app/core/auth.py）。
 """
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
+from app.api.deps import Db
 from app.core.auth import CurrentMember
 from app.core.config import get_settings
 from app.core.errors import ApiError, not_implemented
-from app.db.session import get_db
 from app.schemas.member import Member, SwitchUserInput, UpdateMeInput
 from app.services import members
-
-Db = Annotated[Session, Depends(get_db)]
 
 router = APIRouter(tags=["登入"])
 

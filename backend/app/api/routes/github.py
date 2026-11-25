@@ -1,20 +1,14 @@
 """GitHub repo 連結 API（Leader 限定；流程見 app/services/github_link.py）"""
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends, Header
-from sqlalchemy.orm import Session
-
+from app.api.deps import Db, ProjectId
 from app.core.auth import CurrentMember
 from app.core.errors import ApiError
-from app.db.session import get_db
 from app.schemas.github import ChooseRepositoryInput, CompleteInstallationInput, InstallUrl, LinkResult
 from app.services import github_link, projects
 
 router = APIRouter(tags=["GitHub 整合"])
-
-Db = Annotated[Session, Depends(get_db)]
-ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
 
 
 def _member_id(me: CurrentMember):

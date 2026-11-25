@@ -7,20 +7,15 @@
 - frontend/src/services/mock/tasks.ts
 """
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
+from app.api.deps import Db
 from app.core.auth import CurrentMember
-from app.db.session import get_db
 from app.repo import Store
 from app.schemas.collab import Notification
 from app.services import notifications, projects, workspace_flow
 
 router = APIRouter(tags=["通知"])
-
-Db = Annotated[Session, Depends(get_db)]
 
 
 @router.get(
