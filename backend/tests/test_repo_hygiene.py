@@ -7,6 +7,7 @@
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -57,13 +58,47 @@ def test_scripts_are_lf_and_executable_in_git() -> None:
     assert len(stage.splitlines()) == len(SCRIPTS), "有腳本沒被 git 追蹤"
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="沒有 bash")
+def find_bash() -> str | None:
+    """找可用的 bash。Windows 上 PATH 裡的 bash 可能是 System32 的 WSL 啟動器（沒有安裝發行版時只會印出 UTF-16 的
+    「Windows Subsystem for Linux…」說明並失敗，GitHub 的 Windows runner 就是這樣），所以要跳過它、改找 Git Bash"""
+    candidates: list[Path] = []
+    if (found := shutil.which("bash")) is not None:
+        candidates.append(Path(found))
+    if (git_exe := shutil.which("git")) is not None:
+        for root in {Path(git_exe).parent, Path(git_exe).parent.parent}:
+            candidates += [root / "bin" / "bash.exe", root / "usr" / "bin" / "bash.exe", root / "bash.exe"]
+    for candidate in candidates:
+        if sys.platform == "win32" and "system32" in str(candidate).lower():
+            continue
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+BASH = find_bash()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="只有 Windows 會遇到 WSL 啟動器")
+def test_find_bash_skips_the_wsl_launcher(monkeypatch: pytest.MonkeyPatch) -> None:
+    """即使 PATH 裡的 bash 是 System32 的 WSL 啟動器，也要找到 Git Bash（或回傳 None），不能回傳啟動器"""
+    real_which, real_exists = shutil.which, Path.exists
+    launcher = r"C:\Windows\System32\bash.exe"
+    monkeypatch.setattr(
+        shutil, "which", lambda name, *a, **k: launcher if name == "bash" else real_which(name, *a, **k)
+    )
+    # 這台機器的 System32 不一定有 bash.exe（GitHub 的 Windows runner 有），所以模擬它存在，測試才有意義
+    monkeypatch.setattr(Path, "exists", lambda self: True if "system32" in str(self).lower() else real_exists(self))
+    found = find_bash()
+    assert found is None or "system32" not in found.lower()
+
+
+@pytest.mark.skipif(BASH is None, reason="沒有 bash")
 @pytest.mark.parametrize("name", SCRIPTS)
 def test_scripts_have_valid_bash_syntax(name: str) -> None:
     """用 bash -n 檢查語法。把 CR 去掉再檢查：Git Bash 容忍 CRLF，Linux 不會，這裡只看腳本本身有沒有寫錯"""
     source = (ROOT / name).read_bytes().replace(b"\r\n", b"\n")
     assert source.startswith(b"#!/usr/bin/env bash"), f"{name} 缺少 #!/usr/bin/env bash"
-    res = subprocess.run(["bash", "-n"], input=source, capture_output=True)
+    res = subprocess.run([BASH, "-n"], input=source, capture_output=True)
     assert res.returncode == 0, res.stderr.decode("utf-8", "replace")
 
 

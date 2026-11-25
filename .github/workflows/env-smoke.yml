@@ -66,6 +66,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false # 收尾的 uv cache prune 在 macOS runner 會以 exit 2 失敗；這個 job 不需要快取
 
       - name: ./setup.sh（README 的第一步，非互動）
         env:
