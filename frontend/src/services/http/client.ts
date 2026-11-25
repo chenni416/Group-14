@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { getAccessToken, supabase } from '@/lib/supabase';
+import { INVALID_PROJECT_CODES, isRealProjectId, reportInvalidProject } from '@/lib/projectRecovery';
 import { useProjectStore } from '@/stores/project.store';
 import { ApiError } from '@/types';
 
@@ -22,9 +23,10 @@ export const http = axios.create({
 http.interceptors.request.use(async (config) => {
   const token = await getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
-  // 目前選擇的專案：後端依此回傳該專案的資料與我在專案中的角色
+  // 目前選擇的專案：後端依此回傳該專案的資料與我在專案中的角色。
+  // 只送真正的專案 id（uuid）：預設的示範專案 'taskline' 或空字串不送，後端會使用最近加入的專案
   const projectId = useProjectStore.getState().currentId;
-  if (projectId) config.headers['X-Project-Id'] = projectId;
+  if (isRealProjectId(projectId)) config.headers['X-Project-Id'] = projectId;
   return config;
 });
 
@@ -37,6 +39,10 @@ http.interceptors.response.use(
     // 登入失效（過期或無效）：登出並回到登入頁
     if (status === 401 && supabase && window.location.pathname !== '/login') {
       void supabase.auth.signOut().finally(() => window.location.assign('/login'));
+    }
+    // 目前的專案已刪除或我已被移出：清掉專案並重新讀取（只在我們有送專案 id 時處理，避免重複觸發）
+    if (body?.code && INVALID_PROJECT_CODES.includes(body.code) && error.config?.headers?.has('X-Project-Id')) {
+      reportInvalidProject();
     }
     return Promise.reject(new ApiError(body?.message ?? error.message, status, body?.code ?? 'NETWORK_ERROR'));
   },

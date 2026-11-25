@@ -5,7 +5,6 @@
 - 開發用的示範成員（X-Demo-User）不經過這裡，繼續使用 MemoryStore
 """
 
-import logging
 import re
 import uuid
 from datetime import UTC, datetime
@@ -27,8 +26,6 @@ from app.schemas.project import (
     Team,
     UpdateProjectInput,
 )
-
-log = logging.getLogger(__name__)
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
 DEFAULT_SPRINT_LENGTH = "2 週"
@@ -91,24 +88,34 @@ def list_my_projects(db: Session, member_id: uuid.UUID) -> list[ProjectSummary]:
 
 
 def current_membership(
-    db: Session, member_id: uuid.UUID, project_id: str | None
+    db: Session, member_id: uuid.UUID, project_id: str | None, *, strict: bool = True
 ) -> tuple[ProjectRow, ProjectMemberRow] | None:
-    """目前的專案與我在專案中的設定；指定的專案無效或我不是成員時，改用最近加入的專案。都沒有時回傳 None"""
+    """目前的專案與我在專案中的設定。
+
+    - 沒有指定專案（沒有帶 X-Project-Id）：使用最近加入的專案；都沒有時回傳 None
+    - 指定了專案：只用那個專案，**不會偷偷改用別的專案**
+      - 格式不是 uuid：400 INVALID_PROJECT_ID
+      - 專案不存在或我不是成員：403 PROJECT_ACCESS_DENIED（兩種情況回應相同，不洩漏專案是否存在）
+    - strict=False（只給帳號層級的端點用，例如 /me、專案清單、邀請、通知）：指定的專案無效時不報錯，回傳 None
+      （這些端點是前端從「專案失效」復原時要呼叫的，不能跟著失敗）
+    """
     query = (
         select(ProjectRow, ProjectMemberRow)
         .join(ProjectMemberRow, ProjectMemberRow.project_id == ProjectRow.id)
         .where(ProjectMemberRow.member_id == member_id)
     )
-    wanted = parse_uuid(project_id)
-    if wanted is not None:
+    if project_id and project_id.strip():
+        wanted = parse_uuid(project_id.strip())
+        if wanted is None:
+            if strict:
+                raise ApiError("專案代碼格式不正確", status=400, code="INVALID_PROJECT_ID")
+            return None
         row = db.execute(query.where(ProjectRow.id == wanted)).first()
         if row is not None:
             return row[0], row[1]
-    if project_id:
-        # 前端指定了專案，但無效或不是成員：改用最近加入的專案。畫面與資料對不上時，從這行日誌找原因
-        log.warning(
-            "project fallback：member=%s 指定的專案 %r 無效或不是成員，改用最近加入的專案", member_id, project_id
-        )
+        if strict:
+            raise ApiError("你不是這個專案的成員，或專案已不存在", status=403, code="PROJECT_ACCESS_DENIED")
+        return None
     row = db.execute(query.order_by(ProjectMemberRow.joined_at.desc()).limit(1)).first()
     return (row[0], row[1]) if row is not None else None
 
