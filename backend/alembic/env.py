@@ -15,7 +15,9 @@ config = context.config
 _url = config.attributes.get("database_url") or get_settings().resolved_migration_database_url
 config.set_main_option("sqlalchemy.url", _url.replace("%", "%%"))
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False：預設會停用所有已存在的 logger，在程序內執行遷移（例如 tests/db）時
+    # 會讓 app.* 的日誌（請求日誌、project fallback 警告）無聲消失
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
