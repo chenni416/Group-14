@@ -10,6 +10,21 @@ name: Environment smoke test
 on:
   push:
     branches: [main]
+    paths:
+      - setup.sh
+      - dev.sh
+      - doctor.sh
+      - .gitattributes
+      - README.md
+      - backend/pyproject.toml
+      - backend/uv.lock
+      - backend/alembic.ini
+      - backend/.env.example
+      - backend/scripts/**
+      - frontend/package.json
+      - frontend/package-lock.json
+      - frontend/.env.example
+      - .github/workflows/env-smoke.yml
   pull_request:
     paths:
       - setup.sh

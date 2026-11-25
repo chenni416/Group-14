@@ -147,3 +147,29 @@ def test_dev_script_starts_backend_with_python_module() -> None:
     source = (ROOT / "dev.sh").read_bytes().decode("utf-8")
     assert "uv run uvicorn" not in source, "dev.sh 請用 `uv run python -m uvicorn`"
     assert "python -m uvicorn" in source
+
+
+@pytest.mark.skipif(BASH is None, reason="沒有 bash")
+@pytest.mark.parametrize("name", ["dev.sh", "doctor.sh"])
+def test_port_in_use_is_reliable_when_netstat_output_is_large(name: str) -> None:
+    """腳本有 `set -o pipefail`。`netstat | grep -q` 會因為 grep 一匹配就結束，讓上游收到 SIGPIPE（結束碼 141），
+    管線回報失敗，port 明明被占用卻說沒有，而且輸出越多越容易發生（時有時無，很難抓）。
+    這裡把腳本裡的 port_in_use 取出來，用一個輸出很大的假 netstat 驗證"""
+    text = (ROOT / name).read_bytes().decode("utf-8").replace("\r\n", "\n")
+    match = re.search(r"^port_in_use\(\) \{\n.*?^\}\n", text, re.M | re.S)
+    assert match, f"{name} 找不到 port_in_use 函式"
+    script = f"""
+set -uo pipefail
+uname() {{ echo MINGW64_NT-10.0; }}
+netstat() {{
+  echo "  TCP    127.0.0.1:8000    0.0.0.0:0    LISTENING    1234"
+  for i in $(seq 1 20000); do echo "  TCP    10.0.0.$((i % 250)):$((20000 + i))    1.2.3.4:443    ESTABLISHED  $i"; done
+}}
+{match.group(0)}
+if port_in_use 8000; then echo FOUND_8000; else echo MISSED_8000; fi
+if port_in_use 59999; then echo WRONGLY_FOUND_59999; else echo FREE_59999; fi
+"""
+    res = subprocess.run([BASH, "-c", script], capture_output=True, text=True)
+    out = res.stdout.split()
+    assert "FOUND_8000" in out, f"被占用的 port 沒偵測到（輸出：{out}，錯誤：{res.stderr[:200]}）"
+    assert "FREE_59999" in out, f"沒人用的 port 被誤判（輸出：{out}）"

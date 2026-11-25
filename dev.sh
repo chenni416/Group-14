@@ -37,7 +37,11 @@ port_in_use() {
   local p="$1"
   case "$(uname -s)" in
     MINGW* | MSYS* | CYGWIN*)
-      netstat -ano 2>/dev/null | tr -d '\r' | grep -qE "[:.]${p}[[:space:]]+[^[:space:]]+[[:space:]]+LISTENING"
+      # 先取得完整輸出再比對：pipefail 下 `netstat | grep -q` 會因為 grep 一匹配就結束、上游收到 SIGPIPE（141），
+      # 讓管線回報失敗，port 明明被占用卻說沒有（輸出越多越容易發生，且時有時無）
+      local listeners
+      listeners="$(netstat -ano 2>/dev/null | tr -d '\r')"
+      grep -qE "[:.]${p}[[:space:]]+[^[:space:]]+[[:space:]]+LISTENING" <<<"$listeners"
       return
       ;;
   esac

@@ -91,7 +91,8 @@ Supabase 與 GitHub 登入的團隊設定（整個團隊只需做一次，已完
 ```
 
 檢查工具版本（Git、Node.js 22 以上、uv；Docker 選用）、腳本的換行符號、`alembic.ini` 的編碼、設定檔欄位有沒有填（**只顯示欄位名稱，不顯示內容**）、
-前後端是不是同一個 Supabase 專案、port 8000／5173 有沒有被占用、資料庫連得上嗎、資料表遷移是不是最新。
+前後端是不是同一個 Supabase 專案、後端程式能不能載入（有沒有被 Windows 的「應用程式控制」擋下）、port 8000／5173 有沒有被占用、
+資料庫連得上嗎（應用程式用的連線與遷移用的連線都會測）、資料表遷移是不是最新。
 每個問題都會說明原因與修法。只讀取、不修改任何檔案。
 
 ## Windows 使用者
@@ -103,7 +104,7 @@ Supabase 與 GitHub 登入的團隊設定（整個團隊只需做一次，已完
 | 本機資料庫（選用） | **不需要 Docker Desktop**，WSL 裡的 Docker 就可以：在 WSL 的專案資料夾執行 `docker compose up -d db`，Windows 端連 `127.0.0.1:5433`（已在 `.wslconfig` 設 `networkingMode=mirrored` 的機器上實測；預設模式通常也可以，連不上時 `./doctor.sh` 會說明）。只用雲端 Supabase 時完全不需要 |
 | 資料庫位址 | 本機資料庫一律寫 `127.0.0.1`，**不要寫 `localhost`**：Windows 會先試 IPv6（`::1`），每次連線實測多等約 15 秒 |
 | 換行符號 | repo 有 `.gitattributes`，檢出的腳本一律是 LF。**如果你在這個設定加入前就 clone 了**，腳本可能還是 CRLF，在 WSL 會出現 `env: 'bash\r': No such file or directory`：`git pull` 後執行 `./doctor.sh`，它會告訴你怎麼修 |
-| 繁體中文系統 | Python 的預設編碼是 cp950。專案裡被 Python 或 Alembic 讀取的設定檔請維持純 ASCII（有測試守著），否則會 `UnicodeDecodeError` |
+| 繁體中文系統 | Python 的預設編碼是 cp950，而 Alembic 讀 `backend/alembic.ini` 時用的是系統編碼（`PYTHONUTF8=1` 也沒用），所以這個檔案請維持純 ASCII（有測試守著），否則 `alembic upgrade` 會 `UnicodeDecodeError` |
 
 ## 日常開發
 

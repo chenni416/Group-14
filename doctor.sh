@@ -56,7 +56,11 @@ port_in_use() {
   local p="$1"
   case "$(uname -s)" in
     MINGW* | MSYS* | CYGWIN*)
-      netstat -ano 2>/dev/null | tr -d '\r' | grep -qE "[:.]${p}[[:space:]]+[^[:space:]]+[[:space:]]+LISTENING"
+      # 先取得完整輸出再比對：pipefail 下 `netstat | grep -q` 會因為 grep 一匹配就結束、上游收到 SIGPIPE（141），
+      # 讓管線回報失敗，port 明明被占用卻說沒有（輸出越多越容易發生，且時有時無）
+      local listeners
+      listeners="$(netstat -ano 2>/dev/null | tr -d '\r')"
+      grep -qE "[:.]${p}[[:space:]]+[^[:space:]]+[[:space:]]+LISTENING" <<<"$listeners"
       return
       ;;
   esac
@@ -156,7 +160,7 @@ if $HAVE_UV; then
     IMPORT_OUT="$(cd "$BACKEND" && uv run --frozen python -c "${DOCTOR_IMPORT_CHECK:-import app.main}" 2>&1)"
     if [ $? -eq 0 ]; then
       ok "後端程式可以載入"
-    elif printf '%s' "$IMPORT_OUT" | grep -qiE "application control|os error 4551|blocked this file"; then
+    elif grep -qiE "application control|os error 4551|blocked this file" <<<"$IMPORT_OUT"; then
       bad "Windows 的「應用程式控制」（Smart App Control 或 WDAC，錯誤 4551）擋下了後端用到的檔案"
       hint "通常是新建立、沒有簽章的 .exe／.dll／.pyd。個人電腦可以在 Windows 安全性 → 應用程式與瀏覽器控制 查看狀態；學校或公司管理的電腦請洽管理員"
       hint "不想更動安全性設定：改在 WSL 裡開發（不受影響），見 README 的「Windows 使用者」"
@@ -176,12 +180,11 @@ check_key() {
   local file="$1" key="$2" label="${3:-$2}" required="${4:-required}"
   if [ ! -f "$file" ]; then return; fi
   if is_placeholder "$(env_value "$file" "$key")"; then
-    if [ "$required" = required ]; then warn "$label 還沒填"; MISSING_ANY=true; else info "$label 未設定（選用）"; fi
+    if [ "$required" = required ]; then warn "$label 還沒填"; else info "$label 未設定（選用）"; fi
   else
     ok "$label 已設定"
   fi
 }
-MISSING_ANY=false
 if [ -f "$FRONTEND_ENV" ]; then
   check_key "$FRONTEND_ENV" VITE_SUPABASE_URL
   check_key "$FRONTEND_ENV" VITE_SUPABASE_PUBLISHABLE_KEY
@@ -227,7 +230,9 @@ else
   if is_placeholder "$SUPA"; then
     info "沒有 SUPABASE_URL，略過 Supabase 連線檢查"
   elif command -v curl >/dev/null 2>&1; then
-    CODE="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${SUPA%/}/auth/v1/.well-known/jwks.json" 2>/dev/null || echo 000)"
+    # curl 連線失敗時自己就會印出 000 並回傳非 0；不能再接 `|| echo 000`，否則會變成 000000
+    CODE="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${SUPA%/}/auth/v1/.well-known/jwks.json" 2>/dev/null || true)"
+    CODE="${CODE:-000}"
     if [ "$CODE" = 200 ]; then ok "Supabase 專案連得上（登入金鑰可取得）"; else warn "Supabase 回應 $CODE：網址不對，或沒有網路"; hint "確認 SUPABASE_URL 是 Project Settings → API 的 Project URL"; fi
   fi
 
@@ -236,14 +241,22 @@ else
   elif ! $HAVE_UV || [ ! -d "$BACKEND/.venv" ]; then
     info "後端套件還沒安裝，略過資料庫檢查"
   else
+    DB_LINES=0
+    DB_OUTPUT=""
     while IFS= read -r line; do
+      DB_OUTPUT="$line"
       case "${line%% *}" in
-        OK) ok "${line#* }" ;;
-        WARN) warn "${line#* }" ;;
-        FAIL) bad "${line#* }" ;;
+        OK) ok "${line#* }"; DB_LINES=$((DB_LINES + 1)) ;;
+        WARN) warn "${line#* }"; DB_LINES=$((DB_LINES + 1)) ;;
+        FAIL) bad "${line#* }"; DB_LINES=$((DB_LINES + 1)) ;;
         HINT) hint "${line#* }" ;;
       esac
     done < <(cd "$BACKEND" && PYTHONUTF8=1 PYTHONIOENCODING=utf-8 uv run --frozen python scripts/doctor_db.py 2>&1)
+    # doctor_db.py 在印出任何結果前就崩潰（例如 .env 的某個值格式不對）時，不能悄悄什麼都不顯示
+    if [ "$DB_LINES" -eq 0 ]; then
+      bad "資料庫檢查沒有產生結果：$(printf '%s' "$DB_OUTPUT" | cut -c1-160)"
+      hint "在 backend/ 執行 uv run python scripts/doctor_db.py 查看完整錯誤"
+    fi
   fi
 fi
 
