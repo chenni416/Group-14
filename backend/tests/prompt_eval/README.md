@@ -1,12 +1,12 @@
 # Prompt 測試集（`tests/prompt_eval/`）
 
-用固定的 16 個案例測試 AI 提示詞，比較每次修改前後的結果。提示詞與文件卡在 `app/ai/prompts/`（見該資料夾的 `CLAUDE.md`），測試紀錄寫在本資料夾的 `EVAL_LOG.md`。
+用固定的 18 個案例測試 AI 提示詞，比較每次修改前後的結果。提示詞與文件卡在 `app/ai/prompts/`（見該資料夾的 `CLAUDE.md`），測試紀錄寫在本資料夾的 `EVAL_LOG.md`。
 
 ## 檔案
 
 | 檔案 | 內容 |
 |---|---|
-| `cases.py` | 16 個案例：輸入資料、要呼叫的服務函式、自動檢查、人工評分項目 |
+| `cases.py` | 18 個案例：輸入資料、要呼叫的服務函式、自動檢查、人工評分項目 |
 | `harness.py` | 記錄模型輸入與原始輸出的 `RecordingLlm`、只組提示詞不呼叫 API 的 `DryRunLlm` |
 | `static_checks.py` | 不呼叫 API 的檢查：提示詞有沒有提到所有輸出欄位、有沒有說明每個輸入區塊、有沒有附加共用規則 |
 | `run.py` | 執行入口（指令見下方） |
@@ -14,6 +14,7 @@
 | `results/` | 每次執行產生的 `summary.md` 與 `raw.jsonl` |
 
 `tests/test_prompt_static.py` 會在 `uv run pytest` 與 CI 中執行靜態檢查，所以改提示詞時漏寫欄位或輸入區塊，CI 會失敗。
+`tests/test_prompt_eval_malicious.py` 用假的 LLM 確認 C17、C18 的自動檢查抓得到「照著惡意指示做」的輸出（不需要 API 金鑰）。
 
 ## 執行方式（在 `backend/` 資料夾）
 
@@ -50,13 +51,13 @@ uv run python -m tests.prompt_eval.run --label v0.2
 |---|---|
 | typical（一般） | C01、C05、C07、C08、C11、C13、C16 |
 | edge（邊界） | C02、C03、C06、C09、C12、C14 |
-| adversarial（對抗） | C04（提示詞注入）、C10（依姓名或性別分配）、C15（洩漏金鑰） |
+| adversarial（對抗） | C04（提示詞注入）、C10（依姓名或性別分配）、C15（洩漏金鑰）、C17、C18（針對特定成員的惡意會議紀錄） |
 
 | Agent | 案例 |
 |---|---|
-| 1 Story 切分 | C01–C04、C16 |
+| 1 Story 切分 | C01–C04、C16、C17 |
 | 2 待釐清分析 | C05–C07 |
-| 3 Task 拆解與派送 | C08–C12 |
+| 3 Task 拆解與派送 | C08–C12、C18（從切 Story 一路到指派） |
 | 4 任務小助理 | C13–C15 |
 
 ## 修改提示詞的流程
