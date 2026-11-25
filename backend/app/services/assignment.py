@@ -10,11 +10,21 @@ from app.schemas.task import Task
 from app.services._render import block, members_text, task_text
 
 
-def _draft_text(t: TaskDraft, code_of: dict[str, str] | None = None) -> str:
+def _draft_text(t: TaskDraft, code_of: dict[str, str] | None = None, eligible: list[str] | None = None) -> str:
     line = f"{t.code} | {t.domain} | {t.story_points} 點 | {t.title}"
     # [v0.2 修改] 附上相依（以任務編號表示），assign.md 的「相依鏈分散」步驟才有依據
     deps = [(code_of or {}).get(d.id, d.id) for d in t.depends_on]
-    return f"{line} | 依賴：{', '.join(deps)}" if deps else line
+    if deps:
+        line += f" | 依賴：{', '.join(deps)}"
+    if eligible is not None:
+        # [v0.3.1 修改] 列出剩餘點數足夠的成員，模型只能從中選（prompt 測試 C09，R4）
+        line += f" | 剩餘足夠：{', '.join(eligible) or '無'}"
+    return line
+
+
+def _eligible(t: TaskDraft, members: list[Member], loads: dict[str, int]) -> list[str]:
+    """[v0.3.1 修改] 指派前剩餘點數（capacity − 已分配）足以承接這張 Task 的成員 id"""
+    return [m.id for m in members if m.capacity - loads.get(m.id, 0) >= t.story_points]
 
 
 def _flag_overload(
@@ -60,7 +70,7 @@ def suggest_assignments(
         system=load_prompt("assign"),
         user=block("members", members_text(members, loads))
         + "\n\n"
-        + block("tasks", "\n".join(_draft_text(d, code_of) for d in drafts)),
+        + block("tasks", "\n".join(_draft_text(d, code_of, _eligible(d, members, loads or {})) for d in drafts)),
         schema=LlmAssignments,
     )
     codes = {d.code for d in drafts}

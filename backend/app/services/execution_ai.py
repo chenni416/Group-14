@@ -10,10 +10,13 @@ from app.ai.schemas import LlmExecutionPlan
 from app.schemas.collab import ChecklistItem, Checkpoint, DepCheck, ExecutionPlan
 from app.schemas.task import Task
 from app.services._render import block, task_text
+from app.services._secrets import find_secrets, mask
 
 
 def docs_text(docs: list[DocSnippet]) -> str:
-    return "\n\n".join(f"[{d.name}]\n{d.text}" for d in docs)
+    # [v0.3.2 修改] 金鑰值不送給模型（C15，R7）
+    secrets = find_secrets(d.text for d in docs)
+    return "\n\n".join(f"[{d.name}]\n{mask(d.text, secrets)}" for d in docs)
 
 
 def suggest_plan(

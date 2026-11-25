@@ -53,6 +53,8 @@ def analyze_dependencies(current: list[Task], previous: list[Task], llm: LlmClie
     prev = {t.id for t in previous}
     prev_done = {t.id for t in previous if t.state == "DONE"}
     out: list[Dependency] = []
+    # [v0.3.2 修改] 任務的「依賴」欄已經列出的組合不再重複輸出（prompt 測試 C07，EVAL_LOG R8）
+    listed = {(t.id, dep.id) for t in current for dep in t.depends_on}
     seen: set[tuple[str, str]] = set()
     for d in result.dependencies:
         target_ok = d.depends_on_id in (prev if d.scope == "prev" else now)
@@ -61,6 +63,7 @@ def analyze_dependencies(current: list[Task], previous: list[Task], llm: LlmClie
             or not target_ok
             or d.task_id == d.depends_on_id
             or (d.task_id, d.depends_on_id) in seen
+            or (d.task_id, d.depends_on_id) in listed
         ):
             if d.task_id not in now:
                 why = "task_id 不在本 Sprint"
@@ -68,6 +71,8 @@ def analyze_dependencies(current: list[Task], previous: list[Task], llm: LlmClie
                 why = "被依賴的任務不存在於指定範圍"
             elif d.task_id == d.depends_on_id:
                 why = "依賴自己"
+            elif (d.task_id, d.depends_on_id) in listed:
+                why = "任務的依賴欄已經列出"
             else:
                 why = "重複的相依"
             audit.note(
