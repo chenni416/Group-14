@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { relativeTime } from '@/lib/format';
+import { switchProjectState } from '@/lib/projectSwitch';
 import { queryKeys } from '@/lib/queryKeys';
 import { useTaskDrawer } from '@/hooks/useTaskDrawer';
 import { AUTH_ENABLED } from '@/lib/supabase';
@@ -67,7 +68,7 @@ export function NotificationBell() {
   const drawer = useTaskDrawer();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { currentId, setCurrentId } = useProjectStore();
+  const currentId = useProjectStore((s) => s.currentId);
 
   // GitHub 登入時讀資料庫的通知，每分鐘更新一次；示範模式用寫死的通知
   const { data } = useQuery({
@@ -106,12 +107,8 @@ export function NotificationBell() {
     }
     if (!n.link) return;
     setOpen(false);
-    // 通知屬於別的專案：先切換專案，所有資料重新讀取
-    if (n.projectId && n.projectId !== currentId) {
-      setCurrentId(n.projectId);
-      await qc.invalidateQueries();
-    }
-    navigate(n.link);
+    // 通知屬於別的專案：抵達通知的頁面後才切換專案（跳頁被擋下時不會先換掉目前的專案）
+    navigate(n.link, n.projectId && n.projectId !== currentId ? { state: switchProjectState(n.projectId) } : undefined);
   };
 
   const markAll = async () => {

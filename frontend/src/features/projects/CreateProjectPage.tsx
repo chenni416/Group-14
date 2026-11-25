@@ -8,10 +8,12 @@ import { ProjectSettingsLayout } from '@/features/onboarding/components/ProjectS
 import { CREATE_STEPS, checkBasics, parseRepo, type ProjectBasics } from '@/features/onboarding/projectBasics';
 import { startGithubLink } from '@/lib/githubLink';
 import { DEFAULT_SPRINT_LENGTH } from '@/lib/sprintLength';
+import { queryKeys } from '@/lib/queryKeys';
 import { api } from '@/services';
 import { useProjectStore } from '@/stores/project.store';
 import { toast } from '@/stores/toast.store';
 import { useUiStore } from '@/stores/ui.store';
+import type { ProjectSummary } from '@/types';
 
 /**
  * 建立新專案：與專案設定共用版面，第一步「基本資訊」填寫後建立專案（建立的人成為 Leader）。
@@ -56,6 +58,8 @@ function CreateProjectForm() {
         repo: parseRepo(value.repo),
       }),
     onSuccess: async (project) => {
+      // 先把新專案加進「我的專案」清單，再切換：側邊欄才不會以為它不存在而改回舊專案
+      qc.setQueryData<ProjectSummary[]>(queryKeys.projects, (list) => [...(list ?? []).filter((p) => p.id !== project.id), project]);
       // 之後的請求都以新專案為目前的專案
       setCurrentId(project.id);
       if (!value.gitIntegration) {

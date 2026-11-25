@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { BurndownPoint, Domain, ReviewPolicy, TaskState } from '@/types';
 
 /** 示意專案的任務：只保留主頁各卡片需要的欄位 */
@@ -128,8 +129,20 @@ interface ProjectState {
   setCurrentId: (id: string) => void;
 }
 
-/** 目前選中的專案（像 Discord 切換伺服器） */
-export const useProjectStore = create<ProjectState>()((set) => ({
-  currentId: 'taskline',
-  setCurrentId: (currentId) => set({ currentId }),
-}));
+/**
+ * 目前選中的專案（像 Discord 切換伺服器）。
+ * 記在 localStorage：前往 GitHub 安裝 App 或重新整理後，仍停在同一個專案（例如剛建立的專案）。
+ */
+export const useProjectStore = create<ProjectState>()(
+  persist(
+    (set) => ({
+      currentId: 'taskline',
+      setCurrentId: (currentId) => set({ currentId }),
+    }),
+    {
+      name: 'taskline.currentProject',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({ currentId: s.currentId }),
+    },
+  ),
+);
