@@ -114,6 +114,7 @@ def test_generate_tasks_sends_loads_and_flags_overload() -> None:
         loads={"m1": 4},
     )
     assert "已分配 4 點" in llm.user_for(s.LlmAssignments)
+    assert "剩餘 1 點" in llm.user_for(s.LlmAssignments)  # [v0.3 修改] 列出剩餘點數
     assert d.suggested_assignee_id == "m1"
     assert d.assign_reason == "技能吻合（指派後共 7/5 點，超出 capacity，建議改派或延後）"
 

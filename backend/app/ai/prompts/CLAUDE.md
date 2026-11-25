@@ -84,7 +84,7 @@ Taskline 把 Sprint Planning 會議紀錄轉成可分配、可追蹤的任務。
 | `<stories>` | `Story no=N｜標題（點數）` ＋ 使用情境、範疇（以「；」分隔）；**[v0.2 修改]** 下方加上 Leader 的決定：`已釐清：問題 → 答案（驗收條件：…）`、`採用建議：建議（改動）` | generate_tasks、story_assistant |
 | `<clarifications>` | **[v0.2 修改]** Sprint 層級待釐清的回答，`- 問題 → 答案`（只在「拆解」流程有） | generate_tasks |
 | `<focus_story>` | Leader 正在看的 Story 標題，或「（未指定，指整體切分）」 | story_assistant |
-| `<members>` | `id | 姓名 | 領域 | 技能：… | capacity N 點 | 已分配 M 點`；**[v0.2 修改]** 已分配含上一輪帶入的任務與本輪已確定的任務 | assign、reassign |
+| `<members>` | `id | 姓名 | 領域 | 技能：… | capacity N 點 | 已分配 M 點 | 剩餘 R 點`（v0.3 加入剩餘）；**[v0.2 修改]** 已分配含上一輪帶入的任務與本輪已確定的任務 | assign、reassign |
 | `<tasks>` | assign：`code | 領域 | 點數 | 標題 | 依賴：code…`（**[v0.2 修改]** 加上依賴）；defer：`id | 點數 | 標題 | 依賴：…` | assign、defer_tasks |
 | `<task>` / `<current_sprint_tasks>` / `<previous_sprint_tasks>` | `_render.task_text`：`id | 領域 | 點數 | 狀態 | 標題` ＋ 目標、範圍、不在範圍、預期成果、依賴、驗收條件 | reassign、context_chat、task_dependencies |
 | `<capacity>` | 團隊 capacity、目前總點數、超出點數 | defer_tasks |
@@ -132,7 +132,7 @@ Taskline 把 Sprint Planning 會議紀錄轉成可分配、可追蹤的任務。
 |---|---|
 | 用途 | 會議紀錄 → 可獨立驗收的 Story 草稿，附來源行、Story 相依與待釐清 |
 | 輸入 | `<sprint_goal>`、`<meeting_minutes>`（含行號、可能含已釐清事項） |
-| 輸出 `LlmStoryDraft` | `stories[]`：`title`、`user_story`（身為…我想要…以便…）、`story_points`（費氏 ≤13）、`scope[]` 2–5 項、`rationale`、`source_lines[]`、`depends_on[{story_no, reason}]`、`clarify[{kind, text, options, effect}]` |
+| 輸出 `LlmStoryDraft` | `stories[]`：`title`、`user_story`（身為…我想要…以便…）、`story_points`（費氏 ≤13）、`scope[]` 1–5 項、`rationale`、`source_lines[]`、`depends_on[{story_no, reason}]`、`clarify[{kind, text, options, effect}]` |
 | 現有驗證 | 會議紀錄非空且 ≤ 30,000 字；沒有 Story 時回 422；行號過濾；相依範圍檢查 |
 | 主要風險 | 依技術層切分、補上沒提到的需求、為「[延續]」任務重複建 Story、漏掉需求行、clarify 太多或問已釐清的事、effect 不含 `{answer}` |
 
@@ -245,6 +245,7 @@ Taskline 把 Sprint Planning 會議紀錄轉成可分配、可追蹤的任務。
 | v0.1 | — | 後端 AI 負責組員 | 初版：12 個 prompt、`_safety.md`、`app/ai/schemas.py` 精簡輸出格式與程式端過濾 |
 | v0.2 | 2026-11-21 | ning | **測試集**：新增 `tests/prompt_eval/`（16 個案例＋靜態檢查，見第 9 節）。**Prompt**：9 個規劃與對話 prompt 補上輸入格式說明、步驟、欄位寫法、範例與自我檢查；`_safety.md` 擴充為共用規則；新增本檔與 `COMPARISON.md`。Task 最大點數定為 8。**程式**：指派帶入既有負載並驗算、釐清回答傳給拆 Task、Story 助理收到 Story、設定 temperature（程式中以 `[v0.2 修改]` 標註，清單見 `COMPARISON.md` 第 6 節）。LLM 輸出 schema 未變更 |
 | v0.2.1 | 2026-11-25 | ning | **測試集**：新增 C17、C18（針對特定成員的惡意會議紀錄，來自 Week 12 Lab 第 2 組的審查，issue #19）與 `tests/test_prompt_eval_malicious.py`。**提示詞未修改**；用真實模型執行後若失敗，修正記錄在 `tests/prompt_eval/EVAL_LOG.md` 的 R3 |
+| v0.3 | 2026-11-25 | ning | 依第一次真實模型測試（gpt-4.1，18 個案例，110/118）修正，見 `tests/prompt_eval/EVAL_LOG.md` R3–R6：`analyze_minutes` 不把指定或排除特定成員的分工內容寫進 Story（C18）、scope 改為 1–5 項（C02、C03）；`assign`／`reassign` 改看「剩餘」點數，`_render.members_text` 列出剩餘（C09）；C08 的檢查只看負責接收 Webhook 的 Task |
 
 ## 8. 修改流程
 

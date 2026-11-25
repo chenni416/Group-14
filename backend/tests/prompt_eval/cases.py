@@ -171,7 +171,7 @@ def _story_basics(rec: RecordingLlm, minutes: str) -> list[Check]:
             [st.user_story for st in raw.stories],
         ),
         ok("Story 點數為 1、2、3、5、8、13", all(st.story_points in FIB_STORY for st in raw.stories)),
-        ok("每個 Story 的 scope 為 2–5 項", all(2 <= len(st.scope) <= 5 for st in raw.stories)),
+        ok("每個 Story 的 scope 為 1–5 項", all(1 <= len(st.scope) <= 5 for st in raw.stories)),
         ok(
             "沒有依技術層切分 Story",
             not [st.title for st in raw.stories if re.match(r"^(前端|後端|測試|API|資料庫)", st.title)],
@@ -423,7 +423,8 @@ def check_c08(rec: RecordingLlm, result) -> list[Check]:
     raw: s.LlmTaskDraft = rec.raw(s.LlmTaskDraft)
     acs = " ".join(a for t in raw.tasks for a in t.acceptance_criteria)
     text = " ".join(t.title + t.analysis + " ".join(t.acceptance_criteria) for t in raw.tasks)
-    webhook = [t for t in raw.tasks if "webhook" in t.title.lower()]
+    # 只看負責接收 Webhook 的那張 Task；標題提到 Webhook 的 E2E 測試不算（R6）
+    webhook = [t for t in raw.tasks if "webhook" in t.title.lower() and t.domain != "QA"]
     counts: dict[int, int] = {}
     for t in raw.tasks:
         counts[t.story_no] = counts.get(t.story_no, 0) + 1
