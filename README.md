@@ -128,7 +128,7 @@ npm run dev                     # mock 模式；要接後端時在 .env.local �
 
 # 後端（需要先安裝 uv）
 cd backend
-cp .env.example .env            # 填入 DATABASE_URL 與 SUPABASE_URL
+cp .env.example .env            # 填入 DATABASE_URL（Supabase 要用 port 6543）與 SUPABASE_URL
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
