@@ -5,8 +5,7 @@
 - API 的 Sprint.id 是專案內的流水號（sprints.number），資料表主鍵是 uuid，只在這個檔案內轉換
 - 每個專案同時最多一個「規劃中」與一個「進行中」的 Sprint（資料庫的部分唯一索引保證）
 
-還沒接資料庫的部分（等任務、規劃改存資料庫後再做）：
-- 延續事項的 task_id（任務還在記憶體，沒有 tasks 資料列可以指）
+還沒接資料庫的部分：
 - Sprint 啟動／結束（sprints.start、sprints.end）
 """
 
@@ -24,6 +23,7 @@ from app.models import BacklogItem as BacklogRow
 from app.models import Document as DocumentRow
 from app.models import ProjectMember as ProjectMemberRow
 from app.models import Sprint as SprintRow
+from app.models import Task as TaskRow
 from app.schemas.sprint import (
     AddSprintDocsBody,
     AnalyzeResult,
@@ -146,7 +146,7 @@ def _backlog_schema(db: Session, row: BacklogRow) -> BacklogItem:
         text=row.text,
         from_sprint=from_name or "",
         kind=row.kind,  # type: ignore[arg-type]
-        task_id=None,  # 任務改存資料庫後，改成 tasks.code
+        task_id=db.scalar(select(TaskRow.code).where(TaskRow.id == row.task_id)) if row.task_id else None,
         used_in_sprint_id=used,
         decision=row.decision,  # type: ignore[arg-type]
     )

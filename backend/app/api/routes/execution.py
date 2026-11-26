@@ -12,9 +12,9 @@ from datetime import date
 from fastapi import APIRouter
 
 from app.ai.llm import Llm
+from app.api.deps import ProjectStore
 from app.core.auth import CurrentMember
 from app.core.errors import not_implemented
-from app.repo import Store
 from app.schemas.collab import ExecutionPlan, SaveExecutionPlanInput
 from app.services import task_flow
 
@@ -44,7 +44,7 @@ async def get_execution(task_id: str) -> ExecutionPlan | None:
     summary="AI 依任務規格、依賴與專案文件產生計畫建議",
     response_model=ExecutionPlan,
 )
-def suggest(task_id: str, store: Store, me: CurrentMember, llm: Llm) -> ExecutionPlan:
+def suggest(task_id: str, store: ProjectStore, me: CurrentMember, llm: Llm) -> ExecutionPlan:
     return task_flow.suggest_execution_plan(store, task_id, me, llm, date.today())
 
 
