@@ -9,7 +9,7 @@
 from fastapi import APIRouter
 
 from app.api.deps import Db
-from app.core.auth import CurrentMember
+from app.core.auth import AccountMember
 from app.core.config import get_settings
 from app.core.errors import ApiError, not_implemented
 from app.schemas.member import Member, SwitchUserInput, UpdateMeInput
@@ -19,14 +19,14 @@ router = APIRouter(tags=["登入"])
 
 
 @router.get("/me", operation_id="auth.me", summary="目前登入的成員", response_model=Member)
-def me(member: CurrentMember, db: Db) -> Member:
+def me(member: AccountMember, db: Db) -> Member:
     # 第一次登入時 get_current_member 會建立成員；這裡另外記錄最後登入時間
     members.touch_login(db, member.id)
     return member
 
 
 @router.patch("/me", operation_id="auth.updateMe", summary="修改自己的顯示名稱", response_model=Member)
-def update_me(body: UpdateMeInput, member: CurrentMember, db: Db) -> Member:
+def update_me(body: UpdateMeInput, member: AccountMember, db: Db) -> Member:
     row = members.update_display_name(db, member.id, body.display_name)
     # 只改顯示名稱，專案內的角色與設定沿用目前的值
     return members.to_schema(row).model_copy(

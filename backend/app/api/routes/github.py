@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.deps import Db, ProjectId
-from app.core.auth import CurrentMember
+from app.core.auth import AccountMember, CurrentMember
 from app.core.errors import ApiError
 from app.schemas.github import ChooseRepositoryInput, CompleteInstallationInput, InstallUrl, LinkResult
 from app.services import github_link, projects
@@ -31,7 +31,7 @@ def install_url(me: CurrentMember, db: Db, project_id: ProjectId = None) -> Inst
     summary="GitHub App 安裝完成：驗證並綁定 repo",
     response_model=LinkResult,
 )
-def complete_installation(body: CompleteInstallationInput, me: CurrentMember, db: Db) -> LinkResult:
+def complete_installation(body: CompleteInstallationInput, me: AccountMember, db: Db) -> LinkResult:
     return github_link.complete_link(db, _member_id(me), body)
 
 

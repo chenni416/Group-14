@@ -695,7 +695,7 @@ docker compose up -d          # 在 repo 根目錄啟動本機資料庫
 `backend/.env` 的 `DATABASE_URL` 設為：
 
 ```
-DATABASE_URL=postgresql+psycopg://taskline:taskline@localhost:5433/taskline
+DATABASE_URL=postgresql+psycopg://taskline:taskline@127.0.0.1:5433/taskline
 ```
 
 遷移檔合併進 `main` 後，成員執行 `./setup.sh` 時會自動套用到 Supabase。**不要在遷移檔合併前把它套用到 Supabase**：其他成員的 `main` 沒有這份遷移檔，Alembic 會找不到版本而失敗。

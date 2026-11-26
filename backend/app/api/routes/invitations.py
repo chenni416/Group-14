@@ -8,7 +8,7 @@
 from fastapi import APIRouter
 
 from app.api.deps import Db, ProjectId
-from app.core.auth import CurrentMember, require_leader
+from app.core.auth import AccountMember, CurrentMember, require_leader
 from app.core.errors import ApiError
 from app.schemas.base import ApiModel
 from app.schemas.invitation import CreateInvitationInput, Invitation
@@ -65,7 +65,7 @@ def revoke_invitation(id: str, me: CurrentMember, db: Db, project_id: ProjectId 
 @router.get(
     "/invitations/mine", operation_id="invitations.mine", summary="寄給我的邀請", response_model=list[Invitation]
 )
-def my_invitations(me: CurrentMember, db: Db) -> list[Invitation]:
+def my_invitations(me: AccountMember, db: Db) -> list[Invitation]:
     member_id = projects.parse_uuid(me.id)
     if member_id is None:
         return []
@@ -75,10 +75,10 @@ def my_invitations(me: CurrentMember, db: Db) -> list[Invitation]:
 @router.post(
     "/invitations/{id}/accept", operation_id="invitations.accept", summary="接受邀請", response_model=AcceptResult
 )
-def accept_invitation(id: str, me: CurrentMember, db: Db) -> AcceptResult:
+def accept_invitation(id: str, me: AccountMember, db: Db) -> AcceptResult:
     return AcceptResult(project_id=invitations.accept_invitation(db, _github_member(me), id))
 
 
 @router.post("/invitations/{id}/decline", operation_id="invitations.decline", summary="拒絕邀請", status_code=204)
-def decline_invitation(id: str, me: CurrentMember, db: Db) -> None:
+def decline_invitation(id: str, me: AccountMember, db: Db) -> None:
     invitations.decline_invitation(db, _github_member(me), id)

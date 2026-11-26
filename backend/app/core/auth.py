@@ -107,12 +107,14 @@ async def get_current_user(authorization: Annotated[str | None, Header()] = None
     return verify_token(token)
 
 
-def get_current_member(
+def _member_for_request(
     store: Store,
-    db: Annotated[Session, Depends(get_db)],
-    authorization: Annotated[str | None, Header()] = None,
-    x_demo_user: Annotated[str | None, Header()] = None,
-    x_project_id: Annotated[str | None, Header()] = None,
+    db: Session,
+    authorization: str | None,
+    x_demo_user: str | None,
+    x_project_id: str | None,
+    *,
+    strict_project: bool,
 ) -> Member:
     """回傳開發用假成員，或經 JWT 驗證、對應到 members 資料表的登入成員。
 
@@ -130,8 +132,33 @@ def get_current_member(
 
     row = members.sync_member(db, verify_token(token))
     # 角色、職稱等設定每個專案不同：取目前專案（X-Project-Id）中的設定；還沒有專案時用預設值
-    current = projects.current_membership(db, row.id, x_project_id)
+    current = projects.current_membership(db, row.id, x_project_id, strict=strict_project)
     return members.to_schema(row, current[1] if current else None)
+
+
+def get_current_member(
+    store: Store,
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[str | None, Header()] = None,
+    x_demo_user: Annotated[str | None, Header()] = None,
+    x_project_id: Annotated[str | None, Header()] = None,
+) -> Member:
+    """專案範圍的端點用（**預設**）：X-Project-Id 無效或我不是成員時回 400／403，不會改用別的專案"""
+    return _member_for_request(store, db, authorization, x_demo_user, x_project_id, strict_project=True)
+
+
+def get_account_member(
+    store: Store,
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[str | None, Header()] = None,
+    x_demo_user: Annotated[str | None, Header()] = None,
+    x_project_id: Annotated[str | None, Header()] = None,
+) -> Member:
+    """帳號層級的端點用（/me、專案清單、邀請、通知）：X-Project-Id 無效時不報錯（角色視為 Member）。
+
+    前端從「專案失效」復原時要呼叫這些端點（重新讀取專案清單），所以它們不能因為舊的專案 id 而失敗
+    """
+    return _member_for_request(store, db, authorization, x_demo_user, x_project_id, strict_project=False)
 
 
 def require_leader(member: Member) -> None:
@@ -142,3 +169,5 @@ def require_leader(member: Member) -> None:
 
 CurrentUser = Annotated[AuthUser, Depends(get_current_user)]
 CurrentMember = Annotated[Member, Depends(get_current_member)]
+"""專案範圍的端點（預設）。帳號層級的端點改用 AccountMember"""
+AccountMember = Annotated[Member, Depends(get_account_member)]

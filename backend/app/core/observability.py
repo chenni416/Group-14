@@ -26,7 +26,7 @@ _request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 
 def configure_logging() -> None:
-    """讓 `app.*` 的日誌（請求日誌、project fallback 警告等）顯示出來。
+    """讓 `app.*` 的日誌（請求日誌、其他模組的警告等）顯示出來。
 
     uvicorn 只設定自己的 logger，應用程式的 INFO 日誌預設不會輸出。重複呼叫（例如 --reload）不會加重複的 handler
     """

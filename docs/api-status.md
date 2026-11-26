@@ -7,7 +7,7 @@
 | 欄位 | 說明 |
 |---|---|
 | 資料來源 | 資料庫＝讀寫 Supabase／Postgres 資料表；記憶體＝`MemoryStore`（全域、不分專案、重啟即重置）；「資料庫＋記憶體」＝GitHub 登入的成員走資料庫、`X-Demo-User` 示範成員走記憶體 |
-| 驗證 | 無＝不需要登入（任何人可呼叫）；登入＝需要有效的 Supabase token；Leader＝另外要求專案角色為 Leader |
+| 驗證 | 無＝不需要登入（任何人可呼叫）；登入＝需要有效的 Supabase token，且 `X-Project-Id` 若有帶，必須是我所屬的專案（否則 400／403）；登入（帳號）＝帳號層級的端點（`/me`、專案清單、邀請、通知），不檢查 `X-Project-Id`；Leader＝另外要求專案角色為 Leader |
 
 GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py` 內，所以這裡顯示為「登入」。
 
@@ -22,8 +22,8 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
-| GET | `/api/me` | `auth.me` | 已實作 | 資料庫 | 登入 |
-| PATCH | `/api/me` | `auth.updateMe` | 已實作 | 資料庫 | 登入 |
+| GET | `/api/me` | `auth.me` | 已實作 | 資料庫 | 登入（帳號） |
+| PATCH | `/api/me` | `auth.updateMe` | 已實作 | 資料庫 | 登入（帳號） |
 | POST | `/api/auth/switch` | `auth.switchUser` | 501 | — | 無 |
 
 ## comments（0／3 已實作）
@@ -61,7 +61,7 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
 | GET | `/api/github/install-url` | `github.installUrl` | 已實作 | 資料庫 | 登入 |
-| POST | `/api/github/installations` | `github.completeInstallation` | 已實作 | 資料庫 | 登入 |
+| POST | `/api/github/installations` | `github.completeInstallation` | 已實作 | 資料庫 | 登入（帳號） |
 | PUT | `/api/github/repository` | `github.chooseRepository` | 已實作 | 資料庫 | 登入 |
 | DELETE | `/api/github/repository` | `github.unlink` | 已實作 | 資料庫 | 登入 |
 
@@ -72,9 +72,9 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | GET | `/api/invitations` | `invitations.list` | 已實作 | 資料庫 | Leader |
 | POST | `/api/invitations` | `invitations.create` | 已實作 | 資料庫 | Leader |
 | DELETE | `/api/invitations/{id}` | `invitations.revoke` | 已實作 | 資料庫 | Leader |
-| GET | `/api/invitations/mine` | `invitations.mine` | 已實作 | 資料庫 | 登入 |
-| POST | `/api/invitations/{id}/accept` | `invitations.accept` | 已實作 | 資料庫 | 登入 |
-| POST | `/api/invitations/{id}/decline` | `invitations.decline` | 已實作 | 資料庫 | 登入 |
+| GET | `/api/invitations/mine` | `invitations.mine` | 已實作 | 資料庫 | 登入（帳號） |
+| POST | `/api/invitations/{id}/accept` | `invitations.accept` | 已實作 | 資料庫 | 登入（帳號） |
+| POST | `/api/invitations/{id}/decline` | `invitations.decline` | 已實作 | 資料庫 | 登入（帳號） |
 
 ## issues（0／6 已實作）
 
@@ -97,9 +97,9 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | GET | `/api/join-requests` | `joinCodes.listRequests` | 已實作 | 資料庫 | Leader |
 | POST | `/api/join-requests/{id}/approve` | `joinCodes.approve` | 已實作 | 資料庫 | Leader |
 | POST | `/api/join-requests/{id}/reject` | `joinCodes.reject` | 已實作 | 資料庫 | Leader |
-| POST | `/api/join-requests` | `joinCodes.submit` | 已實作 | 資料庫 | 登入 |
-| GET | `/api/join-requests/mine` | `joinCodes.mine` | 已實作 | 資料庫 | 登入 |
-| DELETE | `/api/join-requests/{id}` | `joinCodes.cancel` | 已實作 | 資料庫 | 登入 |
+| POST | `/api/join-requests` | `joinCodes.submit` | 已實作 | 資料庫 | 登入（帳號） |
+| GET | `/api/join-requests/mine` | `joinCodes.mine` | 已實作 | 資料庫 | 登入（帳號） |
+| DELETE | `/api/join-requests/{id}` | `joinCodes.cancel` | 已實作 | 資料庫 | 登入（帳號） |
 
 ## members（4／4 已實作）
 
@@ -114,9 +114,9 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
-| GET | `/api/notifications` | `notifications.list` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
-| POST | `/api/notifications/read-all` | `notifications.markAllRead` | 已實作 | 資料庫 | 登入 |
-| POST | `/api/notifications/{id}/read` | `notifications.markRead` | 已實作 | 資料庫 | 登入 |
+| GET | `/api/notifications` | `notifications.list` | 已實作 | 資料庫＋記憶體（依身分） | 登入（帳號） |
+| POST | `/api/notifications/read-all` | `notifications.markAllRead` | 已實作 | 資料庫 | 登入（帳號） |
+| POST | `/api/notifications/{id}/read` | `notifications.markRead` | 已實作 | 資料庫 | 登入（帳號） |
 
 ## planning（8／8 已實作）
 
@@ -211,8 +211,8 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
 | GET | `/api/organization` | `workspace.getOrganization` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
-| GET | `/api/projects` | `workspace.listProjects` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
-| POST | `/api/projects` | `workspace.createProject` | 已實作 | 資料庫 | 登入 |
+| GET | `/api/projects` | `workspace.listProjects` | 已實作 | 資料庫＋記憶體（依身分） | 登入（帳號） |
+| POST | `/api/projects` | `workspace.createProject` | 已實作 | 資料庫 | 登入（帳號） |
 | GET | `/api/project` | `workspace.getProject` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
 | PATCH | `/api/project` | `workspace.updateProject` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
-| DELETE | `/api/project` | `workspace.deleteProject` | 已實作 | 資料庫 | 登入 |
+| DELETE | `/api/project` | `workspace.deleteProject` | 已實作 | 資料庫 | 登入（帳號） |
