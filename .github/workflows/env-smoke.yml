@@ -1,0 +1,128 @@
+# 乾淨環境冒煙測試：驗證「照 README 做，在每種作業系統都能用」。
+#
+# 在 Linux、macOS、Windows 各跑一次：全新 clone（模擬 Windows 使用者預設的 core.autocrlf=true）→ ./setup.sh
+# → ./doctor.sh → ./dev.sh full，確認後端與前端真的啟動。它會抓到平常開發看不到的問題：
+# 換行符號、macOS 的舊版 bash、Windows 的 Git Bash、套件或工具升級造成的相容性。
+#
+# 資料庫密碼等機密不在這裡：不連 Supabase，只檢查本機流程；DB 測試由 ci.yml 的 Postgres 服務負責。
+name: Environment smoke test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - setup.sh
+      - dev.sh
+      - doctor.sh
+      - .gitattributes
+      - README.md
+      - backend/pyproject.toml
+      - backend/uv.lock
+      - backend/alembic.ini
+      - backend/.env.example
+      - backend/scripts/**
+      - frontend/package.json
+      - frontend/package-lock.json
+      - frontend/.env.example
+      - .github/workflows/env-smoke.yml
+  pull_request:
+    paths:
+      - setup.sh
+      - dev.sh
+      - doctor.sh
+      - .gitattributes
+      - README.md
+      - backend/pyproject.toml
+      - backend/uv.lock
+      - backend/alembic.ini
+      - backend/.env.example
+      - backend/scripts/**
+      - frontend/package.json
+      - frontend/package-lock.json
+      - frontend/.env.example
+      - .github/workflows/env-smoke.yml
+  schedule:
+    # 每週一：Node、uv、套件升級造成的問題，不會等到有人改腳本才被發現
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash # Windows 也用 Git Bash，和 README 一樣；macOS 的 bash 是舊的 3.2，正好檢查相容性
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fresh clone with core.autocrlf=true
+        run: |
+          # 模擬 Windows 使用者的預設 Git 設定。沒有 .gitattributes 時，腳本會變成 CRLF，在 WSL／Linux／macOS 會壞
+          git clone --quiet --config core.autocrlf=true "$GITHUB_WORKSPACE" "$RUNNER_TEMP/repo"
+          cd "$RUNNER_TEMP/repo"
+          for f in setup.sh dev.sh doctor.sh backend/.env.example backend/alembic.ini; do
+            n=$(tr -cd '\r' < "$f" | wc -c | tr -d ' ')
+            echo "$f: CR 字元數 = $n"
+            if [ "$n" != 0 ]; then echo "::error::$f 含有 CR（CRLF）：.gitattributes 沒有生效"; exit 1; fi
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false # 收尾的 uv cache prune 在 macOS runner 會以 exit 2 失敗；這個 job 不需要快取
+
+      - name: ./setup.sh（README 的第一步，非互動）
+        env:
+          # Actions 會自動設 CI=true；tests/db/conftest.py 在 CI 下找不到資料庫會報錯而不是略過。
+          # 這個 job 沒有資料庫（只驗證本機流程），所以清空它，行為就和一般使用者的電腦一樣
+          CI: ""
+        run: |
+          cd "$RUNNER_TEMP/repo"
+          ./setup.sh
+
+      - name: ./doctor.sh
+        run: |
+          cd "$RUNNER_TEMP/repo"
+          ./doctor.sh --offline
+
+      - name: ./dev.sh full（後端與前端都要啟動）
+        run: |
+          cd "$RUNNER_TEMP/repo"
+          ./dev.sh full > "$RUNNER_TEMP/dev.log" 2>&1 &
+          DEV_PID=$!
+          backend_ok=false
+          frontend_ok=false
+          for _ in $(seq 1 60); do
+            curl -fs -m 3 http://127.0.0.1:8000/api/health > /dev/null 2>&1 && backend_ok=true
+            curl -fs -m 3 http://localhost:5173/ > /dev/null 2>&1 && frontend_ok=true
+            if $backend_ok && $frontend_ok; then break; fi
+            kill -0 "$DEV_PID" 2> /dev/null || break
+            sleep 2
+          done
+          echo "後端：$backend_ok　前端：$frontend_ok"
+          kill "$DEV_PID" 2> /dev/null || true
+          if ! { $backend_ok && $frontend_ok; }; then
+            echo "::group::dev.sh 的輸出"
+            cat "$RUNNER_TEMP/dev.log"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: 失敗時顯示環境資訊
+        if: failure()
+        run: |
+          cd "$RUNNER_TEMP/repo" 2> /dev/null || cd "$GITHUB_WORKSPACE"
+          ./doctor.sh --offline || true

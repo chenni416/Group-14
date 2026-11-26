@@ -16,7 +16,7 @@ BACKEND_PORT="${BACKEND_PORT:-8000}"
 
 info() { printf '\033[36m▸ %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m! %s\033[0m\n' "$*"; }
-fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+fail() { printf '\033[31m✗ %s\033[0m\n' "$*" >&2; printf '  遇到問題可以執行 ./doctor.sh 檢查這台電腦的環境\n' >&2; exit 1; }
 
 usage() {
   sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
@@ -26,11 +26,28 @@ usage() {
 env_value() {
   local file="$1" key="$2"
   [ -f "$file" ] || return 0
-  grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- | tr -d '"' || true
+  grep -E "^${key}=" "$file" | tail -n 1 | cut -d= -f2- | tr -d '"\r' || true
 }
 
+# port 是否已被占用（要啟動服務前用）。注意各平台的陷阱：
+# - Windows 的 Git Bash 沒有 lsof；用 /dev/tcp 探測「沒人監聽」的 port 每次要等約 2 秒，而且 Vite 只聽 IPv6（::1）、
+#   uvicorn 只聽 IPv4（127.0.0.1），只探測其中一個會誤判。所以改用 netstat（0.4 秒，一次看到 IPv4 與 IPv6）
+# - WSL／Linux：非 root 的 lsof 看不到 root 的程序（例如 docker-proxy）與 Windows 端的程序，所以先用連線探測
 port_in_use() {
-  command -v lsof >/dev/null 2>&1 && lsof -iTCP:"$1" -sTCP:LISTEN -t >/dev/null 2>&1
+  local p="$1"
+  case "$(uname -s)" in
+    MINGW* | MSYS* | CYGWIN*)
+      # 先取得完整輸出再比對：pipefail 下 `netstat | grep -q` 會因為 grep 一匹配就結束、上游收到 SIGPIPE（141），
+      # 讓管線回報失敗，port 明明被占用卻說沒有（輸出越多越容易發生，且時有時無）
+      local listeners
+      listeners="$(netstat -ano 2>/dev/null | tr -d '\r')"
+      grep -qE "[:.]${p}[[:space:]]+[^[:space:]]+[[:space:]]+LISTENING" <<<"$listeners"
+      return
+      ;;
+  esac
+  (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null && return 0
+  (exec 3<>"/dev/tcp/::1/$p") 2>/dev/null && return 0
+  command -v lsof >/dev/null 2>&1 && lsof -iTCP:"$p" -sTCP:LISTEN -t >/dev/null 2>&1
 }
 
 ensure_frontend() {
@@ -83,7 +100,9 @@ run_full() {
   trap cleanup EXIT INT TERM
 
   info "啟動後端：http://localhost:$BACKEND_PORT/docs"
-  (cd "$BACKEND" && exec uv run uvicorn app.main:app --reload --port "$BACKEND_PORT") &
+  # 用 python -m uvicorn，而不是 uvicorn：後者是 uv 在 .venv/Scripts 產生的 uvicorn.exe 啟動器，
+  # 在啟用「應用程式控制」（Smart App Control／WDAC）的 Windows 會被擋下（os error 4551），python.exe 本身不會
+  (cd "$BACKEND" && exec uv run python -m uvicorn app.main:app --reload --port "$BACKEND_PORT") &
   BACKEND_PID=$!
 
   # 等後端可以回應再啟動前端，避免一打開就出現連線錯誤
