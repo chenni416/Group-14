@@ -1,7 +1,7 @@
 import { AlertTriangle, ClipboardList, Flag, Lightbulb } from 'lucide-react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Callout, Card, PageHeader, PageSkeleton, ProgressBar, SegmentedControl } from '@/components/ui';
+import { Button, Callout, Card, EmptyState, PageHeader, PageSkeleton, ProgressBar, SegmentedControl } from '@/components/ui';
 import { useCurrentUser, useMemberMap, useMembers, useSprintContext } from '@/hooks/queries';
 import { useExecutionPlans, useIssues, useProposals } from '@/hooks/useCollab';
 import { useDisclosure } from '@/hooks/useDisclosure';
@@ -44,7 +44,31 @@ export function BoardPage() {
     return m;
   }, [issues]);
 
-  if (ctx.isLoading || !me || !ctx.active) return <PageSkeleton />;
+  if (ctx.isLoading || !me) return <PageSkeleton />;
+  // 還沒有 Sprint 啟動過（第一個 Sprint 還在規劃）：顯示說明與前往規劃的入口，而不是一直停在載入畫面
+  if (!ctx.active) {
+    return (
+      <>
+        <PageHeader eyebrow="Sprint" title="Active Board" />
+        <Card>
+          <EmptyState
+            icon={ClipboardList}
+            title="還沒有進行中的 Sprint"
+            description={
+              ctx.planning
+                ? `${ctx.planning.name} 還在規劃：所有任務都被成員接受後，由 Leader 在規劃頁啟動。`
+                : 'Leader 建立並啟動第一個 Sprint 後，任務會出現在這裡。'
+            }
+          />
+          <div className="flex justify-center pb-8">
+            <Button size="sm" onClick={() => navigate('/sprints/planning')}>
+              前往 Sprint 規劃
+            </Button>
+          </div>
+        </Card>
+      </>
+    );
+  }
 
   const { active, boardTasks, planning, planningTasks, planningReady } = ctx;
   // 自己在第一列，其他人依團隊名單順序

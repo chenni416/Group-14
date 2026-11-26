@@ -16,6 +16,7 @@ from app.core.errors import ApiError
 from app.models import Member as MemberRow
 from app.models import Project as ProjectRow
 from app.models import ProjectMember as ProjectMemberRow
+from app.models import Sprint as SprintRow
 from app.schemas.member import Member, UpdateMemberInput
 from app.schemas.project import (
     CreateProjectInput,
@@ -311,8 +312,31 @@ def organization_of(db: Session, project: ProjectRow) -> Organization:
     )
 
 
-def to_schema(row: ProjectRow) -> Project:
-    """轉成前端的 Project；Sprint 尚未改用資料表，先以 0 表示沒有進行中的 Sprint"""
+def current_sprint_numbers(sprints: list[tuple[int, str]]) -> tuple[int, int | None]:
+    """(目前的 Sprint 編號, 規劃中的 Sprint 編號)。
+
+    目前的 Sprint ＝ 進行中的；沒有進行中時是最近一個已結束的（編號最大）。Sprint 結束後到下一個 Sprint 啟動前，
+    前端的 Active Board 仍顯示剛結束的 Sprint（看完成度、做回顧），所以不能是 0。沒有任何 Sprint 或都還在規劃時為 0
+    """
+    active = next((n for n, status in sprints if status == "active"), 0)
+    if not active:
+        active = max((n for n, status in sprints if status == "closed"), default=0)
+    planning = next((n for n, status in sprints if status == "planning"), None)
+    return active, planning
+
+
+def to_schema(row: ProjectRow, db: Session | None = None) -> Project:
+    """轉成前端的 Project。
+
+    進行中、規劃中的 Sprint 編號由 sprints 資料表決定（每個專案各最多一個）；沒有給 db 時視為沒有
+    （只有載入 MemoryStore 時這樣用，之後會由 MemoryStore.current_project 以 Sprint 狀態補上）。
+    前端用 planningSprintId 判斷「規劃進行到哪、重新整理後要回到哪個 Sprint」，所以這裡一定要正確。
+    """
+    active, planning = 0, None
+    if db is not None:
+        active, planning = current_sprint_numbers(
+            list(db.execute(select(SprintRow.number, SprintRow.status).where(SprintRow.project_id == row.id)))
+        )
     return Project(
         name=row.name,
         goal=row.goal,
@@ -325,6 +349,6 @@ def to_schema(row: ProjectRow) -> Project:
         git_integration=row.git_integration,
         github_link_status=row.github_link_status,
         github_repo_url=row.github_repo_url or "",
-        active_sprint_id=0,
-        planning_sprint_id=None,
+        active_sprint_id=active,
+        planning_sprint_id=planning,
     )

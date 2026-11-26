@@ -18,9 +18,9 @@ def test_health() -> None:
 
 
 def test_not_implemented_uses_error_format() -> None:
-    res = client.get("/api/issues")  # 規劃流程以外的端點仍未實作
+    res = client.get("/api/retros")  # 規劃流程以外的端點仍未實作
     assert res.status_code == 501
-    assert res.json() == {"code": "NOT_IMPLEMENTED", "message": "issues.list 尚未實作"}
+    assert res.json() == {"code": "NOT_IMPLEMENTED", "message": "retros.list 尚未實作"}
 
 
 def test_validation_error_uses_error_format() -> None:

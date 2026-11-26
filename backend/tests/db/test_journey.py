@@ -110,6 +110,9 @@ def test_full_flow_sprint_1_to_sprint_2(db: Session) -> None:
     team = Team()
     s1 = team.sprint("Sprint 1", "2026-12-01", "2026-12-14", minutes="Sprint 1 會議紀錄")
     assert s1["status"] == "planning"
+    # 專案資料要帶有規劃中的 Sprint：前端靠它在重新整理後回到規劃中的 Sprint
+    project = client.get("/api/project", headers=team.lead).json()
+    assert (project["activeSprintId"], project["planningSprintId"]) == (0, 1)
 
     # ---- 規劃：4 個任務，不同的審查策略 ----
     a = team.task("登入 API", team.hubot_id, 3, LEADER_POLICY)
@@ -140,6 +143,8 @@ def test_full_flow_sprint_1_to_sprint_2(db: Session) -> None:
     assert started.status_code == 200, started.json()
     assert started.json() == {"carriedOver": 0, "deferred": 0}
     assert sprint_statuses(team) == {1: "active"}
+    project = client.get("/api/project", headers=team.lead).json()
+    assert (project["activeSprintId"], project["planningSprintId"]) == (1, None)
     assert {team.state(t) for t in (a, b, c, d)} == {"TODO"}
     assert post(team.lead, f"/api/sprints/{s1['id']}/start").status_code == 409  # 已經啟動
 
@@ -186,12 +191,17 @@ def test_full_flow_sprint_1_to_sprint_2(db: Session) -> None:
     closed = client.get("/api/sprints", headers=team.lead).json()[0]
     assert (closed["status"], closed["summary"]) == ("closed", {"total": 13, "done": 11, "tasks": 4})
     assert post(team.lead, f"/api/sprints/{s1['id']}/end").status_code == 409  # 已經結束
+    # 結束後到下一個 Sprint 啟動前，目前的 Sprint 仍是剛結束的那個（前端的 Active Board 靠它顯示完成度與回顧，不能是 0）
+    project = client.get("/api/project", headers=team.lead).json()
+    assert (project["activeSprintId"], project["planningSprintId"]) == (1, None)
 
     # ---- Sprint 2：建立、帶入 D、新任務、啟動 ----
     defaults = client.get("/api/sprints/defaults", headers=team.lead).json()
     assert (defaults["id"], defaults["startDate"]) == (2, "2026-12-15")
     s2 = team.sprint("Sprint 2", defaults["startDate"], defaults["endDate"])
     assert s2["id"] == 2
+    project = client.get("/api/project", headers=team.lead).json()
+    assert (project["activeSprintId"], project["planningSprintId"]) == (1, 2)
     kept = client.put(
         f"/api/tasks/{d}/carry", headers=team.lead, json={"carry": True, "assigneeId": team.lead_id, "points": 1}
     )
@@ -205,6 +215,8 @@ def test_full_flow_sprint_1_to_sprint_2(db: Session) -> None:
     assert started2.status_code == 200, started2.json()
     assert started2.json() == {"carriedOver": 1, "deferred": 0}
     assert sprint_statuses(team) == {1: "closed", 2: "active"}
+    project = client.get("/api/project", headers=team.lead).json()
+    assert (project["activeSprintId"], project["planningSprintId"]) == (2, None)
 
     carried = next(t for t in client.get("/api/tasks", headers=team.lead).json() if t["id"] == d)
     assert (carried["sprintId"], carried["assigneeId"], carried["storyPoints"], carried["state"]) == (
@@ -334,3 +346,53 @@ def test_sprint_status_swap_is_written_in_a_safe_order(db: Session) -> None:
     db_store.save(db, store, snapshot)  # 單一批寫入會因為唯一索引失敗
     db.flush()
     assert {s.number: s.status for s in db.scalars(select(SprintRow))} == {1: "closed", 2: "active"}
+
+
+def test_board_list_endpoints_work_for_database_projects(db: Session) -> None:
+    """Active Board 一載入就會讀問題、提案與執行計畫；這三個端點回 501 時看板會一直停在載入畫面。
+    寫入端點還沒做，所以資料列直接寫進資料表"""
+    from app.models import ExecutionPlan as PlanRow
+    from app.models import Issue as IssueRow
+    from app.models import IssueResponse as IssueResponseRow
+    from app.models import Proposal as ProposalRow
+    from app.models import ProposalComment as ProposalCommentRow
+
+    team = Team()
+    team.sprint("Sprint 1", "2026-12-01", "2026-12-14")
+    code = team.task("任務", team.hubot_id)
+    for url in ("/api/issues", "/api/proposals", "/api/execution-plans"):
+        assert client.get(url, headers=team.lead).json() == [], url
+        assert client.get(url).status_code == 401, url
+
+    task = db.scalar(select(TaskRow).where(TaskRow.code == code))
+    sprint = db.scalar(select(SprintRow))
+    issue = IssueRow(task_id=task.id, type="tech", description="卡住了", reporter_member_id=task.assignee_member_id)
+    proposal = ProposalRow(sprint_id=sprint.id, task_id=task.id, title="新想法", kind="idea")
+    db.add_all([issue, proposal, PlanRow(task_id=task.id, checklist=[], checkpoints=[], dep_checks=[])])
+    db.flush()
+    db.add_all(
+        [
+            IssueResponseRow(issue_id=issue.id, author_member_id=task.assignee_member_id, text="我來看"),
+            ProposalCommentRow(proposal_id=proposal.id, author_member_id=task.assignee_member_id, text="同意"),
+        ]
+    )
+    db.flush()
+
+    issues = client.get("/api/issues", headers=team.lead).json()
+    assert [(i["taskId"], i["type"], i["status"], i["sprintId"]) for i in issues] == [(code, "tech", "reported", 1)]
+    assert [r["text"] for r in issues[0]["responses"]] == ["我來看"]
+    proposals = client.get("/api/proposals", headers=team.lead).json()
+    assert [(p["title"], p["taskId"], p["status"], p["sprintId"]) for p in proposals] == [("新想法", code, "open", 1)]
+    assert [c["text"] for c in proposals[0]["comments"]] == ["同意"]
+    plans = client.get("/api/execution-plans", headers=team.lead).json()
+    assert [p["taskId"] for p in plans] == [code]
+    assert client.get(f"/api/tasks/{code}/execution-plan", headers=team.lead).json()["taskId"] == code
+    assert client.get("/api/tasks/S-999/execution-plan", headers=team.lead).status_code == 404
+
+    # 同一個人的另一個專案看不到這些資料
+    pid = client.post("/api/projects", headers=bearer(make_token()), json={"name": "另一個", "prefix": "ot"}).json()[
+        "id"
+    ]
+    elsewhere = {**bearer(make_token()), "X-Project-Id": pid}
+    for url in ("/api/issues", "/api/proposals", "/api/execution-plans"):
+        assert client.get(url, headers=elsewhere).json() == [], url

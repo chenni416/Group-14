@@ -68,7 +68,7 @@ def get_project(me: CurrentMember, store: Store, db: Db, project_id: ProjectId =
     current = projects.current_membership(db, member_id, project_id)
     if current is None:
         raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
-    return projects.to_schema(current[0])
+    return projects.to_schema(current[0], db)
 
 
 @router.patch("/project", operation_id="workspace.updateProject", summary="修改專案設定", response_model=Project)
@@ -82,7 +82,7 @@ def update_project(
     current = projects.current_membership(db, member_id, project_id)
     if current is None:
         raise ApiError("還沒有專案，請先建立專案", status=404, code="NO_PROJECT")
-    return projects.to_schema(projects.update_project(db, current[0], body))
+    return projects.to_schema(projects.update_project(db, current[0], body), db)
 
 
 @router.delete("/project", operation_id="workspace.deleteProject", summary="刪除目前的專案（Leader）", status_code=204)

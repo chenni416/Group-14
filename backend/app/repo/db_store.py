@@ -264,10 +264,9 @@ def load(db: Session, project_id: uuid.UUID, *, lock: bool = False) -> tuple[Mem
         sprint = _sprint_schema(r)
         store.sprints[r.number] = sprint
         snap.sprints[r.number] = _dump(sprint)
-        if r.status == "active":
-            store.active_sprint_id = r.number
-        elif r.status == "planning":
-            store.planning_sprint_id = r.number
+    store.active_sprint_id, store.planning_sprint_id = projects.current_sprint_numbers(
+        [(r.number, r.status) for r in sprint_rows]
+    )
 
     task_rows = db.scalars(select(TaskRow).where(TaskRow.project_id == project_id).order_by(TaskRow.code)).all()
     code_of = {r.id: r.code for r in task_rows}
