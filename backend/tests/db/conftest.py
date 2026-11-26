@@ -22,7 +22,8 @@ from app.db.session import get_db
 from app.main import app
 
 LOCAL_PORT = os.environ.get("TASKLINE_DB_PORT", "5433")
-DEFAULT_URL = f"postgresql+psycopg://taskline:taskline@localhost:{LOCAL_PORT}/taskline_test"
+# 用 127.0.0.1 而不是 localhost：Windows 會先試 IPv6（::1），每次連線要多等約 15 秒才退回 IPv4
+DEFAULT_URL = f"postgresql+psycopg://taskline:taskline@127.0.0.1:{LOCAL_PORT}/taskline_test"
 SAFE_HOSTS = {"localhost", "127.0.0.1", "postgres", "db"}
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

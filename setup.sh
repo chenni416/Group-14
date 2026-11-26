@@ -229,7 +229,7 @@ fi
 DB_URL="$(env_value "$BACKEND_ENV" DATABASE_URL)"
 if [[ "$DB_URL" == postgresql://* || "$DB_URL" == postgres://* ]]; then
   DB_URL="postgresql+psycopg://${DB_URL#*://}"
-  [[ "$DB_URL" == *"sslmode="* || "$DB_URL" == *"localhost"* ]] || DB_URL="${DB_URL}$([[ "$DB_URL" == *"?"* ]] && echo "&" || echo "?")sslmode=require"
+  [[ "$DB_URL" == *"sslmode="* || "$DB_URL" == *"localhost"* || "$DB_URL" == *"127.0.0.1"* ]] || DB_URL="${DB_URL}$([[ "$DB_URL" == *"?"* ]] && echo "&" || echo "?")sslmode=require"
   set_env "$BACKEND_ENV" DATABASE_URL "$DB_URL"
   ok "DATABASE_URL 已轉換為 postgresql+psycopg:// 格式"
 fi
