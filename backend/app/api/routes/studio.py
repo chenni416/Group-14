@@ -11,8 +11,8 @@
 from fastapi import APIRouter
 
 from app.ai.llm import Llm
+from app.api.deps import ProjectStore
 from app.core.auth import CurrentMember
-from app.repo import Store
 from app.schemas.collab import AskBody, ChatMessage, PromptState, PromptVersionBody
 from app.services import task_flow
 
@@ -25,7 +25,7 @@ router = APIRouter(tags=["Prompt 與對話"])
     summary="Living Prompt（僅任務負責人）",
     response_model=PromptState,
 )
-async def get_prompt(task_id: str, store: Store, me: CurrentMember) -> PromptState:
+async def get_prompt(task_id: str, store: ProjectStore, me: CurrentMember) -> PromptState:
     return task_flow.get_prompt(store, task_id, me)
 
 
@@ -35,7 +35,9 @@ async def get_prompt(task_id: str, store: Store, me: CurrentMember) -> PromptSta
     summary="切換 Prompt 版本（僅任務負責人）",
     response_model=PromptState,
 )
-async def set_prompt_version(task_id: str, body: PromptVersionBody, store: Store, me: CurrentMember) -> PromptState:
+async def set_prompt_version(
+    task_id: str, body: PromptVersionBody, store: ProjectStore, me: CurrentMember
+) -> PromptState:
     return task_flow.set_prompt_version(store, task_id, body.version, me)
 
 
@@ -45,7 +47,7 @@ async def set_prompt_version(task_id: str, body: PromptVersionBody, store: Store
     summary="專案脈絡助理對話紀錄（僅任務負責人）",
     response_model=list[ChatMessage],
 )
-async def get_chat(task_id: str, store: Store, me: CurrentMember) -> list[ChatMessage]:
+async def get_chat(task_id: str, store: ProjectStore, me: CurrentMember) -> list[ChatMessage]:
     return task_flow.get_chat(store, task_id, me)
 
 
@@ -55,5 +57,5 @@ async def get_chat(task_id: str, store: Store, me: CurrentMember) -> list[ChatMe
     summary="詢問專案脈絡助理（僅任務負責人）",
     response_model=ChatMessage,
 )
-def ask(task_id: str, body: AskBody, store: Store, me: CurrentMember, llm: Llm) -> ChatMessage:
+def ask(task_id: str, body: AskBody, store: ProjectStore, me: CurrentMember, llm: Llm) -> ChatMessage:
     return task_flow.ask(store, task_id, body.question, me, llm)

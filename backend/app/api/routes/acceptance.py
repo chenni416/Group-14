@@ -10,8 +10,8 @@
 from fastapi import APIRouter
 
 from app.ai.llm import Llm
+from app.api.deps import ProjectStore
 from app.core.errors import not_implemented
-from app.repo import Store
 from app.schemas.acceptance import AcceptanceCheck, AcceptanceRecord
 from app.services import task_flow
 
@@ -24,7 +24,7 @@ router = APIRouter(tags=["驗收"])
     summary="AI 驗收檢查",
     response_model=AcceptanceCheck,
 )
-def check(task_id: str, store: Store, llm: Llm) -> AcceptanceCheck:
+def check(task_id: str, store: ProjectStore, llm: Llm) -> AcceptanceCheck:
     return task_flow.check_acceptance(store, task_id, llm)
 
 

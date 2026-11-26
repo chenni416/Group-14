@@ -155,20 +155,20 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
-| GET | `/api/sprints` | `sprints.list` | 已實作 | 記憶體 | 無 |
-| GET | `/api/sprints/defaults` | `sprints.defaults` | 已實作 | 記憶體 | 無 |
-| POST | `/api/sprints` | `sprints.create` | 已實作 | 記憶體 | Leader |
-| PATCH | `/api/sprints/{sprint_id}` | `sprints.update` | 已實作 | 記憶體 | Leader |
-| POST | `/api/sprints/{sprint_id}/docs` | `sprints.addDocs` | 已實作 | 記憶體 | Leader |
-| POST | `/api/sprints/{sprint_id}/analyze` | `sprints.analyze` | 已實作 | 記憶體 | Leader |
-| PUT | `/api/sprints/{sprint_id}/questions/{question_id}` | `sprints.answer` | 已實作 | 記憶體 | Leader |
+| GET | `/api/sprints` | `sprints.list` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
+| GET | `/api/sprints/defaults` | `sprints.defaults` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
+| POST | `/api/sprints` | `sprints.create` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
+| PATCH | `/api/sprints/{sprint_id}` | `sprints.update` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
+| POST | `/api/sprints/{sprint_id}/docs` | `sprints.addDocs` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
+| POST | `/api/sprints/{sprint_id}/analyze` | `sprints.analyze` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
+| PUT | `/api/sprints/{sprint_id}/questions/{question_id}` | `sprints.answer` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
 | POST | `/api/sprints/{sprint_id}/end` | `sprints.end` | 501 | — | 無 |
 | POST | `/api/sprints/{sprint_id}/start` | `sprints.start` | 501 | — | 無 |
 | GET | `/api/sprints/{sprint_id}/burndown` | `sprints.burndown` | 501 | — | 無 |
-| GET | `/api/backlog` | `sprints.backlog` | 已實作 | 記憶體 | 無 |
-| PUT | `/api/backlog/{id}/decision` | `sprints.decideBacklog` | 已實作 | 記憶體 | Leader |
-| DELETE | `/api/backlog/{id}` | `sprints.removeBacklog` | 已實作 | 記憶體 | Leader |
-| GET | `/api/sprints/{sprint_id}/dependencies` | `sprints.dependencies` | 已實作 | 記憶體 | 無 |
+| GET | `/api/backlog` | `sprints.backlog` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
+| PUT | `/api/backlog/{id}/decision` | `sprints.decideBacklog` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
+| DELETE | `/api/backlog/{id}` | `sprints.removeBacklog` | 已實作 | 資料庫＋記憶體（依身分） | Leader |
+| GET | `/api/sprints/{sprint_id}/dependencies` | `sprints.dependencies` | 已實作 | 資料庫＋記憶體（依身分） | 登入 |
 
 ## studio（4／4 已實作）
 

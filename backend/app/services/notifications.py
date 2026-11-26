@@ -19,6 +19,7 @@ from app.models import Project as ProjectRow
 from app.models import ProjectInvitation as InvitationRow
 from app.models import ProjectJoinRequest as RequestRow
 from app.models import ProjectMember as ProjectMemberRow
+from app.models import Task as TaskRow
 from app.schemas.collab import Notification
 
 LIST_LIMIT = 50
@@ -118,13 +119,20 @@ def list_mine(db: Session, member_id: uuid.UUID) -> list[Notification]:
     result = []
     for row in rows:
         link, project_id = _target(db, row)
+        task_code = ""
+        if (
+            row.task_id is not None
+        ):  # 任務通知：API 的任務 id 是任務編號（code），並帶上任務所在的專案，前端才能切換過去
+            task = db.get(TaskRow, row.task_id)
+            if task is not None:
+                task_code, project_id = task.code, str(task.project_id)
         result.append(
             Notification(
                 id=str(row.id),
                 to_id=str(row.recipient_member_id),
                 from_id=str(row.sender_member_id or ""),
                 type=row.type,
-                task_id=str(row.task_id or ""),
+                task_id=task_code,
                 ref_id=str(row.ref_id) if row.ref_id else None,
                 text=row.text,
                 created_at=row.created_at.isoformat(),
