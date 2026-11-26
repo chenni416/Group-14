@@ -29,7 +29,7 @@ from app.schemas.task import (
     Task,
     UpdateTaskInput,
 )
-from app.services import planning_flow, task_edit_flow
+from app.services import planning_flow, task_edit_flow, task_lifecycle
 
 router = APIRouter(tags=["任務"])
 
@@ -142,32 +142,32 @@ async def revise(id: str, body: ReviseTaskInput) -> Task:
 
 
 @router.post("/tasks/{id}/accept", operation_id="tasks.accept", summary="成員接受任務", response_model=Task)
-async def accept(id: str) -> Task:
-    raise not_implemented("tasks.accept")
+def accept(id: str, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_lifecycle.accept(store, me, id)
 
 
 @router.post("/tasks/{id}/negotiate", operation_id="tasks.negotiate", summary="成員協商退回", response_model=Task)
-async def negotiate(id: str, body: NegotiateInput) -> Task:
-    raise not_implemented("tasks.negotiate")
+def negotiate(id: str, body: NegotiateInput, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_lifecycle.negotiate(store, me, id, body)
 
 
 @router.post(
     "/tasks/{id}/review/claim", operation_id="tasks.claimReview", summary="認領公共池的審查", response_model=Task
 )
-async def claim_review(id: str) -> Task:
-    raise not_implemented("tasks.claimReview")
+def claim_review(id: str, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_lifecycle.claim_review(store, me, id)
 
 
 @router.post("/tasks/{id}/start", operation_id="tasks.startDevelopment", summary="開始開發", response_model=Task)
-async def start_development(id: str) -> Task:
-    raise not_implemented("tasks.startDevelopment")
+def start_development(id: str, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_lifecycle.start_development(store, me, id)
 
 
 @router.post(
     "/tasks/{id}/review", operation_id="tasks.submitForReview", summary="送審並提交交付內容", response_model=Task
 )
-async def submit_for_review(id: str, body: SubmitDeliveryInput | None = None) -> Task:
-    raise not_implemented("tasks.submitForReview")
+def submit_for_review(id: str, store: ProjectStore, me: CurrentMember, body: SubmitDeliveryInput | None = None) -> Task:
+    return task_lifecycle.submit_for_review(store, me, id, body)
 
 
 @router.post(
@@ -176,15 +176,15 @@ async def submit_for_review(id: str, body: SubmitDeliveryInput | None = None) ->
     summary="核准審查；帶入 items 時一併記錄逐條驗收判斷",
     response_model=ReviewResult,
 )
-async def approve_review(id: str, body: ApproveReviewBody) -> ReviewResult:
-    raise not_implemented("tasks.approveReview")
+def approve_review(id: str, body: ApproveReviewBody, store: ProjectStore, me: CurrentMember) -> ReviewResult:
+    return task_lifecycle.approve_review(store, me, id, body)
 
 
 @router.post(
     "/tasks/{id}/review/request-changes", operation_id="tasks.requestChanges", summary="要求修改", response_model=Task
 )
-async def request_changes(id: str, body: RequestChangesBody) -> Task:
-    raise not_implemented("tasks.requestChanges")
+def request_changes(id: str, body: RequestChangesBody, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_lifecycle.request_changes(store, me, id, body)
 
 
 @router.post(
