@@ -9,9 +9,9 @@
 from fastapi import APIRouter
 
 from app.ai.llm import Llm
+from app.api.deps import ProjectStore
 from app.core.auth import CurrentMember, require_leader
 from app.core.errors import not_implemented
-from app.repo import Store
 from app.schemas.acceptance import SubmitDeliveryInput
 from app.schemas.project import ReviewPolicy
 from app.schemas.task import (
@@ -35,24 +35,24 @@ router = APIRouter(tags=["任務"])
 
 
 @router.get("/tasks", operation_id="tasks.list", summary="任務列表", response_model=list[Task])
-async def list_tasks(store: Store) -> list[Task]:
+async def list_tasks(store: ProjectStore) -> list[Task]:
     return task_edit_flow.list_tasks(store)
 
 
 @router.post("/tasks", operation_id="tasks.create", summary="新增任務", response_model=Task)
-async def create(body: CreateTaskInput, store: Store, me: CurrentMember) -> Task:
+async def create(body: CreateTaskInput, store: ProjectStore, me: CurrentMember) -> Task:
     require_leader(me)
     return task_edit_flow.create_task(store, body)
 
 
 @router.patch("/tasks/{id}", operation_id="tasks.update", summary="修改任務", response_model=Task)
-async def update(id: str, body: UpdateTaskInput, store: Store, me: CurrentMember) -> Task:
+async def update(id: str, body: UpdateTaskInput, store: ProjectStore, me: CurrentMember) -> Task:
     require_leader(me)
     return task_edit_flow.update_task(store, id, body)
 
 
 @router.delete("/tasks/{id}", operation_id="tasks.remove", summary="刪除任務", status_code=204)
-async def remove(id: str, store: Store, me: CurrentMember) -> None:
+async def remove(id: str, store: ProjectStore, me: CurrentMember) -> None:
     require_leader(me)
     task_edit_flow.remove_task(store, id)
 
@@ -63,7 +63,7 @@ async def remove(id: str, store: Store, me: CurrentMember) -> None:
     summary="核准所有草稿並發送指派邀請（先做核准前檢查），回傳數量",
     response_model=CountResult,
 )
-async def approve_drafts(store: Store, me: CurrentMember) -> CountResult:
+async def approve_drafts(store: ProjectStore, me: CurrentMember) -> CountResult:
     require_leader(me)
     return CountResult(count=task_edit_flow.approve_drafts(store, me))
 
@@ -71,13 +71,13 @@ async def approve_drafts(store: Store, me: CurrentMember) -> CountResult:
 @router.post(
     "/tasks/{id}/defer", operation_id="tasks.defer", summary="延後到下個 Sprint（記錄到延續事項）", response_model=Task
 )
-async def defer(id: str, store: Store, me: CurrentMember) -> Task:
+async def defer(id: str, store: ProjectStore, me: CurrentMember) -> Task:
     require_leader(me)
     return task_edit_flow.defer(store, me, id)
 
 
 @router.post("/tasks/{id}/restore", operation_id="tasks.restore", summary="取消延後", response_model=Task)
-async def restore(id: str, store: Store, me: CurrentMember) -> Task:
+async def restore(id: str, store: ProjectStore, me: CurrentMember) -> Task:
     require_leader(me)
     return task_edit_flow.restore(store, id)
 
@@ -85,7 +85,7 @@ async def restore(id: str, store: Store, me: CurrentMember) -> Task:
 @router.put(
     "/tasks/{id}/carry", operation_id="tasks.setCarry", summary="上輪未完成任務：帶入本輪或延後", response_model=Task
 )
-async def set_carry(id: str, body: SetCarryInput, store: Store, me: CurrentMember) -> Task:
+async def set_carry(id: str, body: SetCarryInput, store: ProjectStore, me: CurrentMember) -> Task:
     require_leader(me)
     return task_edit_flow.set_carry(store, id, body)
 
@@ -116,7 +116,7 @@ async def resend(id: str) -> ResendResult:
     summary="協商退回：AI 重新建議負責人（排除提出協商的成員）",
     response_model=SuggestAssigneeResult,
 )
-def suggest_assignee(id: str, store: Store, me: CurrentMember, llm: Llm) -> SuggestAssigneeResult:
+def suggest_assignee(id: str, store: ProjectStore, me: CurrentMember, llm: Llm) -> SuggestAssigneeResult:
     require_leader(me)
     return planning_flow.suggest_assignee(store, id, llm)
 
