@@ -416,3 +416,103 @@ Week 12 Lab 第二組的審查：系統沒有考慮極端案例，例如有人�
 - 採用率的定義與取得方式
 - 5 個無需登入且含 OpenAI 呼叫的端點是否在部署前修正
 - 是否補開「AI 無法使用時」的 issue 並做決定
+
+## 附錄 K：已完成任務、對應分支與分支建立者
+
+> 資料截至 2026-11-26。來源：GitHub PR 列表（分支名稱、作者）、GitHub 事件紀錄（`CreateEvent`，實際建立分支的帳號）、git 紀錄。
+> **「建立者」的判斷方式：** 標「事件」＝GitHub 事件紀錄中建立該分支的帳號，可靠。標「PR 作者」＝該分支不在事件紀錄中（事件 API 只保留近期），以開 PR 的人推定，通常等於建立者，但並非 100% 確定。標「首個 commit」＝分支獨有的第一個 commit 的作者。
+> 帳號對照：胡甄倪＝chenni416、林念慈＝NienTL、葉沛鑫＝leafs2、許家寧＝ning415415。
+> 「建立者」不等於「完成的人」：有些分支由一人建立、另一人接續 commit，此表沒有逐一區分。
+
+### K1 前端與介面
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| Sprint 規劃 UI 設計 | — | `docs/sprint-planning-ui`、`ui/sprint-planning` | 許家寧（事件） |
+| 成員角色畫面 | — | `ui/member-role-views` | 葉沛鑫（事件） |
+| 成員執行流程畫面 | — | `ui/member_execution_flow` | 胡甄倪（事件） |
+| 示意專案、多專案切換、GitHub 登入頁 | — | `ui/Veronica` | 林念慈（最後 commit 者，非事件） |
+| 整合完整前端 mock 版（Sprint 到回顧） | #8 | `ui/integration` | 葉沛鑫（事件） |
+| 新使用者歡迎頁、刪除專案、移出成員 | #23 | `feat/new-user-welcome` | 葉沛鑫（事件） |
+| 統一建立專案與專案設定版面 | #28 | `fix/project-settings-layout` | 葉沛鑫（事件） |
+| 修正建立專案後跳回舊專案、邀請介面 | #30 | `fix/invite-dialog` | 葉沛鑫（事件） |
+
+### K2 後端、登入與基礎架構
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| FastAPI 後端、docs、docker-compose、CI | #9 | `chore/project-structure` | 葉沛鑫（事件） |
+| Supabase GitHub 登入、`setup.sh`、`dev.sh` | #11 | `feat/github-login` | 葉沛鑫（事件） |
+| 修 CI 的 401 失敗 | #14 | `fix/ci-failure` | 胡甄倪（PR 作者） |
+| 接 OpenAI、規劃流程路由、AI 稽核紀錄 | #16 | `feat/backend-ai-openai` | 胡甄倪（事件） |
+| 改用 Transaction pooler | #31 | `fix/db-connection-pool` | 葉沛鑫（事件） |
+| 開發環境 CORS 放行本機任何 port | #40 | `feat/cors-localhost-any-port` | 胡甄倪（PR 作者） |
+
+### K3 資料庫
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| GitHub 整合 8 張資料表 | #12 | `feat/database` | 林念慈（事件） |
+| sprints、documents、backlog_items 與 `database.md` | #13 | `feat/database-sprints` | 林念慈（PR 作者） |
+| tasks 與 task_dependencies | #15 | `feat/database-tasks` | 林念慈（事件） |
+| 執行、協作、驗收、回顧共 13 張表 | #17 | `feat/database-execution` | 林念慈（事件） |
+| 專案初始化與組織設定改存資料表 | #22 | `feat/project-onboarding` | 林念慈（事件） |
+| Sprint、任務、規劃、通知改存資料庫（階段 1） | #38 | `feat/phase1-sprint-db` | 胡甄倪（PR 作者） |
+| 任務生命週期與 Sprint 啟動／結束（階段 2） | #39 | `feat/phase2-lifecycle` | 胡甄倪（PR 作者） |
+
+### K4 GitHub 整合與邀請
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| 以 GitHub 帳號邀請成員 | #26 | `feat/github-invitations` | 林念慈（事件） |
+| 邀請碼、建立專案流程的邀請、通知 | #29 | `feat/join-codes` | 林念慈（事件） |
+| 透過 GitHub App 連結 repo | #27 | `feat/github-repo-connect` | 葉沛鑫（PR 作者） |
+
+### K5 AI 與 prompt
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| Prompt v0.2、規劃流程修正 | #10 | `feat/ai-prompts-v0.2` | 許家寧（事件） |
+| 惡意會議紀錄測試與三輪修正 | #33 | `test/malicious-minutes` | 許家寧（PR 作者） |
+
+### K6 環境與架構整理
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| 架構整理階段 0 | #34 | `refactor/architecture-phase0` | 胡甄倪（首個 commit） |
+| 繁中 Windows 遷移與 DB 測試修正 | #35 | `fix/windows-local-env` | 胡甄倪（首個 commit） |
+| `X-Project-Id` 明確報錯 | #36 | `fix/project-id-explicit-error` | 胡甄倪（PR 作者） |
+| 環境一致性 | #37 | `chore/env-consistency` | 胡甄倪（PR 作者） |
+| 整併 #36–#39 | #41 | `integration/phase0-to-2` | 胡甄倪（PR 作者） |
+
+### K7 文件與流程
+
+| 任務 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| PR 範本 | #5 | `NienTL-patch-1` | 林念慈（PR 作者） |
+| 第一筆 Decision | #6 | `NienTL-patch-1-1` | 林念慈（PR 作者） |
+| DECISION 改名為 DECISIONS | #7 | `NienTL-patch-2` | 林念慈（PR 作者） |
+| 改用課程 PR 範本 | #18 | `chore/pr-template` | 許家寧（事件） |
+| AI 使用規範 v1.1 | #24 | `docs/ai-guidelines-week12` | 許家寧（事件） |
+| 記錄 steward 交接 | #25 | `docs/steward-handoff` | 許家寧（PR 作者） |
+| 補錄 DECISIONS（open） | #42 | `docs/decisions-backfill` | 胡甄倪（PR 作者） |
+| 期中評估報告（open） | #43 | `docs/evaluation-report-interim` | 胡甄倪（PR 作者） |
+
+### K8 未合併
+
+| 內容 | PR | 分支 | 建立者 |
+|---|---|---|---|
+| 連線池大小限制（被 #31 取代） | #32，已關閉 | `fix/db-pool-size` | 胡甄倪（事件） |
+| 練習用（CONTRIBUTORS.md） | #1 已關閉、#2–#4 已合併 | `leaf-test`、`jennifer-test`、`ning-test`、`NienTL-test` | 各自（PR 作者） |
+| 展示版 | — | `Group-14-demo` | 胡甄倪（事件） |
+
+### K9 各成員實質程式碼分布（摘自 K1–K6，供協作評分引用）
+
+| 成員 | 領域 | 代表 PR |
+|---|---|---|
+| 林念慈 | 資料庫、成員邀請 | #12、#13、#15、#17、#22、#26、#29 |
+| 葉沛鑫 | 前端、GitHub 登入與 repo 連結、後端基礎 | #8、#9、#11、#23、#27、#28、#30、#31 |
+| 胡甄倪 | 後端 AI 串接、環境、資料庫存取與任務生命週期 | #14、#16、#34、#35、#36、#37、#38、#39、#40、#41 |
+| 許家寧 | AI prompt 與測試、規範與流程文件 | #10、#33（程式與測試）；#18、#24、#25（文件） |
+
+> 「實質程式碼」是我們的判斷，不是課程標準；許家寧的實質程式碼 PR 目前為 2 個（#10、#33），剛好達到 CP2 的個人門檻。
