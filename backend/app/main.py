@@ -9,6 +9,9 @@ from app.api.routes import api_router
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 
+# 開發環境放行任何本機的 port（vite 被占用時會自動換成 5174、5175…），不必逐一加進 CORS_ORIGINS
+LOCAL_ORIGIN = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
+
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -20,6 +23,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=LOCAL_ORIGIN if settings.app_env == "development" else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

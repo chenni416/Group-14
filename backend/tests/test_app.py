@@ -17,6 +17,37 @@ def test_health() -> None:
     assert res.json()["status"] == "ok"
 
 
+def _preflight(test_client: TestClient, origin: str) -> int:
+    res = test_client.options("/api/health", headers={"Origin": origin, "Access-Control-Request-Method": "GET"})
+    return res.status_code
+
+
+def test_cors_allows_any_local_port_in_development() -> None:
+    for origin in ("http://localhost:5173", "http://localhost:5180", "http://127.0.0.1:3000", "http://localhost"):
+        assert _preflight(client, origin) == 200, origin
+
+
+def test_cors_rejects_non_local_origin_in_development() -> None:
+    for origin in ("http://evil.example.com", "http://localhost.evil.com:5173", "https://localhost:5173"):
+        assert _preflight(client, origin) == 400, origin
+
+
+def test_cors_production_only_allows_listed_origins(monkeypatch) -> None:
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("APP_ENV", "production")
+    get_settings.cache_clear()
+    try:
+        from app.main import create_app
+
+        prod = TestClient(create_app())
+        assert _preflight(prod, "http://localhost:5173") == 200  # 清單內
+        assert _preflight(prod, "http://localhost:5180") == 400  # 清單外的本機 port 不放行
+    finally:
+        monkeypatch.undo()
+        get_settings.cache_clear()
+
+
 def test_not_implemented_uses_error_format() -> None:
     res = client.get("/api/issues")  # 規劃流程以外的端點仍未實作
     assert res.status_code == 501
