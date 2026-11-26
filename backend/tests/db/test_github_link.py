@@ -238,10 +238,13 @@ def test_only_leader_with_git_integration_can_link(db: Session) -> None:
     pid = create(gitIntegration=False, repo=None)
     res = client.get("/api/github/install-url", headers=headers(OWNER, pid))
     assert (res.status_code, res.json()["code"]) == (422, "GIT_INTEGRATION_OFF")
-    # 一般成員（還沒有專案）不能連結
+    # 不是這個專案的成員（還沒有專案）：用別人專案的 id 呼叫會被明確拒絕，不會連結任何專案
     client.get("/api/me", headers=bearer(OTHER))
     res = client.get("/api/github/install-url", headers=headers(OTHER, pid))
-    assert res.status_code == 404
+    assert (res.status_code, res.json()["code"]) == (403, "PROJECT_ACCESS_DENIED")
+    # 沒有指定專案、也沒有任何專案時：找不到專案
+    res = client.get("/api/github/install-url", headers=bearer(OTHER))
+    assert (res.status_code, res.json()["code"]) == (404, "NO_PROJECT")
 
 
 def test_not_configured(db: Session, monkeypatch: pytest.MonkeyPatch) -> None:

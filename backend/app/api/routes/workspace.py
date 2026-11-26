@@ -10,7 +10,7 @@
 from fastapi import APIRouter
 
 from app.api.deps import Db, ProjectId
-from app.core.auth import CurrentMember, require_leader
+from app.core.auth import AccountMember, CurrentMember, require_leader
 from app.core.errors import ApiError
 from app.repo import Store
 from app.schemas.project import (
@@ -43,7 +43,7 @@ def get_organization(me: CurrentMember, store: Store, db: Db, project_id: Projec
 @router.get(
     "/projects", operation_id="workspace.listProjects", summary="我參與的專案", response_model=list[ProjectSummary]
 )
-def list_projects(me: CurrentMember, store: Store, db: Db) -> list[ProjectSummary]:
+def list_projects(me: AccountMember, store: Store, db: Db) -> list[ProjectSummary]:
     member_id = projects.parse_uuid(me.id)
     if member_id is None:
         # 示範成員：只有一個假專案
@@ -53,7 +53,7 @@ def list_projects(me: CurrentMember, store: Store, db: Db) -> list[ProjectSummar
 
 
 @router.post("/projects", operation_id="workspace.createProject", summary="建立專案", response_model=ProjectSummary)
-def create_project(body: CreateProjectInput, me: CurrentMember, db: Db) -> ProjectSummary:
+def create_project(body: CreateProjectInput, me: AccountMember, db: Db) -> ProjectSummary:
     member_id = projects.parse_uuid(me.id)
     if member_id is None:
         raise ApiError("示範身分無法建立專案，請以 GitHub 登入", status=400, code="NOT_A_GITHUB_MEMBER")
@@ -86,7 +86,9 @@ def update_project(
 
 
 @router.delete("/project", operation_id="workspace.deleteProject", summary="刪除目前的專案（Leader）", status_code=204)
-def delete_project(body: DeleteProjectInput, me: CurrentMember, db: Db, project_id: ProjectId = None) -> None:
+def delete_project(body: DeleteProjectInput, me: AccountMember, db: Db, project_id: ProjectId = None) -> None:
+    # 用 AccountMember：刪除一定要明確指定專案，並由 services.projects.delete_project 自己檢查
+    # （找不到、格式錯誤、不是成員都回 404；不是 Leader 回 403），不使用「最近加入的專案」
     member_id = projects.parse_uuid(me.id)
     if member_id is None:
         raise ApiError("示範資料無法刪除專案，請以 GitHub 登入", status=400, code="NOT_A_GITHUB_MEMBER")

@@ -10,7 +10,7 @@
 from fastapi import APIRouter
 
 from app.api.deps import Db
-from app.core.auth import CurrentMember
+from app.core.auth import AccountMember
 from app.repo import Store
 from app.schemas.collab import Notification
 from app.services import notifications, projects, workspace_flow
@@ -21,7 +21,7 @@ router = APIRouter(tags=["通知"])
 @router.get(
     "/notifications", operation_id="notifications.list", summary="目前登入者的通知", response_model=list[Notification]
 )
-def list_notifications(store: Store, me: CurrentMember, db: Db) -> list[Notification]:
+def list_notifications(store: Store, me: AccountMember, db: Db) -> list[Notification]:
     member_id = projects.parse_uuid(me.id)
     if member_id is None:
         return workspace_flow.list_notifications(store, me)
@@ -31,14 +31,14 @@ def list_notifications(store: Store, me: CurrentMember, db: Db) -> list[Notifica
 @router.post(
     "/notifications/read-all", operation_id="notifications.markAllRead", summary="全部標為已讀", status_code=204
 )
-def mark_all_read(me: CurrentMember, db: Db) -> None:
+def mark_all_read(me: AccountMember, db: Db) -> None:
     member_id = projects.parse_uuid(me.id)
     if member_id is not None:
         notifications.mark_all_read(db, member_id)
 
 
 @router.post("/notifications/{id}/read", operation_id="notifications.markRead", summary="標為已讀", status_code=204)
-def mark_read(id: str, me: CurrentMember, db: Db) -> None:
+def mark_read(id: str, me: AccountMember, db: Db) -> None:
     member_id = projects.parse_uuid(me.id)
     if member_id is not None:
         notifications.mark_read(db, member_id, id)

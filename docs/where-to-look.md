@@ -31,7 +31,8 @@
 | **500，訊息有「錯誤代碼 xxxx」** | 在後端日誌搜尋 `rid=xxxx`，會有完整的例外與 traceback（`app/core/observability.py`）。每個回應都有 `X-Request-Id` 標頭，瀏覽器開發者工具的 Network 可以看到 |
 | 登入後立刻被登出、一直 401 | `app/core/auth.py` 的 `verify_token`；錯誤碼 `TOKEN_EXPIRED`、`INVALID_TOKEN`、`AUTH_UNAVAILABLE`。確認 `backend/.env` 的 `SUPABASE_URL` 與前端是同一個專案（[auth.md](auth.md)）。前端收到 401 會自動登出（`frontend/src/services/http/client.ts`） |
 | 403 `FORBIDDEN` | `core/auth.py` 的 `require_leader`：角色取自目前專案的 `project_members`。GitHub 連結的 Leader 檢查在 `services/github_link.py` |
-| 404 `NO_PROJECT`，或**畫面是 A 專案、資料卻是 B 專案** | 前端送的 `X-Project-Id` 無效或你不是成員時，後端會改用「最近加入的專案」（`services/projects.py` 的 `current_membership`），日誌會有 `project fallback`。前端的目前專案在 `frontend/src/stores/project.store.ts` |
+| 404 `NO_PROJECT` | 你還沒有任何專案（`services/projects.py` 的 `current_membership`） |
+| 403 `PROJECT_ACCESS_DENIED`、400 `INVALID_PROJECT_ID` | 前端送的 `X-Project-Id` 指向已刪除的專案、你已不是成員，或格式不是 uuid。**後端不會偷偷改用別的專案**。前端收到後會自動清掉目前專案、重新讀取並提示（`frontend/src/lib/projectRecovery.ts`、`app/providers.tsx`）。帳號層級的端點（`/me`、專案清單、邀請、通知）不檢查這個標頭，見 [api-status.md](api-status.md) 的「登入（帳號）」。目前專案存在 `frontend/src/stores/project.store.ts`（只有真正的 uuid 才會送出） |
 | 501 `NOT_IMPLEMENTED` | 該端點還沒實作，見 [api-status.md](api-status.md) |
 | 資料重啟後不見了、不同專案看到同一份資料 | 該端點用的是記憶體資料層（`app/repo/memory.py`），看 api-status 的「資料來源」 |
 | `remaining connection slots`、`prepared statement ... does not exist` | `DATABASE_URL` 要用 port 6543（`app/db/session.py`、[database.md](database.md) 第 8 節） |
@@ -49,7 +50,7 @@
 
 ```
 INFO  app.request  rid=3f9a1c2b7d40 GET /api/projects 200 18ms
-WARNING app.services.projects project fallback：member=… 指定的專案 '…' 無效或不是成員，改用最近加入的專案
+INFO  app.request  rid=8d21e07c55aa GET /api/project 403 9ms        （PROJECT_ACCESS_DENIED：專案已不存在或不是成員）
 WARNING app.request rid=ab12cd34ef56 POST /api/planning/drafts 502 4210ms
 ERROR app.request rid=… POST … 未處理的例外        （後面接完整 traceback）
 ```
