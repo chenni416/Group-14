@@ -1,0 +1,16 @@
+# 換行符號：不論使用者的 core.autocrlf 設定（Windows 的 Git 預設是 true），檢出的文字檔一律是 LF。
+#
+# 為什麼：setup.sh、dev.sh 若被轉成 CRLF，在 WSL／Linux／macOS 會直接失敗：
+#   env: 'bash\r': No such file or directory
+#   syntax error near unexpected token `$'in\r''
+# （Git Bash 剛好容忍 CRLF，所以只在 WSL 才看得到）。.env.example、alembic.ini、Dockerfile 也一樣會被 shell 或工具讀到。
+#
+# 已經用 CRLF 檢出的人：合併後執行 `git add --renormalize . && git checkout -- .`（沒有未提交的修改時），
+# 或執行 ./doctor.sh 看建議。
+* text=auto eol=lf
+
+# 一定是 LF：會被 bash、Docker 或 Alembic 直接讀取的檔案
+*.sh text eol=lf
+Dockerfile text eol=lf
+.env.example text eol=lf
+*.ini text eol=lf

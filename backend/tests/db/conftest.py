@@ -42,7 +42,11 @@ def _test_url() -> str:
 def _ensure_database(url: str) -> None:
     """測試資料庫不存在時自動建立（docker-compose 預設只有 taskline 資料庫）"""
     parsed = make_url(url)
-    admin = create_engine(parsed.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    # connect_timeout：資料庫沒開時，連線可能不是立刻被拒絕，而是卡到系統的 TCP 逾時
+    # （實測在 WSL 的轉送網路下要 130 秒）。設短一點，沒有本機資料庫時整個 tests/db 幾秒內就略過
+    admin = create_engine(
+        parsed.set(database="postgres"), isolation_level="AUTOCOMMIT", connect_args={"connect_timeout": 5}
+    )
     try:
         with admin.connect() as conn:
             exists = conn.scalar(text("select 1 from pg_database where datname = :n"), {"n": parsed.database})
@@ -67,7 +71,9 @@ def db_engine() -> Iterator[Engine]:
     except OperationalError:
         if os.environ.get("CI"):
             raise
-        pytest.skip("需要本機的測試資料庫：開啟 Docker Desktop 後在 repo 根目錄執行 docker compose up -d")
+        pytest.skip(
+            "需要本機的測試資料庫：在 repo 根目錄執行 docker compose up -d（Docker Desktop 或 WSL 裡的 Docker 都可以）"
+        )
 
     engine = create_engine(url)
     with engine.begin() as conn:

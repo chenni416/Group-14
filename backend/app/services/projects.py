@@ -5,7 +5,6 @@
 - 開發用的示範成員（X-Demo-User）不經過這裡，繼續使用 MemoryStore
 """
 
-import logging
 import re
 import uuid
 from datetime import UTC, datetime
@@ -17,6 +16,7 @@ from app.core.errors import ApiError
 from app.models import Member as MemberRow
 from app.models import Project as ProjectRow
 from app.models import ProjectMember as ProjectMemberRow
+from app.models import Sprint as SprintRow
 from app.schemas.member import Member, UpdateMemberInput
 from app.schemas.project import (
     CreateProjectInput,
@@ -27,8 +27,6 @@ from app.schemas.project import (
     Team,
     UpdateProjectInput,
 )
-
-log = logging.getLogger(__name__)
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
 DEFAULT_SPRINT_LENGTH = "2 週"
@@ -91,24 +89,34 @@ def list_my_projects(db: Session, member_id: uuid.UUID) -> list[ProjectSummary]:
 
 
 def current_membership(
-    db: Session, member_id: uuid.UUID, project_id: str | None
+    db: Session, member_id: uuid.UUID, project_id: str | None, *, strict: bool = True
 ) -> tuple[ProjectRow, ProjectMemberRow] | None:
-    """目前的專案與我在專案中的設定；指定的專案無效或我不是成員時，改用最近加入的專案。都沒有時回傳 None"""
+    """目前的專案與我在專案中的設定。
+
+    - 沒有指定專案（沒有帶 X-Project-Id）：使用最近加入的專案；都沒有時回傳 None
+    - 指定了專案：只用那個專案，**不會偷偷改用別的專案**
+      - 格式不是 uuid：400 INVALID_PROJECT_ID
+      - 專案不存在或我不是成員：403 PROJECT_ACCESS_DENIED（兩種情況回應相同，不洩漏專案是否存在）
+    - strict=False（只給帳號層級的端點用，例如 /me、專案清單、邀請、通知）：指定的專案無效時不報錯，回傳 None
+      （這些端點是前端從「專案失效」復原時要呼叫的，不能跟著失敗）
+    """
     query = (
         select(ProjectRow, ProjectMemberRow)
         .join(ProjectMemberRow, ProjectMemberRow.project_id == ProjectRow.id)
         .where(ProjectMemberRow.member_id == member_id)
     )
-    wanted = parse_uuid(project_id)
-    if wanted is not None:
+    if project_id and project_id.strip():
+        wanted = parse_uuid(project_id.strip())
+        if wanted is None:
+            if strict:
+                raise ApiError("專案代碼格式不正確", status=400, code="INVALID_PROJECT_ID")
+            return None
         row = db.execute(query.where(ProjectRow.id == wanted)).first()
         if row is not None:
             return row[0], row[1]
-    if project_id:
-        # 前端指定了專案，但無效或不是成員：改用最近加入的專案。畫面與資料對不上時，從這行日誌找原因
-        log.warning(
-            "project fallback：member=%s 指定的專案 %r 無效或不是成員，改用最近加入的專案", member_id, project_id
-        )
+        if strict:
+            raise ApiError("你不是這個專案的成員，或專案已不存在", status=403, code="PROJECT_ACCESS_DENIED")
+        return None
     row = db.execute(query.order_by(ProjectMemberRow.joined_at.desc()).limit(1)).first()
     return (row[0], row[1]) if row is not None else None
 
@@ -304,8 +312,31 @@ def organization_of(db: Session, project: ProjectRow) -> Organization:
     )
 
 
-def to_schema(row: ProjectRow) -> Project:
-    """轉成前端的 Project；Sprint 尚未改用資料表，先以 0 表示沒有進行中的 Sprint"""
+def current_sprint_numbers(sprints: list[tuple[int, str]]) -> tuple[int, int | None]:
+    """(目前的 Sprint 編號, 規劃中的 Sprint 編號)。
+
+    目前的 Sprint ＝ 進行中的；沒有進行中時是最近一個已結束的（編號最大）。Sprint 結束後到下一個 Sprint 啟動前，
+    前端的 Active Board 仍顯示剛結束的 Sprint（看完成度、做回顧），所以不能是 0。沒有任何 Sprint 或都還在規劃時為 0
+    """
+    active = next((n for n, status in sprints if status == "active"), 0)
+    if not active:
+        active = max((n for n, status in sprints if status == "closed"), default=0)
+    planning = next((n for n, status in sprints if status == "planning"), None)
+    return active, planning
+
+
+def to_schema(row: ProjectRow, db: Session | None = None) -> Project:
+    """轉成前端的 Project。
+
+    進行中、規劃中的 Sprint 編號由 sprints 資料表決定（每個專案各最多一個）；沒有給 db 時視為沒有
+    （只有載入 MemoryStore 時這樣用，之後會由 MemoryStore.current_project 以 Sprint 狀態補上）。
+    前端用 planningSprintId 判斷「規劃進行到哪、重新整理後要回到哪個 Sprint」，所以這裡一定要正確。
+    """
+    active, planning = 0, None
+    if db is not None:
+        active, planning = current_sprint_numbers(
+            list(db.execute(select(SprintRow.number, SprintRow.status).where(SprintRow.project_id == row.id)))
+        )
     return Project(
         name=row.name,
         goal=row.goal,
@@ -318,6 +349,6 @@ def to_schema(row: ProjectRow) -> Project:
         git_integration=row.git_integration,
         github_link_status=row.github_link_status,
         github_repo_url=row.github_repo_url or "",
-        active_sprint_id=0,
-        planning_sprint_id=None,
+        active_sprint_id=active,
+        planning_sprint_id=planning,
     )

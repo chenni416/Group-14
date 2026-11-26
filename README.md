@@ -11,6 +11,7 @@ Group-14/
 ├── docs/                架構說明、API 實作狀態、「出問題先看哪裡」對照表
 ├── setup.sh             第一次使用的初始化腳本
 ├── dev.sh               啟動前端（mock）或前後端（full）
+├── doctor.sh            環境檢查：找出這台電腦上會讓腳本或後端出問題的地方，並說明怎麼修
 ├── docker-compose.yml   本機資料庫（選用，預設使用雲端 Supabase）
 └── .github/             CI、PR 範本與決策紀錄
 ```
@@ -29,7 +30,8 @@ cd Group-14
 ```
 
 事前只需要自己安裝 **Git** 與 **Node.js 22 以上**；uv（Python 套件管理）會由 `setup.sh` 詢問後自動安裝。
-Windows 請在 Git Bash 或 WSL 執行這兩個腳本。
+Windows 請在 Git Bash 或 WSL 執行這兩個腳本，注意事項見下方 [Windows 使用者](#windows-使用者)。
+**遇到任何問題，先執行 `./doctor.sh`**：它會檢查這台電腦的環境並說明怎麼修。
 
 ## 腳本說明
 
@@ -81,6 +83,29 @@ Supabase 與 GitHub 登入的團隊設定（整個團隊只需做一次，已完
 - `full` 模式會先檢查 Supabase 設定，缺少時會提示重新執行 `./setup.sh`
 - 後端尚未實作的功能會顯示「尚未實作」，屬於正常狀況
 
+### `doctor.sh`：環境檢查
+
+```bash
+./doctor.sh            # 完整檢查（含連到 Supabase 與資料庫）
+./doctor.sh --offline  # 只檢查這台電腦本身，不連網路
+```
+
+檢查工具版本（Git、Node.js 22 以上、uv；Docker 選用）、腳本的換行符號、`alembic.ini` 的編碼、設定檔欄位有沒有填（**只顯示欄位名稱，不顯示內容**）、
+前後端是不是同一個 Supabase 專案、後端程式能不能載入（有沒有被 Windows 的「應用程式控制」擋下）、port 8000／5173 有沒有被占用、
+資料庫連得上嗎（應用程式用的連線與遷移用的連線都會測）、資料表遷移是不是最新。
+每個問題都會說明原因與修法。只讀取、不修改任何檔案。
+
+## Windows 使用者
+
+| 項目 | 說明 |
+|---|---|
+| 在哪裡執行 | **Git Bash**（安裝 Git for Windows 就有）最簡單；也可以用 WSL |
+| 用 WSL | 專案請 clone 在 WSL 的家目錄（`cd ~ && git clone <repo 網址>`），**不要放在 `/mnt/c/...`**：那裡檔案讀寫很慢，換行符號也容易出問題。WSL 裡要自己裝 Node.js 22 以上（apt 預設的版本通常太舊）與 uv |
+| 本機資料庫（選用） | **不需要 Docker Desktop**，WSL 裡的 Docker 就可以：在 WSL 的專案資料夾執行 `docker compose up -d db`，Windows 端連 `127.0.0.1:5433`（已在 `.wslconfig` 設 `networkingMode=mirrored` 的機器上實測；預設模式通常也可以，連不上時 `./doctor.sh` 會說明）。只用雲端 Supabase 時完全不需要 |
+| 資料庫位址 | 本機資料庫一律寫 `127.0.0.1`，**不要寫 `localhost`**：Windows 會先試 IPv6（`::1`），每次連線實測多等約 15 秒 |
+| 換行符號 | repo 有 `.gitattributes`，檢出的腳本一律是 LF。**如果你在這個設定加入前就 clone 了**，腳本可能還是 CRLF，在 WSL 會出現 `env: 'bash\r': No such file or directory`：`git pull` 後執行 `./doctor.sh`，它會告訴你怎麼修 |
+| 繁體中文系統 | Python 的預設編碼是 cp950，而 Alembic 讀 `backend/alembic.ini` 時用的是系統編碼（`PYTHONUTF8=1` 也沒用），所以這個檔案請維持純 ASCII（有測試守著），否則 `alembic upgrade` 會 `UnicodeDecodeError` |
+
 ## 日常開發
 
 ```bash
@@ -92,10 +117,10 @@ git pull          # 先同步 main 的最新內容
 後端有一部分測試需要資料庫（`backend/tests/db`），使用本機 Docker 的 Postgres，**不會連到共用的 Supabase**：
 
 ```bash
-docker compose up -d     # 先開啟 Docker Desktop；本機 Postgres 在 port 5433
+docker compose up -d     # 本機 Postgres 在 port 5433（Docker Desktop，或 WSL 裡的 Docker 都可以）
 ```
 
-沒有啟動時這些測試會自動略過；CI 上會使用自己的 Postgres 服務一律執行。
+沒有啟動時這些測試會在幾秒內自動略過；CI 上會使用自己的 Postgres 服務一律執行。
 
 發 PR 前先在本機跑一次 CI 會檢查的項目：
 
@@ -108,6 +133,11 @@ cd backend && uv run ruff check . && uv run ruff format --check . && uv run pyte
 
 | 狀況 | 解決方式 |
 |---|---|
+| 不確定問題在哪 | 執行 `./doctor.sh`（見上方說明） |
+| `env: 'bash\r': No such file or directory`、`syntax error near unexpected token $'in\r''` | 腳本是 CRLF（Windows 換行）。`git pull` 後執行 `./doctor.sh`，它會告訴你怎麼修 |
+| `UnicodeDecodeError: 'cp950' codec can't decode…`（執行 alembic 時） | `alembic.ini` 含中文註解；已改成 ASCII，`git pull` 即可 |
+| `Failed to spawn: uvicorn … An Application Control policy has blocked this file (os error 4551)` | Windows 的「應用程式控制」（Smart App Control 或 WDAC）擋下新建立的未簽章執行檔。`./dev.sh` 已改用 `python -m uvicorn` 避開；其他檔案也被擋時 `./doctor.sh` 會說明，不想更動安全性設定可改在 WSL 開發 |
+| 資料庫測試跑很久、像當掉 | 本機資料庫位址要用 `127.0.0.1`；沒有本機資料庫時應該在幾秒內略過，若不是請 `git pull` |
 | `permission denied: ./setup.sh` | 執行 `chmod +x setup.sh dev.sh` |
 | `uv: command not found` | 安裝後要重新開啟終端機；仍然找不到時，依安裝程式最後的提示把路徑加入 PATH |
 | `brew install uv` 跑了很久 | 部分 macOS 版本會從原始碼編譯，改用 `./setup.sh` 或官方安裝程式 `curl -LsSf https://astral.sh/uv/install.sh \| sh` |

@@ -9,7 +9,8 @@
 - 狀態：函式內呼叫 `not_implemented(` → 501；只對部分身分 `raise ApiError(code="NOT_IMPLEMENTED")` → 部分實作；
   其餘為已實作
 - 資料來源：參數型別含 `Db` → 資料庫；含 `Store` → 記憶體（MemoryStore）；兩者都有 → 兩者（依登入身分分岔）
-- 驗證：參數型別含 `CurrentMember`／`CurrentUser` → 需登入；函式內呼叫 `require_leader` 或 `_leader_project` → Leader；
+- 驗證：參數型別含 `AccountMember` → 登入（帳號層級）；含 `CurrentMember`／`CurrentUser` → 登入（專案範圍）；
+  函式內呼叫 `require_leader` 或 `_leader_project` → Leader；
   都沒有 → 無（任何人可呼叫）
 """
 
@@ -79,6 +80,8 @@ def collect() -> list[Route]:
             )
             if any(c in body for c in LEADER_CALLS):
                 auth = "Leader"
+            elif "AccountMember" in annotations:
+                auth = "登入（帳號）"
             elif "CurrentMember" in annotations or "CurrentUser" in annotations:
                 auth = "登入"
             else:
@@ -103,7 +106,10 @@ def render(routes: list[Route]) -> str:
         "|---|---|",
         "| 資料來源 | 資料庫＝讀寫 Supabase／Postgres 資料表；記憶體＝`MemoryStore`（全域、不分專案、重啟即重置）；"
         "「資料庫＋記憶體」＝GitHub 登入的成員走資料庫、`X-Demo-User` 示範成員走記憶體 |",
-        "| 驗證 | 無＝不需要登入（任何人可呼叫）；登入＝需要有效的 Supabase token；Leader＝另外要求專案角色為 Leader |",
+        "| 驗證 | 無＝不需要登入（任何人可呼叫）；"
+        "登入＝需要有效的 Supabase token，且 `X-Project-Id` 若有帶，必須是我所屬的專案"
+        "（否則 400／403）；登入（帳號）＝帳號層級的端點（`/me`、專案清單、邀請、通知），不檢查 `X-Project-Id`；"
+        "Leader＝另外要求專案角色為 Leader |",
         "",
         "GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py` 內，所以這裡顯示為「登入」。",
         "",

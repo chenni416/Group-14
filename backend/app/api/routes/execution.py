@@ -12,9 +12,9 @@ from datetime import date
 from fastapi import APIRouter
 
 from app.ai.llm import Llm
+from app.api.deps import ProjectStore
 from app.core.auth import CurrentMember
 from app.core.errors import not_implemented
-from app.repo import Store
 from app.schemas.collab import ExecutionPlan, SaveExecutionPlanInput
 from app.services import task_flow
 
@@ -24,8 +24,8 @@ router = APIRouter(tags=["執行計畫"])
 @router.get(
     "/execution-plans", operation_id="execution.list", summary="所有執行計畫", response_model=list[ExecutionPlan]
 )
-async def list_execution() -> list[ExecutionPlan]:
-    raise not_implemented("execution.list")
+def list_execution(store: ProjectStore, me: CurrentMember) -> list[ExecutionPlan]:
+    return list(store.plans.values())
 
 
 @router.get(
@@ -34,8 +34,9 @@ async def list_execution() -> list[ExecutionPlan]:
     summary="單一任務的執行計畫；沒有時回傳 null",
     response_model=ExecutionPlan | None,
 )
-async def get_execution(task_id: str) -> ExecutionPlan | None:
-    raise not_implemented("execution.get")
+def get_execution(task_id: str, store: ProjectStore, me: CurrentMember) -> ExecutionPlan | None:
+    store.find_task(task_id)  # 任務不存在時回 404
+    return store.plans.get(task_id)
 
 
 @router.post(
@@ -44,7 +45,7 @@ async def get_execution(task_id: str) -> ExecutionPlan | None:
     summary="AI 依任務規格、依賴與專案文件產生計畫建議",
     response_model=ExecutionPlan,
 )
-def suggest(task_id: str, store: Store, me: CurrentMember, llm: Llm) -> ExecutionPlan:
+def suggest(task_id: str, store: ProjectStore, me: CurrentMember, llm: Llm) -> ExecutionPlan:
     return task_flow.suggest_execution_plan(store, task_id, me, llm, date.today())
 
 

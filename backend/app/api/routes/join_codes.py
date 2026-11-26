@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
 from app.api.deps import Db, ProjectId
-from app.core.auth import CurrentMember, require_leader
+from app.core.auth import AccountMember, CurrentMember, require_leader
 from app.core.errors import ApiError
 from app.schemas.join_code import CreateJoinCodeInput, JoinCode, JoinRequest, SubmitJoinCodeInput
 from app.services import join_codes, projects
@@ -101,14 +101,14 @@ def reject(id: str, me: CurrentMember, db: Db, project_id: ProjectId = None) -> 
 @router.post(
     "/join-requests", operation_id="joinCodes.submit", summary="輸入邀請碼送出加入申請", response_model=JoinRequest
 )
-def submit(body: SubmitJoinCodeInput, me: CurrentMember, db: Db) -> JoinRequest:
+def submit(body: SubmitJoinCodeInput, me: AccountMember, db: Db) -> JoinRequest:
     return join_codes.submit_request(db, _github_member(me), body.code)
 
 
 @router.get(
     "/join-requests/mine", operation_id="joinCodes.mine", summary="我送出的加入申請", response_model=list[JoinRequest]
 )
-def my_requests(me: CurrentMember, db: Db) -> list[JoinRequest]:
+def my_requests(me: AccountMember, db: Db) -> list[JoinRequest]:
     member_id = projects.parse_uuid(me.id)
     if member_id is None:
         return []
@@ -116,5 +116,5 @@ def my_requests(me: CurrentMember, db: Db) -> list[JoinRequest]:
 
 
 @router.delete("/join-requests/{id}", operation_id="joinCodes.cancel", summary="取消我的加入申請", status_code=204)
-def cancel(id: str, me: CurrentMember, db: Db) -> None:
+def cancel(id: str, me: AccountMember, db: Db) -> None:
     join_codes.cancel_my_request(db, _github_member(me), id)
