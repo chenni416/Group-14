@@ -17,8 +17,16 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Taskline API",
         version="0.1.0",
-        description="前端 frontend/src/services/contracts.ts 對應的後端 API。尚未實作的端點回傳 501。",
+        description=(
+            "前端 frontend/src/services/contracts.ts 對應的後端 API。"
+            "每個端點是否已實作、資料來源與是否需要登入，見 docs/api-status.md；尚未實作的端點回傳 501。"
+        ),
     )
+    # add_middleware 越晚加入越外層。順序（由內到外）：request id → AI 稽核 → CORS。
+    # CORS 必須在最外層：RequestIdMiddleware 遇到未處理的例外會自己送出 500 JSON，
+    # 如果它在 CORS 外面，這個回應沒有 Access-Control-Allow-Origin，瀏覽器會擋掉，前端讀不到錯誤代碼
+    app.add_middleware(RequestIdMiddleware)  # 每個請求的 request id 與請求日誌
+    app.add_middleware(audit.AuditMiddleware)  # AI 呼叫稽核紀錄（app/ai/audit.py）
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -27,8 +35,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Request-Id"],  # 讓前端讀得到錯誤對應的 request id
     )
-    app.add_middleware(audit.AuditMiddleware)  # AI 呼叫稽核紀錄（app/ai/audit.py）
-    app.add_middleware(RequestIdMiddleware)  # 最後加入 = 最外層：每個請求的 request id 與請求日誌
     register_error_handlers(app)
 
     @app.get(f"{settings.api_prefix}/health", tags=["系統"], operation_id="system.health")

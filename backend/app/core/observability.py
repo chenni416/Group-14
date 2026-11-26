@@ -45,7 +45,11 @@ def current_request_id() -> str | None:
 
 
 class RequestIdMiddleware:
-    """純 ASGI middleware：設定 request id、加回應標頭、記錄請求結果。需放在最外層"""
+    """純 ASGI middleware：設定 request id、加回應標頭、記錄請求結果。
+
+    要放在 CORSMiddleware 裡面（CORS 在最外層）：未處理的例外由這裡送出 500 JSON，
+    如果在 CORS 外面，這個回應沒有 CORS 標頭，瀏覽器會擋掉，前端讀不到錯誤代碼與 X-Request-Id
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
