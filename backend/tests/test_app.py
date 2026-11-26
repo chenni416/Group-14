@@ -24,7 +24,7 @@ def test_not_implemented_uses_error_format() -> None:
 
 
 def test_validation_error_uses_error_format() -> None:
-    res = client.post("/api/tasks/S-221/negotiate", json={})
+    res = client.post("/api/tasks/S-221/negotiate", json={}, headers={"X-Demo-User": "m3"})
     assert res.status_code == 422
     assert res.json()["code"] == "VALIDATION_ERROR"
 
