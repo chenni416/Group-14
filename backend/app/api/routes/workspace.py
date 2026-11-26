@@ -7,14 +7,11 @@
 - frontend/src/services/mock/workspace.ts
 """
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends, Header
-from sqlalchemy.orm import Session
-
+from app.api.deps import Db, ProjectId
 from app.core.auth import CurrentMember, require_leader
 from app.core.errors import ApiError
-from app.db.session import get_db
 from app.repo import Store
 from app.schemas.project import (
     CreateProjectInput,
@@ -27,10 +24,6 @@ from app.schemas.project import (
 from app.services import projects, workspace_flow
 
 router = APIRouter(tags=["組織與專案"])
-
-Db = Annotated[Session, Depends(get_db)]
-ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
-"""前端目前選擇的專案；沒有帶或無效時使用最近加入的專案"""
 
 
 @router.get(

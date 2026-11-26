@@ -3,7 +3,7 @@
 前端 mock 實作（規則可直接當規格移植）：
 - frontend/src/services/mock/tasks.ts
 
-目前只定義路徑與輸入輸出格式，呼叫時回傳 501。實作時把 raise 換成 app/services 裡的商業邏輯。
+各端點是否已實作、資料來源（資料庫或記憶體）與是否需要登入，見 docs/api-status.md（由 scripts/route_status.py 產生）。
 """
 
 from fastapi import APIRouter

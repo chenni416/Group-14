@@ -280,7 +280,7 @@ S-212 | AI | 5 點 | 狀態 IN_REVIEW | AI 任務拆解 Prompt 設計
 uv run uvicorn app.main:app --reload
 ```
 
-開發環境不帶 Authorization 即為 Leader，規劃類端點可直接呼叫；Prompt 與對話只限任務負責人，需加標頭 `X-Demo-User: m3`。種子資料的規劃中 Sprint 是 Sprint 3，會議紀錄已預先填好，流程順序為：
+開發環境（`APP_ENV=development`）可用假登入標頭：Leader 加 `X-Demo-User: m1`，規劃類端點需要 Leader；Prompt 與對話只限任務負責人，需加 `X-Demo-User: m3`。不帶 Authorization 也不帶 `X-Demo-User` 會回 401。種子資料的規劃中 Sprint 是 Sprint 3，會議紀錄已預先填好，流程順序為：
 
 1. `POST /api/sprints/3/analyze`（body：`{"minutes": "…"}`）
 2. `PUT /api/sprints/3/questions/{id}`（逐題回答）

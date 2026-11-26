@@ -5,6 +5,7 @@
 - 開發用的示範成員（X-Demo-User）不經過這裡，繼續使用 MemoryStore
 """
 
+import logging
 import re
 import uuid
 from datetime import UTC, datetime
@@ -26,6 +27,8 @@ from app.schemas.project import (
     Team,
     UpdateProjectInput,
 )
+
+log = logging.getLogger(__name__)
 
 DEFAULT_BRANCH_PATTERN = "{類型}/S{Sprint}{Story}{Task}-{摘要}"
 DEFAULT_SPRINT_LENGTH = "2 週"
@@ -101,6 +104,11 @@ def current_membership(
         row = db.execute(query.where(ProjectRow.id == wanted)).first()
         if row is not None:
             return row[0], row[1]
+    if project_id:
+        # 前端指定了專案，但無效或不是成員：改用最近加入的專案。畫面與資料對不上時，從這行日誌找原因
+        log.warning(
+            "project fallback：member=%s 指定的專案 %r 無效或不是成員，改用最近加入的專案", member_id, project_id
+        )
     row = db.execute(query.order_by(ProjectMemberRow.joined_at.desc()).limit(1)).first()
     return (row[0], row[1]) if row is not None else None
 

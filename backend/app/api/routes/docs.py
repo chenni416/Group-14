@@ -9,21 +9,15 @@
 - 搜尋還沒有 RAG，兩者都回傳固定的示意結果
 """
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends, Header
-from sqlalchemy.orm import Session
-
+from app.api.deps import Db, ProjectId
 from app.core.auth import CurrentMember, require_leader
-from app.db.session import get_db
 from app.repo import Store
 from app.schemas.project import AddLinkBody, KnowledgeDoc, SearchHit, UploadDocsBody
 from app.services import documents, projects, workspace_flow
 
 router = APIRouter(tags=["知識庫文件"])
-
-Db = Annotated[Session, Depends(get_db)]
-ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
 
 
 @router.get("/docs", operation_id="docs.list", summary="專案文件列表", response_model=list[KnowledgeDoc])

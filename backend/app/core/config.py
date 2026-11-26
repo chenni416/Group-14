@@ -55,13 +55,6 @@ class Settings(BaseSettings):
     # 留空表示不記錄；紀錄含會議紀錄等使用者資料，檔案已加入 .gitignore，不要提交
     ai_log_path: str = "logs/ai-calls.jsonl"
 
-    # LLM：Anthropic API（舊的客戶端 app/ai/client.py，保留備用）
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-opus-5-5"
-
-    # 背景工作
-    redis_url: str = "redis://localhost:6379/0"
-
     # GitHub App（同步 PR 狀態）
     github_app_id: str = ""
     github_app_slug: str = ""

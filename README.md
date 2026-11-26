@@ -7,8 +7,8 @@
 ```
 Group-14/
 ├── frontend/            React + TypeScript + Vite（完整的 mock 模式，可獨立運作）
-├── backend/             Python FastAPI（目前為架構，端點回傳 501）
-├── docs/                架構說明與 API 對照表
+├── backend/             Python FastAPI（端點的實作狀態見 docs/api-status.md）
+├── docs/                架構說明、API 實作狀態、「出問題先看哪裡」對照表
 ├── setup.sh             第一次使用的初始化腳本
 ├── dev.sh               啟動前端（mock）或前後端（full）
 ├── docker-compose.yml   本機資料庫（選用，預設使用雲端 Supabase）
@@ -147,7 +147,7 @@ uv run uvicorn app.main:app --reload
 | 後端 | Python 3.12、FastAPI、SQLAlchemy 2、Alembic、uv |
 | 資料庫 | PostgreSQL（雲端使用 Supabase） |
 | 登入 | Supabase Auth（GitHub 登入） |
-| AI | Anthropic API |
+| AI | OpenAI API（`gpt-4.1`，結構化輸出） |
 | 版本與審查 | GitHub Pull Request（見 [DECISIONS.md](DECISIONS.md)） |
 
 完整的架構與原因見 [docs/architecture.md](docs/architecture.md)。
@@ -161,6 +161,8 @@ uv run uvicorn app.main:app --reload
 
 ## 相關文件
 
+- [docs/where-to-look.md](docs/where-to-look.md)：除錯與修改時，從症狀找到對應的檔案
+- [docs/api-status.md](docs/api-status.md)：每個 API 端點是否已實作、資料來源、是否需要登入
 - [DECISIONS.md](DECISIONS.md)：專案決策紀錄
 - [CONTRIBUTORS.md](CONTRIBUTORS.md)：成員
 - [Problem_Grounding_and_Evaluation_Plan_Draft.md](Problem_Grounding_and_Evaluation_Plan_Draft.md)：問題定義與評估計畫

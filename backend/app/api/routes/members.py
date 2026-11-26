@@ -8,22 +8,18 @@
 """
 
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
+from app.api.deps import Db, ProjectId
 from app.core.auth import CurrentMember, require_leader
 from app.core.errors import ApiError
-from app.db.session import get_db
 from app.repo import Store
 from app.schemas.member import InviteMemberInput, Member, UpdateMemberInput
 from app.services import projects, workspace_flow
 
 router = APIRouter(tags=["成員"])
-
-Db = Annotated[Session, Depends(get_db)]
-ProjectId = Annotated[str | None, Header(alias="X-Project-Id")]
 
 
 def _current_project_id(db: Session, me: CurrentMember, project_id: str | None) -> uuid.UUID | None:
