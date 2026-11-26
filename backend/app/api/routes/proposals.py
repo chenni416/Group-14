@@ -8,15 +8,21 @@
 
 from fastapi import APIRouter
 
+from app.api.deps import Db, ProjectId
+from app.core.auth import CurrentMember
 from app.core.errors import not_implemented
 from app.schemas.collab import CreateProposalInput, DecideProposalInput, Proposal, TextBody
+from app.services import collab, projects
 
 router = APIRouter(tags=["提案"])
 
 
 @router.get("/proposals", operation_id="proposals.list", summary="提案列表", response_model=list[Proposal])
-async def list_proposals() -> list[Proposal]:
-    raise not_implemented("proposals.list")
+def list_proposals(me: CurrentMember, db: Db, project_id: ProjectId = None) -> list[Proposal]:
+    member_id = projects.parse_uuid(me.id)
+    if member_id is None:  # 示範成員（X-Demo-User）沒有提案資料
+        return []
+    return collab.list_proposals(db, projects.require_current_project_id(db, member_id, project_id))
 
 
 @router.post("/proposals", operation_id="proposals.create", summary="新增提案（通知 Leader）", response_model=Proposal)

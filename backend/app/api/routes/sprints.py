@@ -16,7 +16,7 @@ from fastapi import APIRouter
 from sqlalchemy.orm import Session
 
 from app.ai.llm import Llm
-from app.api.deps import Db, ProjectId
+from app.api.deps import Db, ProjectId, ProjectStore
 from app.core.auth import CurrentMember, require_leader
 from app.core.errors import not_implemented
 from app.repo import Store
@@ -37,7 +37,7 @@ from app.schemas.sprint import (
     StartSprintResult,
     UpdateSprintInput,
 )
-from app.services import planning_flow, projects, sprint_flow, sprints
+from app.services import planning_flow, projects, sprint_flow, sprints, task_lifecycle
 
 router = APIRouter(tags=["Sprint"])
 
@@ -150,8 +150,9 @@ def answer(
     summary="結束進行中的 Sprint 並開啟回顧，回傳未完成任務數",
     response_model=EndSprintResult,
 )
-async def end(sprint_id: int) -> EndSprintResult:
-    raise not_implemented("sprints.end")
+def end(sprint_id: int, store: ProjectStore, me: CurrentMember) -> EndSprintResult:
+    require_leader(me)
+    return task_lifecycle.end_sprint(store, sprint_id)
 
 
 @router.post(
@@ -160,8 +161,9 @@ async def end(sprint_id: int) -> EndSprintResult:
     summary="啟動 Sprint：上個 Sprint 的未完成任務依選擇帶入或延後",
     response_model=StartSprintResult,
 )
-async def start(sprint_id: int) -> StartSprintResult:
-    raise not_implemented("sprints.start")
+def start(sprint_id: int, store: ProjectStore, me: CurrentMember) -> StartSprintResult:
+    require_leader(me)
+    return task_lifecycle.start_sprint(store, sprint_id)
 
 
 @router.get(

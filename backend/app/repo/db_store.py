@@ -264,10 +264,9 @@ def load(db: Session, project_id: uuid.UUID, *, lock: bool = False) -> tuple[Mem
         sprint = _sprint_schema(r)
         store.sprints[r.number] = sprint
         snap.sprints[r.number] = _dump(sprint)
-        if r.status == "active":
-            store.active_sprint_id = r.number
-        elif r.status == "planning":
-            store.planning_sprint_id = r.number
+    store.active_sprint_id, store.planning_sprint_id = projects.current_sprint_numbers(
+        [(r.number, r.status) for r in sprint_rows]
+    )
 
     task_rows = db.scalars(select(TaskRow).where(TaskRow.project_id == project_id).order_by(TaskRow.code)).all()
     code_of = {r.id: r.code for r in task_rows}
@@ -377,7 +376,7 @@ def save(db: Session, store: MemoryStore, snap: Snapshot) -> None:
     sprint_rows = {r.number: r for r in db.scalars(select(SprintRow).where(SprintRow.project_id == project_id))}
     sprint_uuid = {number: r.id for number, r in sprint_rows.items()}
 
-    _save_sprints(store, snap, sprint_rows)
+    _save_sprints(db, store, snap, sprint_rows)
     task_uuid = _save_tasks(db, store, snap, sprint_uuid)
     _save_backlog(db, store, snap, sprint_rows, task_uuid)
     _save_plans(db, store, snap, task_uuid)
@@ -386,22 +385,33 @@ def save(db: Session, store: MemoryStore, snap: Snapshot) -> None:
     db.flush()
 
 
-def _save_sprints(store: MemoryStore, snap: Snapshot, rows: dict[int, SprintRow]) -> None:
-    for number, sprint in store.sprints.items():
-        row = rows.get(number)
-        if row is None or _dump(sprint) == snap.sprints.get(number):
-            continue
-        row.name = sprint.name
-        row.start_date = datetime.fromisoformat(sprint.start_date).date()
-        row.end_date = datetime.fromisoformat(sprint.end_date).date()
-        row.goal = sprint.goal
-        row.status = sprint.status
-        row.capacity = dict(sprint.capacity)
-        row.minutes = sprint.minutes
-        row.clarify_questions = [q.model_dump() for q in sprint.questions] if sprint.questions is not None else None
-        row.planning_step = sprint.step
-        row.summary = sprint.summary.model_dump() if sprint.summary else None
-        row.updated_at = datetime.now(UTC)
+def _save_sprints(db: Session, store: MemoryStore, snap: Snapshot, rows: dict[int, SprintRow]) -> None:
+    changed = [
+        (rows[number], sprint)
+        for number, sprint in store.sprints.items()
+        if number in rows and _dump(sprint) != snap.sprints.get(number)
+    ]
+    # 每個專案最多一個進行中的 Sprint（部分唯一索引，不能延後檢查）：Sprint 2 啟動時要先把 Sprint 1 改成結束，
+    # 才能把 Sprint 2 改成進行中；兩個放在同一批 UPDATE 時順序不固定，所以分兩批寫入
+    for phase_active in (False, True):
+        for row, sprint in changed:
+            if (sprint.status == "active") == phase_active:
+                _apply_sprint(row, sprint)
+        db.flush()
+
+
+def _apply_sprint(row: SprintRow, sprint: Sprint) -> None:
+    row.name = sprint.name
+    row.start_date = datetime.fromisoformat(sprint.start_date).date()
+    row.end_date = datetime.fromisoformat(sprint.end_date).date()
+    row.goal = sprint.goal
+    row.status = sprint.status
+    row.capacity = dict(sprint.capacity)
+    row.minutes = sprint.minutes
+    row.clarify_questions = [q.model_dump() for q in sprint.questions] if sprint.questions is not None else None
+    row.planning_step = sprint.step
+    row.summary = sprint.summary.model_dump() if sprint.summary else None
+    row.updated_at = datetime.now(UTC)
 
 
 def _save_tasks(

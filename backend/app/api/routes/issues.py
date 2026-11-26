@@ -9,15 +9,21 @@
 
 from fastapi import APIRouter
 
+from app.api.deps import Db, ProjectId
+from app.core.auth import CurrentMember
 from app.core.errors import not_implemented
 from app.schemas.collab import AssignIssueBody, Issue, ReportIssueInput, TextBody
+from app.services import collab, projects
 
 router = APIRouter(tags=["問題回報"])
 
 
 @router.get("/issues", operation_id="issues.list", summary="問題列表", response_model=list[Issue])
-async def list_issues() -> list[Issue]:
-    raise not_implemented("issues.list")
+def list_issues(me: CurrentMember, db: Db, project_id: ProjectId = None) -> list[Issue]:
+    member_id = projects.parse_uuid(me.id)
+    if member_id is None:  # 示範成員（X-Demo-User）沒有問題資料
+        return []
+    return collab.list_issues(db, projects.require_current_project_id(db, member_id, project_id))
 
 
 @router.post("/issues", operation_id="issues.report", summary="回報問題（系統推薦處理人並通知）", response_model=Issue)
