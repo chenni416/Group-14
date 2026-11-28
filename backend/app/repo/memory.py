@@ -12,6 +12,7 @@ from fastapi import Depends
 
 from app.ai.context import DocSnippet
 from app.core.errors import ApiError
+from app.schemas.acceptance import AcceptanceRecord
 from app.schemas.collab import ChatMessage, ExecutionPlan, Notification, NotificationType
 from app.schemas.member import Member
 from app.schemas.project import KnowledgeDoc, Organization, Project
@@ -52,6 +53,8 @@ class MemoryStore:
     knowledge_docs: list[KnowledgeDoc] = field(default_factory=list)
     """專案知識庫的文件清單（畫面用）；AI 讀的文件全文在 docs"""
     notifications: list[Notification] = field(default_factory=list)
+    records: list[AcceptanceRecord] = field(default_factory=list)
+    """驗收紀錄（只新增，不修改）"""
     seq: int = 301
 
     # ---------- 查詢 ----------

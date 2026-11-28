@@ -11,7 +11,6 @@ from fastapi import APIRouter
 
 from app.ai.llm import Llm
 from app.api.deps import ProjectStore
-from app.core.errors import not_implemented
 from app.schemas.acceptance import AcceptanceCheck, AcceptanceRecord
 from app.services import task_flow
 
@@ -34,5 +33,7 @@ def check(task_id: str, store: ProjectStore, llm: Llm) -> AcceptanceCheck:
     summary="驗收紀錄",
     response_model=list[AcceptanceRecord],
 )
-async def records(task_id: str) -> list[AcceptanceRecord]:
-    raise not_implemented("acceptance.records")
+def records(task_id: str, store: ProjectStore) -> list[AcceptanceRecord]:
+    store.find_task(task_id)
+    # 新的在前；同一秒的紀錄以新增順序為準（排序是穩定的，所以先升冪再反轉）
+    return list(reversed(sorted((r for r in store.records if r.task_id == task_id), key=lambda r: r.at)))

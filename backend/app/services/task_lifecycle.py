@@ -8,15 +8,24 @@ approveReview、requestChanges、sprints.start、sprints.end）與 mocks/handler
 - 每個動作都檢查任務目前的狀態（例如只有 PENDING_MEMBER 的任務可以接受、只有 IN_REVIEW 的可以審查）
 - 通知 Leader 時通知專案所有的 Leader（mock 只有一位）
 
-還沒做：逐條驗收紀錄（approve／request-changes 的 items，對應 acceptance.records）、
-Sprint 結束時自動建立回顧（retros）。
+審查通過與要求修改時，把逐條驗收判斷寫成驗收紀錄（`MemoryStore.records`，對應 acceptance.records）。
+
+還沒做：Sprint 結束時自動建立回顧（retros）。
 """
 
+import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
 from app.core.errors import ApiError
 from app.repo.memory import MemoryStore
-from app.schemas.acceptance import Delivery, SubmitDeliveryInput
+from app.schemas.acceptance import (
+    AcceptanceItem,
+    AcceptanceRecord,
+    Delivery,
+    ReviewItemInput,
+    SubmitDeliveryInput,
+)
 from app.schemas.member import Member
 from app.schemas.sprint import EndSprintResult, Sprint, SprintSummary, StartSprintResult
 from app.schemas.task import (
@@ -202,6 +211,35 @@ def _reviewer_only(task: Task, me: Member) -> None:
         raise ApiError("你目前不是這項任務的審查者", status=403, code="FORBIDDEN")
 
 
+def _record_acceptance(
+    store: MemoryStore,
+    task: Task,
+    me: Member,
+    decision: Literal["approved", "changes"],
+    reason: str,
+    items: list[ReviewItemInput] | None,
+) -> None:
+    """記錄這次審查的決定與逐條判斷（沒有帶 items 時，每條只記錄驗收條件本身）"""
+    criteria = task.acceptance_criteria
+    if items is not None and len(items) != len(criteria):
+        raise ApiError("逐條判斷的數量與驗收條件不一致", status=422, code="VALIDATION_ERROR")
+    given = items or [ReviewItemInput(reviewer=None, note="") for _ in criteria]
+    store.records.append(
+        AcceptanceRecord(
+            id=str(uuid.uuid4()),
+            task_id=task.id,
+            items=[
+                AcceptanceItem(ac=ac, ai=it.ai or "unclear", evidence=it.evidence, reviewer=it.reviewer, note=it.note)
+                for ac, it in zip(criteria, given, strict=True)
+            ],
+            decision=decision,
+            reason=reason,
+            reviewer_id=me.id,
+            at=datetime.now(UTC).isoformat(),  # 含微秒：同一秒內的多筆紀錄，重新載入後順序不變
+        )
+    )
+
+
 def claim_review(store: MemoryStore, me: Member, task_id: str) -> Task:
     task = store.find_task(task_id)
     _expect_state(task, ("IN_REVIEW",), "認領審查")
@@ -220,6 +258,7 @@ def claim_review(store: MemoryStore, me: Member, task_id: str) -> Task:
 def approve_review(store: MemoryStore, me: Member, task_id: str, body: ApproveReviewBody) -> ReviewResult:
     task = store.find_task(task_id)
     _reviewer_only(task, me)
+    _record_acceptance(store, task, me, "approved", "", body.items)
     policy = task.policy
     if policy.mode == "target":
         task.approvals = [*task.approvals, me.id]
@@ -240,6 +279,7 @@ def request_changes(store: MemoryStore, me: Member, task_id: str, body: RequestC
         raise ApiError("要求修改時請填寫意見", status=422, code="VALIDATION_ERROR")
     task = store.find_task(task_id)
     _reviewer_only(task, me)
+    _record_acceptance(store, task, me, "changes", note, body.items)
     task.state = "IN_PROGRESS"
     task.reviewer_id = None
     task.claimed_at = None
