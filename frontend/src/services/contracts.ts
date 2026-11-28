@@ -123,8 +123,11 @@ export interface SprintService {
   dependencies(id: number): Promise<Dependency[]>;
 }
 
-/** Reviewer 對每條驗收條件的判斷（沿用 AI 時為 null） */
-export type ReviewItemsInput = Pick<AcceptanceItem, 'reviewer' | 'note'>[];
+/**
+ * Reviewer 對每條驗收條件的判斷（沿用 AI 時為 null）。
+ * ai、evidence 是 Reviewer 審查時看到的 AI 判斷與證據，後端原樣存進驗收紀錄（AI 檢查不保存，審查時也不重算）。
+ */
+export type ReviewItemsInput = (Pick<AcceptanceItem, 'reviewer' | 'note'> & Partial<Pick<AcceptanceItem, 'ai' | 'evidence'>>)[];
 
 export interface ReviewResult {
   completed: boolean;

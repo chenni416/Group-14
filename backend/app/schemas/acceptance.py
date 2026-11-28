@@ -44,10 +44,16 @@ class AcceptanceItem(ApiModel):
 
 
 class ReviewItemInput(ApiModel):
-    """Reviewer 對每條驗收條件的判斷（沿用 AI 時 reviewer 為 null）"""
+    """Reviewer 對每條驗收條件的判斷（沿用 AI 時 reviewer 為 null）
+
+    ai、evidence 是 Reviewer 審查時看到的 AI 判斷與證據，驗收紀錄原樣保存；沒有帶時記為 unclear
+    （AI 檢查每次即時產生，不保存，審查通過時也不重新呼叫模型）。
+    """
 
     reviewer: AcVerdict | None
     note: str
+    ai: AcVerdict | None = None
+    evidence: str = ""
 
 
 class GoalMatch(ApiModel):

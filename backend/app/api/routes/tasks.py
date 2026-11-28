@@ -11,7 +11,6 @@ from fastapi import APIRouter
 from app.ai.llm import Llm
 from app.api.deps import ProjectStore
 from app.core.auth import CurrentMember, require_leader
-from app.core.errors import not_implemented
 from app.schemas.acceptance import SubmitDeliveryInput
 from app.schemas.project import ReviewPolicy
 from app.schemas.task import (
@@ -29,7 +28,7 @@ from app.schemas.task import (
     Task,
     UpdateTaskInput,
 )
-from app.services import planning_flow, task_edit_flow, task_lifecycle
+from app.services import planning_flow, task_edit_flow, task_lifecycle, task_negotiation
 
 router = APIRouter(tags=["任務"])
 
@@ -96,8 +95,9 @@ async def set_carry(id: str, body: SetCarryInput, store: ProjectStore, me: Curre
     summary="成員協商退回帶入／延後決定後，Leader 修改並重新發送",
     response_model=Task,
 )
-async def resend_carry(id: str, body: SetCarryInput) -> Task:
-    raise not_implemented("tasks.resendCarry")
+def resend_carry(id: str, body: SetCarryInput, store: ProjectStore, me: CurrentMember) -> Task:
+    require_leader(me)
+    return task_negotiation.resend_carry(store, me, id, body)
 
 
 @router.post(
@@ -106,8 +106,9 @@ async def resend_carry(id: str, body: SetCarryInput) -> Task:
     summary="協商退回：修改後發送給目前負責人",
     response_model=ResendResult,
 )
-async def resend(id: str) -> ResendResult:
-    raise not_implemented("tasks.resend")
+def resend(id: str, store: ProjectStore, me: CurrentMember) -> ResendResult:
+    require_leader(me)
+    return task_negotiation.resend(store, me, id)
 
 
 @router.post(
@@ -127,8 +128,9 @@ def suggest_assignee(id: str, store: ProjectStore, me: CurrentMember, llm: Llm) 
     summary="協商退回：復原到退回當下的內容",
     response_model=Task,
 )
-async def reset_return(id: str) -> Task:
-    raise not_implemented("tasks.resetReturn")
+def reset_return(id: str, store: ProjectStore, me: CurrentMember) -> Task:
+    require_leader(me)
+    return task_negotiation.reset_return(store, id)
 
 
 @router.put(
@@ -137,8 +139,9 @@ async def reset_return(id: str) -> Task:
     summary="協商退回後編輯任務並重新發送指派邀請",
     response_model=Task,
 )
-async def revise(id: str, body: ReviseTaskInput) -> Task:
-    raise not_implemented("tasks.revise")
+def revise(id: str, body: ReviseTaskInput, store: ProjectStore, me: CurrentMember) -> Task:
+    require_leader(me)
+    return task_negotiation.revise(store, me, id, body)
 
 
 @router.post("/tasks/{id}/accept", operation_id="tasks.accept", summary="成員接受任務", response_model=Task)
@@ -190,10 +193,10 @@ def request_changes(id: str, body: RequestChangesBody, store: ProjectStore, me: 
 @router.post(
     "/tasks/{id}/plan-confirm", operation_id="tasks.confirmPlan", summary="成員對延後或調整的回覆", response_model=Task
 )
-async def confirm_plan(id: str, body: PlanConfirmBody) -> Task:
-    raise not_implemented("tasks.confirmPlan")
+def confirm_plan(id: str, body: PlanConfirmBody, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_negotiation.confirm_plan(store, me, id, body)
 
 
 @router.put("/tasks/{id}/policy", operation_id="tasks.updatePolicy", summary="修改審查策略", response_model=Task)
-async def update_policy(id: str, body: ReviewPolicy) -> Task:
-    raise not_implemented("tasks.updatePolicy")
+def update_policy(id: str, body: ReviewPolicy, store: ProjectStore, me: CurrentMember) -> Task:
+    return task_negotiation.update_policy(store, me, id, body)

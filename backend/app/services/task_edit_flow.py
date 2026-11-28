@@ -34,7 +34,7 @@ DOMAIN_TAGS = {
 }
 
 
-def _policy(policy: ReviewPolicy) -> ReviewPolicy:
+def normalize_policy(policy: ReviewPolicy) -> ReviewPolicy:
     """只有「指定成員」模式才保留 targets"""
     return ReviewPolicy(
         mode=policy.mode, targets=list(policy.targets) if policy.mode == "target" else [], rule=policy.rule
@@ -125,7 +125,7 @@ def create_task(store: MemoryStore, body: CreateTaskInput) -> Task:
         story="Leader 新增",
         source=source,
         description=f"會議紀錄：「{source}」" if source else f"{body.title.strip()}。詳細規格見 PRD 對應章節。",
-        policy=_policy(body.policy),
+        policy=normalize_policy(body.policy),
         tags=list(DOMAIN_TAGS[body.domain]),
         acceptance_criteria=body.acceptance_criteria or ["成果與會議決議一致", *GENERIC_AC[body.domain]],
         scope=f"完成「{body.title.strip()}」，並通過上列驗收條件。",
@@ -147,7 +147,7 @@ def update_task(store: MemoryStore, task_id: str, patch: UpdateTaskInput) -> Tas
     for key in patch.model_fields_set:
         value = getattr(patch, key)
         if key == "policy" and value is not None:
-            value = _policy(value)
+            value = normalize_policy(value)
         if value is not None:
             setattr(task, key, value)
     task.edited = True
@@ -216,6 +216,12 @@ def set_carry(store: MemoryStore, task_id: str, body: SetCarryInput) -> Task:
     unfinished = task.state in ("TODO", "IN_PROGRESS", "IN_REVIEW")
     if task.sprint_id != _closing_sprint_id(store) or not unfinished:
         raise ApiError("只有上一輪未完成的任務可以帶入或延後")
+    apply_carry(store, task, body)
+    return task
+
+
+def apply_carry(store: MemoryStore, task: Task, body: SetCarryInput) -> None:
+    """把帶入或延後的決定寫進任務（不檢查任務狀態；呼叫端負責）"""
     if body.assignee_id:
         store.find_member(body.assignee_id)
     if body.points is not None and not 1 <= body.points <= CARRY_POINTS_MAX:
@@ -224,12 +230,11 @@ def set_carry(store: MemoryStore, task_id: str, body: SetCarryInput) -> Task:
     if body.carry is not True:
         task.carry_assignee_id = None
         task.carry_points = None
-        return task
+        return
     if body.assignee_id is not None:
         task.carry_assignee_id = body.assignee_id if body.assignee_id and body.assignee_id != task.assignee_id else None
     if body.points is not None:
         task.carry_points = None if body.points == task.story_points else body.points
-    return task
 
 
 # ---------- 核准與送出 ----------

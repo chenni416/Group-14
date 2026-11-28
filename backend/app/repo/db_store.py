@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.context import DocSnippet
 from app.core.errors import ApiError
+from app.models import AcceptanceRecord as RecordRow
 from app.models import BacklogItem as BacklogRow
 from app.models import Document as DocumentRow
 from app.models import ExecutionPlan as PlanRow
@@ -40,7 +41,7 @@ from app.models import Task as TaskRow
 from app.models import TaskChatMessage as ChatRow
 from app.models import TaskDependency as DependencyRow
 from app.repo.memory import MemoryStore, PromptThread
-from app.schemas.acceptance import Delivery
+from app.schemas.acceptance import AcceptanceItem, AcceptanceRecord, Delivery
 from app.schemas.collab import ChatMessage, ExecutionPlan, Notification
 from app.schemas.project import ReviewPolicy
 from app.schemas.sprint import BacklogItem, ClarifyQuestion, Sprint, SprintSummary
@@ -92,6 +93,7 @@ class Snapshot:
     threads: dict[str, tuple[list[list[str]], int]] = field(default_factory=dict)
     chat: dict[str, set[str]] = field(default_factory=dict)
     notifications: dict[str, dict[str, Any]] = field(default_factory=dict)
+    records: set[str] = field(default_factory=set)
 
 
 def _dump(model: BaseModel) -> dict[str, Any]:
@@ -355,6 +357,22 @@ def load(db: Session, project_id: uuid.UUID, *, lock: bool = False) -> tuple[Mem
         store.notifications.append(note)
         snap.notifications[note.id] = _dump(note)
 
+    for rec in db.scalars(
+        select(RecordRow).where(RecordRow.task_id.in_(code_of)).order_by(RecordRow.created_at, RecordRow.id)
+    ):
+        store.records.append(
+            AcceptanceRecord(
+                id=str(rec.id),
+                task_id=code_of[rec.task_id],
+                items=[AcceptanceItem(**item) for item in rec.items],
+                decision=rec.decision,  # type: ignore[arg-type]
+                reason=rec.reason,
+                reviewer_id=str(rec.reviewer_member_id) if rec.reviewer_member_id else "",
+                at=_iso(rec.created_at) or "",
+            )
+        )
+        snap.records.add(str(rec.id))
+
     store.docs = [
         DocSnippet(name=name, text=text)
         for name, text in db.execute(
@@ -382,6 +400,7 @@ def save(db: Session, store: MemoryStore, snap: Snapshot) -> None:
     _save_plans(db, store, snap, task_uuid)
     _save_threads(db, store, snap, task_uuid)
     _save_notifications(db, store, snap, task_uuid)
+    _save_records(db, store, snap, task_uuid)
     db.flush()
 
 
@@ -572,3 +591,24 @@ def _save_notifications(db: Session, store: MemoryStore, snap: Snapshot, task_uu
             row = db.get(NotificationRow, uuid.UUID(n.id))
             if row is not None:
                 row.status = n.status
+
+
+def _save_records(db: Session, store: MemoryStore, snap: Snapshot, task_uuid: dict[str, uuid.UUID]) -> None:
+    """驗收紀錄只新增，不修改；每筆的時間用紀錄本身的時間，讓列出時的順序與發生的順序一致"""
+    for rec in store.records:
+        if rec.id in snap.records:
+            continue
+        task_id = task_uuid.get(rec.task_id)
+        if task_id is None:  # 任務已不存在
+            continue
+        db.add(
+            RecordRow(
+                id=uuid.UUID(rec.id),
+                task_id=task_id,
+                items=[_dump(item) for item in rec.items],
+                decision=rec.decision,
+                reason=rec.reason,
+                reviewer_member_id=_uuid(rec.reviewer_id),
+                created_at=_datetime(rec.at) or datetime.now(UTC),
+            )
+        )

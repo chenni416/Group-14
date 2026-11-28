@@ -2,7 +2,7 @@
 
 > 這份文件由 `backend/scripts/route_status.py` 自動產生，**不要手動修改**。新增或修改路由後執行 `uv run python scripts/route_status.py` 更新；`tests/test_api_status_doc.py` 與 CI 會檢查它是不是最新。
 
-共 116 個端點：**86 個已實作或部分實作**、30 個尚未實作（呼叫時回 `501 NOT_IMPLEMENTED`）。
+共 116 個端點：**93 個已實作或部分實作**、23 個尚未實作（呼叫時回 `501 NOT_IMPLEMENTED`）。
 
 | 欄位 | 說明 |
 |---|---|
@@ -11,12 +11,12 @@
 
 GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py` 內，所以這裡顯示為「登入」。
 
-## acceptance（1／2 已實作）
+## acceptance（2／2 已實作）
 
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
 | POST | `/api/tasks/{task_id}/acceptance/check` | `acceptance.check` | 已實作 | 記憶體 | 無 |
-| GET | `/api/tasks/{task_id}/acceptance/records` | `acceptance.records` | 501 | — | 無 |
+| GET | `/api/tasks/{task_id}/acceptance/records` | `acceptance.records` | 已實作 | 記憶體 | 無 |
 
 ## auth（2／3 已實作）
 
@@ -179,7 +179,7 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | GET | `/api/tasks/{task_id}/chat` | `studio.getChat` | 已實作 | 記憶體 | 登入 |
 | POST | `/api/tasks/{task_id}/chat` | `studio.ask` | 已實作 | 記憶體 | 登入 |
 
-## tasks（16／22 已實作）
+## tasks（22／22 已實作）
 
 | 方法 | 路徑 | operationId | 狀態 | 資料來源 | 驗證 |
 |---|---|---|---|---|---|
@@ -191,11 +191,11 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | POST | `/api/tasks/{id}/defer` | `tasks.defer` | 已實作 | 記憶體 | Leader |
 | POST | `/api/tasks/{id}/restore` | `tasks.restore` | 已實作 | 記憶體 | Leader |
 | PUT | `/api/tasks/{id}/carry` | `tasks.setCarry` | 已實作 | 記憶體 | Leader |
-| POST | `/api/tasks/{id}/carry/resend` | `tasks.resendCarry` | 501 | — | 無 |
-| POST | `/api/tasks/{id}/resend` | `tasks.resend` | 501 | — | 無 |
+| POST | `/api/tasks/{id}/carry/resend` | `tasks.resendCarry` | 已實作 | 記憶體 | Leader |
+| POST | `/api/tasks/{id}/resend` | `tasks.resend` | 已實作 | 記憶體 | Leader |
 | POST | `/api/tasks/{id}/suggest-assignee` | `tasks.suggestAssignee` | 已實作 | 記憶體 | Leader |
-| POST | `/api/tasks/{id}/reset-return` | `tasks.resetReturn` | 501 | — | 無 |
-| PUT | `/api/tasks/{id}/revise` | `tasks.revise` | 501 | — | 無 |
+| POST | `/api/tasks/{id}/reset-return` | `tasks.resetReturn` | 已實作 | 記憶體 | Leader |
+| PUT | `/api/tasks/{id}/revise` | `tasks.revise` | 已實作 | 記憶體 | Leader |
 | POST | `/api/tasks/{id}/accept` | `tasks.accept` | 已實作 | 記憶體 | 登入 |
 | POST | `/api/tasks/{id}/negotiate` | `tasks.negotiate` | 已實作 | 記憶體 | 登入 |
 | POST | `/api/tasks/{id}/review/claim` | `tasks.claimReview` | 已實作 | 記憶體 | 登入 |
@@ -203,8 +203,8 @@ GitHub 連結（`github` 群組）的 Leader 檢查在 `services/github_link.py`
 | POST | `/api/tasks/{id}/review` | `tasks.submitForReview` | 已實作 | 記憶體 | 登入 |
 | POST | `/api/tasks/{id}/review/approve` | `tasks.approveReview` | 已實作 | 記憶體 | 登入 |
 | POST | `/api/tasks/{id}/review/request-changes` | `tasks.requestChanges` | 已實作 | 記憶體 | 登入 |
-| POST | `/api/tasks/{id}/plan-confirm` | `tasks.confirmPlan` | 501 | — | 無 |
-| PUT | `/api/tasks/{id}/policy` | `tasks.updatePolicy` | 501 | — | 無 |
+| POST | `/api/tasks/{id}/plan-confirm` | `tasks.confirmPlan` | 已實作 | 記憶體 | 登入 |
+| PUT | `/api/tasks/{id}/policy` | `tasks.updatePolicy` | 已實作 | 記憶體 | 登入 |
 
 ## workspace（6／6 已實作）
 

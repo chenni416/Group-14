@@ -1,5 +1,5 @@
 import { ExternalLink, GitPullRequest, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge, Button, Callout, Card, CardHeader, EmptyState, Field, Input, Select, Skeleton, Textarea } from '@/components/ui';
 import { useAcceptanceCheck, useAcceptanceRecords, useExecutionPlans, useIssues } from '@/hooks/useCollab';
 import { useTaskActions } from '@/hooks/useTaskActions';
@@ -152,7 +152,17 @@ function VerdictBadge({ v }: { v: AcVerdict }) {
 function AcceptanceCheckCard({ task, check, editable }: { task: Task; check: AcceptanceCheck; editable: boolean }) {
   const drafts = useUiStore((s) => s.reviewDrafts[task.id]);
   const setDraft = useUiStore((s) => s.setReviewDraft);
-  const items = check.items.map((_, i) => drafts?.[i] ?? { reviewer: null, note: '' });
+  // 每條都帶上 Reviewer 目前看到的 AI 判斷與證據，核准或要求修改時一起送出，驗收紀錄才有 AI 當時的判斷
+  const items = check.items.map((c, i) => ({
+    reviewer: drafts?.[i]?.reviewer ?? null,
+    note: drafts?.[i]?.note ?? '',
+    ai: c.ai,
+    evidence: c.evidence,
+  }));
+  const stale = check.items.some((c, i) => drafts?.[i]?.ai !== c.ai || drafts?.[i]?.evidence !== c.evidence);
+  useEffect(() => {
+    if (editable && stale) setDraft(task.id, items);
+  }); // 只在 AI 檢查結果與草稿不一致時寫入一次（寫入後 stale 為 false，不會重複觸發）
   const patch = (i: number, p: Partial<{ reviewer: AcVerdict | null; note: string }>) =>
     setDraft(task.id, items.map((it, k) => (k === i ? { ...it, ...p } : it)));
   const test = TEST_STATUS[check.tests];
