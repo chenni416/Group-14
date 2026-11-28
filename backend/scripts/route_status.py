@@ -8,13 +8,17 @@
 判斷規則（寫在這裡，產生的表才看得懂）：
 - 狀態：函式內呼叫 `not_implemented(` → 501；只對部分身分 `raise ApiError(code="NOT_IMPLEMENTED")` → 部分實作；
   其餘為已實作
-- 資料來源：參數型別含 `Db` → 資料庫；含 `Store` → 記憶體（MemoryStore）；兩者都有 → 兩者（依登入身分分岔）
-- 驗證：參數型別含 `AccountMember` → 登入（帳號層級）；含 `CurrentMember`／`CurrentUser` → 登入（專案範圍）；
+- 資料來源：參數型別含 `ProjectStore`（`api/deps.py`：GitHub 登入的成員從資料庫載入專案資料、成功後寫回；
+  示範成員用記憶體）或同時含 `Db` 與 `Store` → 資料庫＋記憶體（依身分）；只含 `Db` → 資料庫；
+  只含 `Store`（全域記憶體）→ 記憶體
+- 驗證：參數型別含 `AccountMember` → 登入（帳號層級）；含 `CurrentMember`／`CurrentUser`，或含 `ProjectStore`
+  （它依賴 `CurrentMember`，並檢查 `X-Project-Id`）→ 登入（專案範圍）；
   函式內呼叫 `require_leader` 或 `_leader_project` → Leader；
   都沒有 → 無（任何人可呼叫）
 """
 
 import ast
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,10 +72,12 @@ def collect() -> list[Route]:
                 status = "部分實作"  # 某些身分可用、某些身分回 501
             else:
                 status = "已實作"
-            uses_db, uses_store = "Db" in annotations, "Store" in annotations
+            uses_project_store = re.search(r"\bProjectStore\b", annotations) is not None
+            uses_db = re.search(r"\bDb\b", annotations) is not None
+            uses_store = re.search(r"\bStore\b", annotations) is not None
             source = (
                 "資料庫＋記憶體（依身分）"
-                if uses_db and uses_store
+                if uses_project_store or (uses_db and uses_store)
                 else "資料庫"
                 if uses_db
                 else "記憶體"
@@ -82,7 +88,7 @@ def collect() -> list[Route]:
                 auth = "Leader"
             elif "AccountMember" in annotations:
                 auth = "登入（帳號）"
-            elif "CurrentMember" in annotations or "CurrentUser" in annotations:
+            elif uses_project_store or "CurrentMember" in annotations or "CurrentUser" in annotations:
                 auth = "登入"
             else:
                 auth = "無"
@@ -105,7 +111,8 @@ def render(routes: list[Route]) -> str:
         "| 欄位 | 說明 |",
         "|---|---|",
         "| 資料來源 | 資料庫＝讀寫 Supabase／Postgres 資料表；記憶體＝`MemoryStore`（全域、不分專案、重啟即重置）；"
-        "「資料庫＋記憶體」＝GitHub 登入的成員走資料庫、`X-Demo-User` 示範成員走記憶體 |",
+        "「資料庫＋記憶體」＝GitHub 登入的成員走資料庫（請求開始時載入專案資料、成功後寫回），"
+        "`X-Demo-User` 示範成員走記憶體 |",
         "| 驗證 | 無＝不需要登入（任何人可呼叫）；"
         "登入＝需要有效的 Supabase token，且 `X-Project-Id` 若有帶，必須是我所屬的專案"
         "（否則 400／403）；登入（帳號）＝帳號層級的端點（`/me`、專案清單、邀請、通知），不檢查 `X-Project-Id`；"

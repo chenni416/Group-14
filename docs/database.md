@@ -588,9 +588,19 @@ CHECK：任務不能依賴自己。可以依賴上一個 Sprint 的任務。
 | 建立專案、專案設定、成員技術特徵 | `projects`、`project_members` | ✅ 已接上 |
 | 專案知識庫 | `documents`（`sprint_id` 為空） | ✅ 已接上；檔案尚未上傳到 Storage |
 | 成員邀請（GitHub 帳號、邀請碼） | `project_invitations`、`project_join_codes`、`project_join_requests` | ✅ 已接上 |
-| 通知（邀請與加入申請） | `notifications` | ✅ 已接上；任務、審查等其他通知仍待 Sprint 與任務換成資料表 |
-| Sprint、任務、AI 規劃與執行、協作、驗收、回顧 | 其餘資料表 | ⏳ 仍使用 `app/repo/memory.py` 的 `MemoryStore` |
+| 通知 | `notifications` | ✅ 已接上（邀請、加入申請、任務派工） |
+| Sprint、任務、備忘（延後與跨 Sprint）、任務間相依 | `sprints`、`tasks`、`task_dependencies`、`backlog_items` | ✅ 已接上 |
+| 執行計畫（讀取、AI 建議） | `execution_plans` | ✅ 已接上；儲存、確認、勾選尚未實作（501） |
+| Prompt Studio | `prompt_threads`、`task_chat_messages` | ✅ 已接上 |
+| 驗收紀錄 | `acceptance_records` | ⏳ 資料表已建立，`acceptance.records` 為 501，審查通過時沒有寫入 |
+| 回顧 | `retros`、`retro_entries`、`retro_actions` | ⏳ 資料表已建立，端點全部 501 |
+| 問題回報（Blocker） | `issues`、`issue_responses` | ⏳ 資料表已建立，只有列表端點，其餘 501 |
+| 提案、留言 | `proposals`、`proposal_comments`、`task_comments` | ⏳ 資料表已建立，端點尚未實作（501） |
 | repo 綁定與進度同步 | `github_*`、`projects.github_*` | ⏳ GitHub 整合進行中 |
+
+**資料怎麼讀寫**：任務、規劃、派工、審查相關的路由透過 `ProjectStore`（`app/api/deps.py`）取得專案資料。GitHub 登入的成員：請求開始時由 `app/repo/db_store.py` 從資料庫載入目前專案的資料，請求成功結束時把有變動的部分寫回並 commit，處理中發生錯誤則不寫回；`X-Demo-User` 示範成員用 `MemoryStore`（全域、重啟即重置，僅限 development）。`db_store` 目前沒有載入與寫回上表中標示 ⏳ 的資料表，新增這些功能時要一併擴充。
+
+各端點實際使用哪一種資料來源與驗證方式，見 [api-status.md](api-status.md)（自動產生）。
 
 其他尚未處理：
 
